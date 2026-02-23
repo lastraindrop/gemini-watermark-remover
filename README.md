@@ -14,6 +14,7 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 - ✅ **Privacy-First** - Images are never uploaded to any server. Period.
 - ✅ **Mathematical Precision** - Based on the Reverse Alpha Blending formula, not "hallucinating" AI models.
 - ✅ **Auto-Detection** - Intelligent recognition of 48×48 or 96×96 watermark variants.
+- ✅ **Batch Processing** - Support for multiple file uploads and one-click processing.
 - ✅ **User Friendly** - Simple drag-and-drop interface with instant processing.
 - ✅ **Cross-Platform** - Runs smoothly on all modern web browsers.
 

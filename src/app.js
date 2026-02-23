@@ -94,9 +94,14 @@ function setupEventListeners() {
 function reset() {
     singlePreview.style.display = 'none';
     multiPreview.style.display = 'none';
+    imageQueue.forEach(item => {
+        if (item.originalUrl) URL.revokeObjectURL(item.originalUrl);
+        if (item.processedUrl) URL.revokeObjectURL(item.processedUrl);
+    });
     imageQueue = [];
     processedCount = 0;
     fileInput.value = '';
+    setStatusMessage('');
 }
 
 function handleFileSelect(e) {
@@ -149,12 +154,13 @@ async function processSingle(item) {
     try {
         const img = await loadImage(item.file);
         item.originalImg = img;
+        item.originalUrl = img.src;
 
         const { is_google, is_original } = await checkOriginal(item.file);
         const status = getOriginalStatus({ is_google, is_original });
         setStatusMessage(status, is_google && is_original ? 'success' : 'warn');
 
-        originalImage.src = img.src;
+        originalImage.src = item.originalUrl;
 
         const watermarkInfo = engine.getWatermarkInfo(img.width, img.height);
         originalInfo.innerHTML = `
@@ -211,15 +217,7 @@ function createImageCard(item) {
 }
 
 async function processQueue() {
-    await Promise.all(imageQueue.map(async item => {
-        const img = await loadImage(item.file);
-        item.originalImg = img;
-        item.originalUrl = img.src;
-        document.getElementById(`result-${item.id}`).src = img.src;
-        zoom.attach(`#result-${item.id}`);
-    }));
-
-    const concurrency = 3;
+    const concurrency = 2; // Reduced for stability
     for (let i = 0; i < imageQueue.length; i += concurrency) {
         await Promise.all(imageQueue.slice(i, i + concurrency).map(async item => {
             if (item.status !== 'pending') return;
@@ -228,28 +226,38 @@ async function processQueue() {
             updateStatus(item.id, i18n.t('status.processing'));
 
             try {
-                const result = await engine.removeWatermarkFromImage(item.originalImg);
+                const img = await loadImage(item.file);
+                item.originalImg = img;
+                item.originalUrl = img.src;
+                
+                const result = await engine.removeWatermarkFromImage(img);
                 const blob = await new Promise(resolve => result.toBlob(resolve, 'image/png'));
                 item.processedBlob = blob;
 
                 item.processedUrl = URL.createObjectURL(blob);
-                document.getElementById(`result-${item.id}`).src = item.processedUrl;
+                const resultImg = document.getElementById(`result-${item.id}`);
+                if (resultImg) {
+                    resultImg.src = item.processedUrl;
+                    zoom.attach(`#result-${item.id}`);
+                }
 
                 item.status = 'completed';
-                const watermarkInfo = engine.getWatermarkInfo(item.originalImg.width, item.originalImg.height);
+                const watermarkInfo = engine.getWatermarkInfo(img.width, img.height);
 
-                updateStatus(item.id, `<p>${i18n.t('info.size')}: ${item.originalImg.width}×${item.originalImg.height}</p>
+                updateStatus(item.id, `<p>${i18n.t('info.size')}: ${img.width}×${img.height}</p>
             <p>${i18n.t('info.watermark')}: ${watermarkInfo.size}×${watermarkInfo.size}</p>
             <p>${i18n.t('info.position')}: (${watermarkInfo.position.x},${watermarkInfo.position.y})</p>`, true);
 
                 const downloadBtn = document.getElementById(`download-${item.id}`);
-                downloadBtn.classList.remove('hidden');
-                downloadBtn.onclick = () => downloadImage(item);
+                if (downloadBtn) {
+                    downloadBtn.classList.remove('hidden');
+                    downloadBtn.onclick = () => downloadImage(item);
+                }
 
                 processedCount++;
                 updateProgress();
 
-                checkOriginal(item.originalImg).then(({ is_google, is_original }) => {
+                checkOriginal(item.file).then(({ is_google, is_original }) => {
                     if (!is_google || !is_original) {
                         const status = getOriginalStatus({ is_google, is_original });
                         const statusEl = document.getElementById(`status-${item.id}`);

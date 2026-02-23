@@ -1,17 +1,22 @@
 import exifr from 'exifr';
 import i18n from './i18n.js';
 
-export function loadImage(file) {
+export function loadImage(input) {
     return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = e.target.result;
+        const img = new Image();
+        img.onload = () => {
+            if (input instanceof File || input instanceof Blob) {
+                // We don't revoke here because the caller might need the image to remain valid
+                // However, in a real app, you'd want a strategy for this.
+            }
+            resolve(img);
         };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+        img.onerror = reject;
+        if (input instanceof File || input instanceof Blob) {
+            img.src = URL.createObjectURL(input);
+        } else {
+            img.src = input;
+        }
     });
 }
 
