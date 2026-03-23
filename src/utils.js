@@ -56,4 +56,5 @@ export function showLoading(text = null) {
 
 export function hideLoading() {
     loadingOverlay.style.display = 'none';
+    document.body.classList.remove('loading');
 }

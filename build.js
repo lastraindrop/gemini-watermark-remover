@@ -88,17 +88,28 @@ const userscriptCtx = await esbuild.context({
   minify: false
 });
 
+// Build website - worker.js
+const workerCtx = await esbuild.context({
+  ...commonConfig,
+  entryPoints: ['src/core/worker.js'],
+  outfile: 'dist/worker.js',
+  platform: 'browser',
+  target: ['es2020'],
+  banner: { js: jsBanner },
+  sourcemap: !isProd,
+});
+
 console.log(`🚀 Starting build process... [${isProd ? 'PRODUCTION' : 'DEVELOPMENT'}]`);
 
 if (existsSync('dist')) rmSync('dist', { recursive: true });
 mkdirSync('dist/userscript', { recursive: true });
   
 if (isProd) {
-  await Promise.all([websiteCtx.rebuild(), userscriptCtx.rebuild()]);
+  await Promise.all([websiteCtx.rebuild(), workerCtx.rebuild(), userscriptCtx.rebuild()]);
   console.log('✅ Build complete!');
   process.exit(0);
 } else {
-  await Promise.all([websiteCtx.watch(), userscriptCtx.watch()]);
+  await Promise.all([websiteCtx.watch(), workerCtx.watch(), userscriptCtx.watch()]);
 
   const watchDir = (dir, dest) => {
     let debounceTimer = null;

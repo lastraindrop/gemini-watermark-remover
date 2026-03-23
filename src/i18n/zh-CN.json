@@ -15,6 +15,7 @@
   "panel.title": "操作面板",
   "btn.download": "下载结果",
   "btn.reset": "重置 / 更换图片",
+  "btn.toggleView": "切换对比模式",
   "progress.text": "处理进度",
   "btn.downloadAll": "全部下载",
   "feature.title": "功能特点",

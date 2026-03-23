@@ -25,17 +25,92 @@ const originalInfo = document.getElementById('originalInfo');
 const processedInfo = document.getElementById('processedInfo');
 const downloadBtn = document.getElementById('downloadBtn');
 const resetBtn = document.getElementById('resetBtn');
+const viewModeBtn = document.getElementById('viewModeBtn');
+const comparisonSlider = document.getElementById('comparisonSlider');
+const sliderOriginal = document.getElementById('sliderOriginal');
+const sliderProcessed = document.getElementById('sliderProcessed');
+const sliderResize = comparisonSlider.querySelector('.resize');
+const sliderHandle = comparisonSlider.querySelector('.handle');
+
+// New Diagnostic UI References
+const engineStatus = document.getElementById('engineStatus');
+const workerStatus = document.getElementById('workerStatus');
+const memoryCount = document.getElementById('memoryCount');
+const lastLatency = document.getElementById('lastLatency');
+const auditLogList = document.getElementById('auditLogList');
+const sideBySideView = document.getElementById('sideBySideView');
+const sideOriginal = document.getElementById('sideOriginal');
+const sideProcessed = document.getElementById('sideProcessed');
+const modeSliderBtn = document.getElementById('modeSliderBtn');
+const modeSideBtn = document.getElementById('modeSideBtn');
+
+/**
+ * AuditLog Utility
+ */
+const AuditLog = {
+    log(message, type = 'info') {
+        const entry = document.createElement('div');
+        const now = new Date();
+        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+        
+        let colorClass = 'text-gray-400';
+        if (type === 'success') colorClass = 'text-emerald-400 font-bold';
+        if (type === 'warn') colorClass = 'text-warn';
+        if (type === 'err') colorClass = 'text-err';
+        if (type === 'process') colorClass = 'text-blue-400';
+
+        entry.className = `${colorClass} py-0.5 border-b border-white/5 last:border-0`;
+        entry.innerHTML = `<span class="opacity-50">[${timeStr}]</span> [${type.toUpperCase()}] ${message}`;
+        auditLogList.prepend(entry);
+    }
+};
+
+// object url manager
+const objectUrlManager = {
+    urls: new Set(),
+    create(blob) {
+        const url = URL.createObjectURL(blob);
+        this.urls.add(url);
+        this.updateUI();
+        return url;
+    },
+    revoke(url) {
+        if (this.urls.has(url)) {
+            URL.revokeObjectURL(url);
+            this.urls.delete(url);
+            this.updateUI();
+        }
+    },
+    clear() {
+        this.urls.forEach(url => URL.revokeObjectURL(url));
+        this.urls.clear();
+        this.updateUI();
+    },
+    updateUI() {
+        if (memoryCount) memoryCount.textContent = this.urls.size;
+    }
+};
 
 /**
  * initialize the application
  */
 async function init() {
     try {
+        AuditLog.log('Application starting...', 'info');
         await i18n.init();
         setupLanguageSwitch();
         showLoading(i18n.t('status.loading'));
 
         engine = await WatermarkEngine.create();
+        AuditLog.log('WatermarkEngine initialized successfully', 'success');
+        engineStatus.textContent = 'READY';
+        engineStatus.className = 'text-emerald-400 font-bold';
+        
+        // Detect worker support
+        const hasWorker = window.Worker && !window.GM_info;
+        workerStatus.textContent = hasWorker ? 'ACTIVE' : 'DISABLED';
+        workerStatus.className = hasWorker ? 'text-emerald-400' : 'text-gray-500';
+        AuditLog.log(`Web Worker status: ${hasWorker ? 'ENABLED' : 'DISABLED (UserScript Mode or No Support)'}`, hasWorker ? 'success' : 'warn');
 
         hideLoading();
         setupEventListeners();
@@ -47,6 +122,9 @@ async function init() {
         })
     } catch (error) {
         hideLoading();
+        AuditLog.log(`Fatal Initialization Error: ${error.message}`, 'err');
+        engineStatus.textContent = 'ERROR';
+        engineStatus.className = 'text-err font-bold';
         console.error('initialize error:', error);
     }
 }
@@ -89,15 +167,55 @@ function setupEventListeners() {
 
     downloadAllBtn.addEventListener('click', downloadAll);
     resetBtn.addEventListener('click', reset);
+    
+    // Updated Mode Toggles
+    modeSliderBtn.addEventListener('click', () => switchViewMode('slider'));
+    modeSideBtn.addEventListener('click', () => switchViewMode('side'));
+    
+    setupSlider();
+}
+
+function switchViewMode(mode) {
+    if (mode === 'slider') {
+        comparisonSlider.classList.remove('hidden');
+        sideBySideView.classList.add('hidden');
+        processedImage.classList.add('hidden');
+        
+        modeSliderBtn.className = 'px-3 py-1 text-[10px] font-bold rounded-md bg-emerald-500 text-white shadow-sm transition-all';
+        modeSideBtn.className = 'px-3 py-1 text-[10px] font-bold rounded-md text-emerald-600 hover:bg-emerald-50 transition-all';
+        AuditLog.log('Switched to SLIDER view', 'info');
+    } else {
+        comparisonSlider.classList.add('hidden');
+        sideBySideView.classList.remove('hidden');
+        processedImage.classList.add('hidden');
+        
+        modeSliderBtn.className = 'px-3 py-1 text-[10px] font-bold rounded-md text-emerald-600 hover:bg-emerald-50 transition-all';
+        modeSideBtn.className = 'px-3 py-1 text-[10px] font-bold rounded-md bg-emerald-500 text-white shadow-sm transition-all';
+        AuditLog.log('Switched to SIDE-BY-SIDE view', 'info');
+    }
+}
+
+function setupSlider() {
+    const move = (e) => {
+        if (comparisonSlider.classList.contains('hidden')) return;
+        const rect = comparisonSlider.getBoundingClientRect();
+        const x = (e.pageX || e.touches?.[0].pageX) - rect.left - window.scrollX;
+        const width = Math.max(0, Math.min(rect.width, x));
+        const percent = (width / rect.width) * 100;
+        sliderResize.style.width = percent + '%';
+        sliderHandle.style.left = percent + '%';
+    };
+
+    comparisonSlider.addEventListener('mousemove', move);
+    comparisonSlider.addEventListener('touchmove', move);
 }
 
 function reset() {
     singlePreview.style.display = 'none';
     multiPreview.style.display = 'none';
-    imageQueue.forEach(item => {
-        if (item.originalUrl) URL.revokeObjectURL(item.originalUrl);
-        if (item.processedUrl) URL.revokeObjectURL(item.processedUrl);
-    });
+    comparisonSlider.classList.add('hidden');
+    processedImage.classList.remove('hidden');
+    objectUrlManager.clear();
     imageQueue = [];
     processedCount = 0;
     fileInput.value = '';
@@ -117,11 +235,7 @@ function handleFiles(files) {
 
     if (validFiles.length === 0) return;
 
-    imageQueue.forEach(item => {
-        if (item.originalUrl) URL.revokeObjectURL(item.originalUrl);
-        if (item.processedUrl) URL.revokeObjectURL(item.processedUrl);
-    });
-
+    objectUrlManager.clear();
     imageQueue = validFiles.map((file, index) => ({
         id: Date.now() + index,
         file,
@@ -169,19 +283,38 @@ async function processSingle(item) {
             <p>${i18n.t('info.position')}: (${watermarkInfo.position.x},${watermarkInfo.position.y})</p>
         `;
 
+        const startTime = performance.now();
+        AuditLog.log(`Processing image: ${item.name} (${img.width}x${img.height})`, 'process');
+
         const result = await engine.removeWatermarkFromImage(img);
+        const endTime = performance.now();
+        const latency = (endTime - startTime).toFixed(0);
+        lastLatency.textContent = `Latency: ${latency}ms`;
+        AuditLog.log(`Processing complete for ${item.name} in ${latency}ms`, 'success');
+
         const blob = await new Promise(resolve => result.toBlob(resolve, 'image/png'));
         item.processedBlob = blob;
 
-        item.processedUrl = URL.createObjectURL(blob);
+        item.processedUrl = objectUrlManager.create(blob);
         processedImage.src = item.processedUrl;
+        
+        // Update comparison views
+        sliderOriginal.src = item.originalUrl;
+        sliderProcessed.src = item.processedUrl;
+        sideOriginal.src = item.originalUrl;
+        sideProcessed.src = item.processedUrl;
+        
+        sliderResize.style.width = '50%';
+        sliderHandle.style.left = '50%';
+
         processedSection.style.display = 'block';
         downloadBtn.style.display = 'flex';
         downloadBtn.onclick = () => downloadImage(item);
 
         processedInfo.innerHTML = `
-            <p>${i18n.t('info.size')}: ${img.width}×${img.height}</p>
-            <p>${i18n.t('info.status')}: ${i18n.t('info.removed')}</p>
+            <span>${img.width}×${img.height}</span>
+            <span class="px-2 opacity-50">|</span>
+            <span class="text-emerald-500 underline decoration-2 underline-offset-4">${i18n.t('info.removed')}</span>
         `;
 
         zoom.detach();
@@ -224,17 +357,23 @@ async function processQueue() {
 
             item.status = 'processing';
             updateStatus(item.id, i18n.t('status.processing'));
+            AuditLog.log(`Batch [${i/concurrency + 1}]: Processing ${item.name}`, 'process');
 
             try {
+                const startTime = performance.now();
                 const img = await loadImage(item.file);
                 item.originalImg = img;
                 item.originalUrl = img.src;
                 
                 const result = await engine.removeWatermarkFromImage(img);
+                const endTime = performance.now();
+                const latency = (endTime - startTime).toFixed(0);
+                
                 const blob = await new Promise(resolve => result.toBlob(resolve, 'image/png'));
                 item.processedBlob = blob;
 
-                item.processedUrl = URL.createObjectURL(blob);
+                item.processedUrl = objectUrlManager.create(blob);
+                AuditLog.log(`Batch: ${item.name} done in ${latency}ms`, 'success');
                 const resultImg = document.getElementById(`result-${item.id}`);
                 if (resultImg) {
                     resultImg.src = item.processedUrl;

@@ -5,51 +5,9 @@
 
 import { calculateAlphaMap } from './alphaMap.js';
 import { removeWatermark } from './blendModes.js';
+import { detectWatermarkConfig, calculateWatermarkPosition } from './config.js';
 import BG_48_PATH from '../assets/bg_48.png';
 import BG_96_PATH from '../assets/bg_96.png';
-
-/**
- * Detect watermark configuration based on image size
- * @param {number} imageWidth - Image width
- * @param {number} imageHeight - Image height
- * @returns {Object} Watermark configuration {logoSize, marginRight, marginBottom}
- */
-export function detectWatermarkConfig(imageWidth, imageHeight) {
-    // Gemini's watermark rules:
-    // If both image width and height are greater than 1024, use 96×96 watermark
-    // Otherwise, use 48×48 watermark
-    if (imageWidth > 1024 && imageHeight > 1024) {
-        return {
-            logoSize: 96,
-            marginRight: 64,
-            marginBottom: 64
-        };
-    } else {
-        return {
-            logoSize: 48,
-            marginRight: 32,
-            marginBottom: 32
-        };
-    }
-}
-
-/**
- * Calculate watermark position in image based on image size and watermark configuration
- * @param {number} imageWidth - Image width
- * @param {number} imageHeight - Image height
- * @param {Object} config - Watermark configuration {logoSize, marginRight, marginBottom}
- * @returns {Object} Watermark position {x, y, width, height}
- */
-export function calculateWatermarkPosition(imageWidth, imageHeight, config) {
-    const { logoSize, marginRight, marginBottom } = config;
-
-    return {
-        x: imageWidth - marginRight - logoSize,
-        y: imageHeight - marginBottom - logoSize,
-        width: logoSize,
-        height: logoSize
-    };
-}
 
 /**
  * Watermark engine class
@@ -139,10 +97,21 @@ export class WatermarkEngine {
         const alphaMap = await this.getAlphaMap(config.logoSize);
 
         // Remove watermark from image data
-        removeWatermark(imageData, alphaMap, position);
-
-        // Write processed image data back to canvas
-        ctx.putImageData(imageData, 0, 0);
+        if (window.Worker && !window.GM_info) { // Use worker for website, but not easily for userscript due to cross-origin
+            await new Promise((resolve) => {
+                const worker = new Worker('worker.js');
+                worker.onmessage = (e) => {
+                    ctx.putImageData(e.data.imageData, 0, 0);
+                    worker.terminate();
+                    resolve();
+                };
+                worker.postMessage({ imageData, alphaMap, position }, [imageData.data.buffer]);
+            });
+        } else {
+            // Fallback to main thread (or for userscript)
+            removeWatermark(imageData, alphaMap, position);
+            ctx.putImageData(imageData, 0, 0);
+        }
 
         return canvas;
     }

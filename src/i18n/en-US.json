@@ -15,6 +15,7 @@
   "panel.title": "Control Panel",
   "btn.download": "Download",
   "btn.reset": "Reset / Change Image",
+  "btn.toggleView": "Toggle Comparison",
   "progress.text": "Progress",
   "btn.downloadAll": "Download All",
   "feature.title": "Features",
