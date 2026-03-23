@@ -126,6 +126,7 @@ gemini-watermark-remover/
 │   ├── core/
 │   │   ├── alphaMap.js    # Alpha map 计算
 │   │   ├── blendModes.js  # 反向 alpha 混合算法
+│   │   ├── config.js      # (新) 水印配置检测
 │   │   └── watermarkEngine.js  # 主引擎
 │   ├── assets/
 │   │   ├── bg_48.png      # 48×48 水印背景
@@ -133,7 +134,9 @@ gemini-watermark-remover/
 │   ├── i18n/              # 国际化语言文件
 │   ├── userscript/        # 用户脚本
 │   ├── app.js             # 网站应用入口
+│   ├── cli.js             # (新) 高性能命令行工具
 │   └── i18n.js            # 国际化工具
+├── tests/                 # (新) 原生自动化测试套件
 ├── dist/                  # 构建输出目录
 ├── build.js               # 构建脚本
 └── package.json

@@ -10,6 +10,28 @@
 
 ---
 
+## 💻 命令行工具 (CLI) - 进阶用法
+
+对于需要批量处理本地图片的开发者，可以使用 CLI 工具：
+
+### 使用前提
+- 安装了 [Node.js](https://nodejs.org/)。
+- 在项目目录运行 `pnpm install` 安装依赖（主要为 `sharp`）。
+
+### 命令格式
+```bash
+# 处理单个文件或整个目录
+node src/cli.js -i <输入路径> -o <输出目录>
+```
+
+### 示例
+```bash
+# 批量处理 images 文件夹下的所有图片
+node src/cli.js -i ./images -o ./processed_images
+```
+
+---
+
 ## 🛠 使用方式
 
 ### 1. 网页版 (Web Experience)

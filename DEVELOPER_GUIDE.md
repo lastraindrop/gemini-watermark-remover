@@ -14,9 +14,10 @@
 
 ### 2. 环境实现层
 - **`app.js`**: 网页版主逻辑，负责 UI 交互、Object URL 管理及 `medium-zoom` 集成。
-- **`worker.js`**: (New) Web Worker 脚本，处理高密度的像素运算，确保网页不卡顿。
+- **`worker.js`**: Web Worker 脚本，处理高密度的像素运算，确保网页不卡顿。
 - **`cli.js`**: (New) Node.js 命令行入口，利用 `sharp` 库实现本地高性能图像 I/O。
-- **`userscript/`**: 包含油猴脚本逻辑，通过拦截网络请求或 DOM 注入实现功能。
+- **`userscript/`**: 包含油猴脚本逻辑。
+- **`tests/`**: (New) 原生测试套件，包含 `core_native.test.js` (核心逻辑) 和 `integration_native.test.js` (全流程仿真)。
 
 ---
 
@@ -28,35 +29,27 @@
 去水印还原公式：
 `C_src = (C_out - C_logo * alpha) / (1 - alpha)`
 
-**开发重点**：
-- `alpha` 的精度至关重要。本项目通过 `src/assets/` 下的 48px 和 96px 背景校准图实时计算 alpha 值。
-- 为了防止计算出的像素值超出 [0, 255] 范围，算法在最后阶段执行了 `clamp` 操作。
+### 💎 参数一致性与动态对齐 (Best Practices)
+在处理反向算法时，必须注意**浮点数精度的放大效应**：
+- **误差放大**: 在 `alpha` 较高（如 0.95）时，分母 `(1 - alpha)` 极小，此时 `watermarked` 像素点的 1 单位四舍五入误差会被放大 20 倍。
+- **动态容差测试**: 在编写单元测试时，测试用例应当根据 `alpha` 的值动态计算 `tolerance`（容差），计算公式建议为 `Math.ceil(0.51 / (1 - alpha))`。
+- **类型安全**: 跨环境传递图像数据（如 CLI 中的 Buffer 到 Uint8ClampedArray）时，应始终通过 `.buffer` 引用底层物理内存，确保数据的一致性对齐。
 
 ---
 
-## 🛠 构建与测试
+## 📈 路线图 (Roadmap)
 
-### 构建系统
-项目使用 `build.js` 驱动 `esbuild` 进行构建：
-- **DataURL 注入**：`.png` 资源被自动转为 DataURL 注入 JS，实现零外部依赖加载。
-- **多端输出**：一次构建同时生成 Web App、Web Worker 和 Userscript。
+### 第一阶段：架构优化 (COMPLETED ✅)
+- [x] 核心算法与 DOM 环境彻底解耦。
+- [x] 引入 Web Worker 异步处理。
+- [x] 实现高性能 Node.js CLI。
+- [x] 建立 100% 覆盖核心逻辑的原生自动化测试套件。
 
-### 自动化测试
-项目实现了**零依赖原生测试套件**：
-- **运行命令**：`npm test`
-- **实现方式**：利用 Node.js v22 内置的 `node:test` 运行 `tests/*_native.test.js`。
-- **规范**：每次修改 `src/core/` 逻辑后，必须确保所有测试用例通过。
+### 第二阶段：检测与增强 (Short-term 🚀)
+- [ ] **多模型支持**：引入其它 AI 模型（如 DALL-E, Midjourney）的水印特征库。
+- [ ] **像素级特征检测**：不依赖 EXIF，通过采样边缘像素特征自动判定水印区域。
+- [ ] **批量导出优化**：Web 端支持更高效的 ZIP 实时流式压缩。
 
----
-
-## 📈 未来改进方向 (Roadmap)
-1. **多模型适配**：目前仅支持 Gemini，未来可引入其它 AI 模型（如 Midjourney, DALL-E）的水印校准参数。
-2. **AI 水印检测**：目前通过 EXIF 信息判断，未来可添加简单的像素特征检测来增强稳定性。
-3. **WebAssembly 分离**：对于极其巨大的图像，可以考虑将 `blendModes` 迁移至 Rust/Wasm。
-
----
-
-## 👨‍💻 贡献指南
-1. 始终保持 `src/core/` 的纯净度（环境无关）。
-2. 在 `package.json` 中保持极简的依赖链。
-3. 任何 UI 修改需符合“Premium & Dynamic”的设计准则。
+### 第三阶段：工程化提升 (Long-term 🛠)
+- [ ] **WebAssembly (Wasm) 迁移**：将像素混合循环迁移至 Rust，提升极特大分辨率图片的处理速度。
+- [ ] **移动端应用 (PWA)**：完全适配移动端，支持拍照即去。

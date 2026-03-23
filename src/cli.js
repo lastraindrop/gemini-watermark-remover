@@ -58,12 +58,12 @@ class CLIEngine {
         const imageData = {
             width: info.width,
             height: info.height,
-            data: new Uint8ClampedArray(data)
+            data: new Uint8ClampedArray(data.buffer) // Use the buffer directly
         };
 
         removeWatermark(imageData, alphaMap, position);
 
-        await sharp(imageData.data, {
+        await sharp(Buffer.from(imageData.data.buffer), {
             raw: {
                 width: info.width,
                 height: info.height,

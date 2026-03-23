@@ -127,6 +127,7 @@ gemini-watermark-remover/
 │   ├── core/
 │   │   ├── alphaMap.js    # Alpha map calculation logic
 │   │   ├── blendModes.js  # Implementation of Reverse Alpha Blending
+│   │   ├── config.js      # (New) Watermark metadata detection
 │   │   └── watermarkEngine.js  # Main engine coordinator
 │   ├── assets/
 │   │   ├── bg_48.png      # Pre-captured 48×48 watermark map
@@ -134,7 +135,9 @@ gemini-watermark-remover/
 │   ├── i18n/              # Internationalization language files
 │   ├── userscript/        # Userscript for Gemini
 │   ├── app.js             # Website application entry point
+│   ├── cli.js             # (New) High-perf CLI tool
 │   └── i18n.js            # Internationalization utilities
+├── tests/                 # (New) Native test suite
 ├── dist/                  # Build output directory
 ├── build.js               # Build script
 └── package.json
