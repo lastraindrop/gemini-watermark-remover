@@ -13,10 +13,10 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 - ✅ **100% Client-side** - No backend, no server-side processing. Your data stays in your browser.
 - ✅ **Privacy-First** - Images are never uploaded to any server. Period.
 - ✅ **Mathematical Precision** - Based on the Reverse Alpha Blending formula, not "hallucinating" AI models.
-- ✅ **Auto-Detection** - Intelligent recognition of 48×48 or 96×96 watermark variants.
-- ✅ **Batch Processing** - Support for multiple file uploads and one-click processing.
-- ✅ **User Friendly** - Simple drag-and-drop interface with instant processing.
-- ✅ **Cross-Platform** - Runs smoothly on all modern web browsers.
+- ✅ **Robust Hybrid Detection** - Uses both dimension rules and **Pixel Correlation** to find watermarks even without original metadata.
+- ✅ **Batch Processing** - Support for multiple file uploads and high-performance parallel CLI processing.
+- ✅ **Developer Friendly** - ESLint/Prettier standardized, CI/CD integrated, and full Python Bridge support.
+- ✅ **Cross-Platform** - Runs smoothly on browsers, Node.js (v18+), and as a Python library.
 
 ## Examples
 
@@ -111,10 +111,14 @@ By capturing the watermark on a known solid background, we reconstruct the exact
 
 ## Detection Rules
 
-| Image Dimension Condition | Watermark Size | Right Margin | Bottom Margin |
+The engine uses a **Hybrid Detection Strategy**:
+1. **Pixel Correlation (Primary)**: Scans the bottom-right region using sliding-window correlation against known watermark patterns. This is robust against cropping and metadata stripping.
+2. **Dimension Rules (Fallback)**: Uses image size to estimate the most likely watermark position.
+
+| Base image Dimension | Target Size | Alignment | Default Margins |
 | :--- | :--- | :--- | :--- |
-| Width > 1024 **AND** Height > 1024 | 96×96 | 64px | 64px |
-| Otherwise | 48×48 | 32px | 32px |
+| Width > 1024 **AND** Height > 1024 | 96×96 | Bottom-Right | 64px |
+| Otherwise | 48×48 | Bottom-Right | 32px |
 
 ## Project Structure
 
@@ -126,21 +130,16 @@ gemini-watermark-remover/
 ├── src/
 │   ├── core/
 │   │   ├── alphaMap.js    # Alpha map calculation logic
-│   │   ├── blendModes.js  # Implementation of Reverse Alpha Blending
-│   │   ├── config.js      # (New) Watermark metadata detection
-│   │   └── watermarkEngine.js  # Main engine coordinator
-│   ├── assets/
-│   │   ├── bg_48.png      # Pre-captured 48×48 watermark map
-│   │   └── bg_96.png      # Pre-captured 96×96 watermark map
-│   ├── i18n/              # Internationalization language files
-│   ├── userscript/        # Userscript for Gemini
-│   ├── app.js             # Website application entry point
-│   ├── cli.js             # (New) High-perf CLI tool
-│   └── i18n.js            # Internationalization utilities
-├── tests/                 # (New) Native test suite
-├── dist/                  # Build output directory
-├── build.js               # Build script
-└── package.json
+│   │   ├── blendModes.js  # Optimized Reverse Alpha Blending
+│   │   ├── config.js      # Watermark dimension rules
+│   │   ├── detector.js    # Robust Pixel-based Detector
+│   │   └── watermarkEngine.js  # Orchestrator with persistence & reuse
+├── tests/                 # Unified v1.1 test suite (Unit & Integration)
+├── .github/workflows/      # CI/CD (GitHub Actions)
+├── .eslintrc.json         # Code quality config
+├── python/                # Python bridge with Type Hints
+├── cli.js                 # Standardized CLI (JSON, Pipe, Parallel)
+└── package.json           # Scripts (lint, format, test)
 ```
 
 ## Core Modules

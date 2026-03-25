@@ -72,19 +72,33 @@ async function processImage(imgElement) {
   }
 }
 
-const processAllImages = () => {
-  const images = findGeminiImages();
+const processAllImagesThrottled = debounce(() => {
+  const images = findGeminiImages().filter(img => !img.dataset.watermarkProcessed);
   if (images.length === 0) return;
 
-  console.log(`[Gemini Watermark Remover] Found ${images.length} images to process`);
+  console.log(`[Gemini Watermark Remover] Found ${images.length} new images to process`);
   images.forEach(processImage);
-};
+}, 300);
 
 const setupMutationObserver = () => {
-  new MutationObserver(debounce(processAllImages, 100))
-    .observe(document.body, { childList: true, subtree: true });
-  console.log('[Gemini Watermark Remover] MutationObserver active');
+  const observer = new MutationObserver((mutations) => {
+    // Only trigger if children are added or images are modified
+    const hasMeaningfulChange = mutations.some(m => 
+      m.addedNodes.length > 0 || 
+      (m.type === 'attributes' && m.attributeName === 'src')
+    );
+    if (hasMeaningfulChange) processAllImagesThrottled();
+  });
+  
+  observer.observe(document.body, { 
+    childList: true, 
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['src']
+  });
+  console.log('[Gemini Watermark Remover] High-perf MutationObserver active');
 };
+
 
 async function processImageBlob(blob) {
   const blobUrl = URL.createObjectURL(blob);

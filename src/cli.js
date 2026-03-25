@@ -11,6 +11,7 @@ import sharp from 'sharp';
 import { calculateAlphaMap } from './core/alphaMap.js';
 import { removeWatermark } from './core/blendModes.js';
 import { detectWatermarkConfig, calculateWatermarkPosition } from './core/config.js';
+import { detectWatermark } from './core/detector.js';
 
 // Load embedded assets (we need to read them from the filesystem in Node)
 const __dirname = new URL('.', import.meta.url).pathname.replace(/^\/([a-zA-Z]):/, '$1:');
@@ -20,6 +21,17 @@ const BG_96_PATH = resolve(__dirname, 'assets/bg_96.png');
 class CLIEngine {
     constructor() {
         this.alphaMaps = {};
+        this._checkAssets();
+    }
+
+    _checkAssets() {
+        [BG_48_PATH, BG_96_PATH].forEach(path => {
+            if (!existsSync(path)) {
+                console.error(`❌ Critical Error: Asset not found at ${path}`);
+                console.error('   Please ensure you have built the project or are running from the correct directory.');
+                process.exit(1);
+            }
+        });
     }
 
     async getAlphaMap(size) {
@@ -46,9 +58,8 @@ class CLIEngine {
         const metadata = await image.metadata();
         const { width, height } = metadata;
 
-        const config = detectWatermarkConfig(width, height);
-        const position = calculateWatermarkPosition(width, height, config);
-        const alphaMap = await this.getAlphaMap(config.logoSize);
+        const alphaMap48 = await this.getAlphaMap(48);
+        const alphaMap96 = await this.getAlphaMap(96);
 
         const { data, info } = await image
             .ensureAlpha()
@@ -58,8 +69,20 @@ class CLIEngine {
         const imageData = {
             width: info.width,
             height: info.height,
-            data: new Uint8ClampedArray(data.buffer) // Use the buffer directly
+            data: new Uint8ClampedArray(data.buffer)
         };
+
+        const pixelDetect = detectWatermark(imageData, { 48: alphaMap48, 96: alphaMap96 });
+
+        let position, alphaMap;
+        if (pixelDetect) {
+            position = { x: pixelDetect.x, y: pixelDetect.y, width: pixelDetect.size, height: pixelDetect.size };
+            alphaMap = pixelDetect.size === 48 ? alphaMap48 : alphaMap96;
+        } else {
+            const config = detectWatermarkConfig(width, height);
+            position = calculateWatermarkPosition(width, height, config);
+            alphaMap = config.logoSize === 48 ? alphaMap48 : alphaMap96;
+        }
 
         removeWatermark(imageData, alphaMap, position);
 
@@ -77,14 +100,65 @@ class CLIEngine {
 
 async function main() {
     const args = process.argv.slice(2);
-    const params = {};
+    const params = { json: args.includes('--json'), pipe: args.includes('--pipe') };
+    
     for (let i = 0; i < args.length; i++) {
         if (args[i] === '-i' || args[i] === '--input') params.input = args[++i];
         if (args[i] === '-o' || args[i] === '--output') params.output = args[++i];
     }
 
+    if (params.pipe) {
+        // High-speed pipe mode: stdin -> process -> stdout
+        try {
+            const engine = new CLIEngine();
+            const inputBuffer = await new Promise((resolve, reject) => {
+                const chunks = [];
+                process.stdin.on('data', chunk => chunks.push(chunk));
+                process.stdin.on('end', () => resolve(Buffer.concat(chunks)));
+                process.stdin.on('error', reject);
+            });
+
+            const image = sharp(inputBuffer);
+            const metadata = await image.metadata();
+            const { data, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+            const imageData = { width: info.width, height: info.height, data: new Uint8ClampedArray(data.buffer) };
+            
+            const alphaMap48 = await engine.getAlphaMap(48);
+            const alphaMap96 = await engine.getAlphaMap(96);
+            const pixelDetect = detectWatermark(imageData, { 48: alphaMap48, 96: alphaMap96 });
+
+            let position, alphaMap;
+            if (pixelDetect) {
+                position = { x: pixelDetect.x, y: pixelDetect.y, width: pixelDetect.size, height: pixelDetect.size };
+                alphaMap = pixelDetect.size === 48 ? alphaMap48 : alphaMap96;
+            } else {
+                const config = detectWatermarkConfig(metadata.width, metadata.height);
+                position = calculateWatermarkPosition(metadata.width, metadata.height, config);
+                alphaMap = config.logoSize === 48 ? alphaMap48 : alphaMap96;
+            }
+            
+            removeWatermark(imageData, alphaMap, position);
+
+            const outBuffer = await sharp(Buffer.from(imageData.data.buffer), {
+                raw: { width: info.width, height: info.height, channels: 4 }
+            }).png().toBuffer();
+
+            process.stdout.write(outBuffer);
+            process.exit(0);
+        } catch (err) {
+            if (!params.json) console.error(err);
+            else console.log(JSON.stringify({ status: 'error', message: err.message }));
+            process.exit(1);
+        }
+        return;
+    }
+
     if (!params.input || !params.output) {
-        console.log('Usage: node src/cli.js -i <input_file_or_dir> -o <output_dir>');
+        if (params.json) {
+            console.log(JSON.stringify({ status: 'error', message: 'Missing input/output' }));
+        } else {
+            console.log('Usage: node src/cli.js -i <input> -o <output> [--json] [--pipe]');
+        }
         process.exit(1);
     }
 
@@ -92,32 +166,74 @@ async function main() {
     const inputPath = resolve(params.input);
     const outputPath = resolve(params.output);
 
-    if (!existsSync(outputPath)) {
+    if (!existsSync(outputPath) && !params.input.match(/\.(jpg|jpeg|png|webp)$/i)) {
         mkdirSync(outputPath, { recursive: true });
     }
 
     const processFile = async (file) => {
         if (!file.match(/\.(jpg|jpeg|png|webp)$/i)) return;
-        const out = join(outputPath, `unwatermarked_${basename(file, extname(file))}.png`);
-        console.log(`Processing: ${basename(file)}...`);
+        
+        let out;
+        const outExists = existsSync(outputPath);
+        if (outExists && statSync(outputPath).isDirectory()) {
+            out = join(outputPath, `unwatermarked_${basename(file, extname(file))}.png`);
+        } else if (!outExists && (outputPath.endsWith('/') || outputPath.endsWith('\\'))) {
+            // Treat as directory if it ends with a slash
+            mkdirSync(outputPath, { recursive: true });
+            out = join(outputPath, `unwatermarked_${basename(file, extname(file))}.png`);
+        } else {
+            // Treat as file
+            out = outputPath;
+        }
+            
+        const start = performance.now();
         try {
             await engine.processImage(file, out);
-            console.log(`✅ Saved: ${basename(out)}`);
+            const duration = (performance.now() - start).toFixed(0);
+            if (params.json) {
+                console.log(JSON.stringify({ 
+                    status: 'success', 
+                    file: basename(file), 
+                    output: out, 
+                    duration_ms: duration,
+                    detection: pixelDetect ? 'pixel' : 'config'
+                }));
+            } else {
+                console.log(`✅ Saved: ${basename(out)} (${duration}ms)`);
+            }
         } catch (err) {
-            console.error(`❌ Failed: ${basename(file)} - ${err.message}`);
+            if (params.json) {
+                console.log(JSON.stringify({ status: 'error', file: basename(file), message: err.message }));
+            } else {
+                console.error(`❌ Failed: ${basename(file)} - ${err.message}`);
+            }
         }
     };
 
     if (statSync(inputPath).isDirectory()) {
-        const files = readdirSync(inputPath).map(f => join(inputPath, f));
+        const files = readdirSync(inputPath)
+            .map(f => join(inputPath, f))
+            .filter(f => statSync(f).isFile() && f.match(/\.(jpg|jpeg|png|webp)$/i));
+        
+        const os = await import('node:os');
+        const concurrency = Math.max(1, os.cpus().length - 1);
+        if (!params.json) console.log(`🚀 Processing ${files.length} files (concurrency: ${concurrency})\n`);
+
+        const pool = [];
         for (const file of files) {
-            if (statSync(file).isFile()) await processFile(file);
+            const p = processFile(file).then(() => {
+                pool.splice(pool.indexOf(p), 1);
+            });
+            pool.push(p);
+            if (pool.length >= concurrency) await Promise.race(pool);
         }
+        await Promise.all(pool);
     } else {
         await processFile(inputPath);
     }
 
-    console.log('\n✨ All tasks completed!');
+    if (!params.json) console.log('\n✨ All tasks completed!');
 }
+
 
 main().catch(console.error);

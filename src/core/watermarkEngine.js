@@ -6,6 +6,7 @@
 import { calculateAlphaMap } from './alphaMap.js';
 import { removeWatermark } from './blendModes.js';
 import { detectWatermarkConfig, calculateWatermarkPosition } from './config.js';
+import { detectWatermark } from './detector.js';
 import BG_48_PATH from '../assets/bg_48.png';
 import BG_96_PATH from '../assets/bg_96.png';
 
@@ -17,27 +18,39 @@ export class WatermarkEngine {
     constructor(bgCaptures) {
         this.bgCaptures = bgCaptures;
         this.alphaMaps = {};
+        this._worker = null;
+        this._workerPromise = null;
+        this._reusableCanvas = null;
+        this._reusableCtx = null;
     }
 
     static async create() {
-        const bg48 = new Image();
-        const bg96 = new Image();
+        const loadImg = (path) => new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = path;
+        });
 
-        await Promise.all([
-            new Promise((resolve, reject) => {
-                bg48.onload = resolve;
-                bg48.onerror = reject;
-                bg48.src = BG_48_PATH;
-            }),
-            new Promise((resolve, reject) => {
-                bg96.onload = resolve;
-                bg96.onerror = reject;
-                bg96.src = BG_96_PATH;
-            })
+        const [bg48, bg96] = await Promise.all([
+            loadImg(BG_48_PATH),
+            loadImg(BG_96_PATH)
         ]);
 
         return new WatermarkEngine({ bg48, bg96 });
     }
+
+    /**
+     * Lazy-initialize or get the persistent worker
+     */
+    _getWorker() {
+        if (!window.Worker || window.GM_info) return null;
+        if (!this._worker) {
+            this._worker = new Worker('worker.js');
+        }
+        return this._worker;
+    }
+
 
     /**
      * Get alpha map from background captured image based on watermark size
@@ -45,29 +58,24 @@ export class WatermarkEngine {
      * @returns {Promise<Float32Array>} Alpha map
      */
     async getAlphaMap(size) {
-        // If cached, return directly
-        if (this.alphaMaps[size]) {
-            return this.alphaMaps[size];
-        }
+        if (this.alphaMaps[size]) return this.alphaMaps[size];
 
-        // Select corresponding background capture based on watermark size
         const bgImage = size === 48 ? this.bgCaptures.bg48 : this.bgCaptures.bg96;
 
-        // Create temporary canvas to extract ImageData
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(bgImage, 0, 0);
+        // Reuse canvas for alpha map extraction
+        if (!this._reusableCanvas) {
+            this._reusableCanvas = document.createElement('canvas');
+            this._reusableCtx = this._reusableCanvas.getContext('2d', { willReadFrequently: true });
+        }
+        
+        this._reusableCanvas.width = size;
+        this._reusableCanvas.height = size;
+        this._reusableCtx.drawImage(bgImage, 0, 0);
 
-        const imageData = ctx.getImageData(0, 0, size, size);
-
-        // Calculate alpha map
+        const imageData = this._reusableCtx.getImageData(0, 0, size, size);
         const alphaMap = calculateAlphaMap(imageData);
-
-        // Cache result
+        
         this.alphaMaps[size] = alphaMap;
-
         return alphaMap;
     }
 
@@ -77,38 +85,45 @@ export class WatermarkEngine {
      * @returns {Promise<HTMLCanvasElement>} Processed canvas
      */
     async removeWatermarkFromImage(image) {
-        // Create canvas to process image
         const canvas = document.createElement('canvas');
         canvas.width = image.width;
         canvas.height = image.height;
         const ctx = canvas.getContext('2d');
-
-        // Draw original image onto canvas
         ctx.drawImage(image, 0, 0);
 
-        // Get image data
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Try pixel-based detection first
+        const alphaMap48 = await this.getAlphaMap(48);
+        const alphaMap96 = await this.getAlphaMap(96);
+        const pixelDetect = detectWatermark(imageData, { 48: alphaMap48, 96: alphaMap96 });
 
-        // Detect watermark configuration
-        const config = detectWatermarkConfig(canvas.width, canvas.height);
-        const position = calculateWatermarkPosition(canvas.width, canvas.height, config);
+        let config, position, alphaMap;
+        if (pixelDetect) {
+            position = { x: pixelDetect.x, y: pixelDetect.y, width: pixelDetect.size, height: pixelDetect.size };
+            alphaMap = pixelDetect.size === 48 ? alphaMap48 : alphaMap96;
+        } else {
+            // Fallback to dimension-based detection
+            config = detectWatermarkConfig(canvas.width, canvas.height);
+            position = calculateWatermarkPosition(canvas.width, canvas.height, config);
+            alphaMap = config.logoSize === 48 ? alphaMap48 : alphaMap96;
+        }
 
-        // Get alpha map for watermark size
-        const alphaMap = await this.getAlphaMap(config.logoSize);
-
-        // Remove watermark from image data
-        if (window.Worker && !window.GM_info) { // Use worker for website, but not easily for userscript due to cross-origin
+        const worker = this._getWorker();
+        if (worker) {
+            // We use a temporary listener for the current request
+            // This works because app.js processes images in a way that respects the promise
+            // For true concurrency with one worker, we'd need message IDs.
             await new Promise((resolve) => {
-                const worker = new Worker('worker.js');
-                worker.onmessage = (e) => {
+                const handler = (e) => {
+                    worker.removeEventListener('message', handler);
                     ctx.putImageData(e.data.imageData, 0, 0);
-                    worker.terminate();
                     resolve();
                 };
+                worker.addEventListener('message', handler);
                 worker.postMessage({ imageData, alphaMap, position }, [imageData.data.buffer]);
             });
         } else {
-            // Fallback to main thread (or for userscript)
             removeWatermark(imageData, alphaMap, position);
             ctx.putImageData(imageData, 0, 0);
         }
@@ -116,20 +131,23 @@ export class WatermarkEngine {
         return canvas;
     }
 
-    /**
-     * Get watermark information (for display)
-     * @param {number} imageWidth - Image width
-     * @param {number} imageHeight - Image height
-     * @returns {Object} Watermark information {size, position, config}
-     */
     getWatermarkInfo(imageWidth, imageHeight) {
         const config = detectWatermarkConfig(imageWidth, imageHeight);
         const position = calculateWatermarkPosition(imageWidth, imageHeight, config);
+        return { size: config.logoSize, position, config };
+    }
 
-        return {
-            size: config.logoSize,
-            position: position,
-            config: config
-        };
+    /**
+     * Clean up resources
+     */
+    destroy() {
+        if (this._worker) {
+            this._worker.terminate();
+            this._worker = null;
+        }
+        this._reusableCanvas = null;
+        this._reusableCtx = null;
+        this.alphaMaps = {};
     }
 }
+

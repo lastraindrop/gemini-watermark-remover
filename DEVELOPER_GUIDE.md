@@ -7,49 +7,48 @@
 项目遵循模块化设计，将核心算法与环境实现（Web/Node）彻底解耦：
 
 ### 1. 核心层 (`src/core/`)
-- **`config.js`**: (New) 纯逻辑模块。包含 `detectWatermarkConfig` 和 `calculateWatermarkPosition`。它是环境无关的，方便单元测试。
+- **`config.js`**: 纯逻辑模块。包含 `detectWatermarkConfig` 和 `calculateWatermarkPosition`。
 - **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。
-- **`blendModes.js`**: 核心算法实现。执行反向 Alpha 混合数学运算。
-- **`watermarkEngine.js`**: 引擎协调层。在浏览器环境下负责 Canvas 操作和资源加载。
-
-### 2. 环境实现层
-- **`app.js`**: 网页版主逻辑，负责 UI 交互、Object URL 管理及 `medium-zoom` 集成。
-- **`worker.js`**: Web Worker 脚本，处理高密度的像素运算，确保网页不卡顿。
-- **`cli.js`**: (New) Node.js 命令行入口，利用 `sharp` 库实现本地高性能图像 I/O。
-- **`userscript/`**: 包含油猴脚本逻辑。
-- **`tests/`**: (New) 原生测试套件，包含 `core_native.test.js` (核心逻辑) 和 `integration_native.test.js` (全流程仿真)。
+- **`blendModes.js`**: 核心算法实现。统一导出了 `removeWatermark` 函数供 Web Worker 和主线程公用，使用 `Math.fround` 确保精度一致性。
+- **`detector.js`**: (New v1.1) 稳健探测层。使用滑动窗口互相关算法识别水印的精确像素位置，解决 EXIF/尺寸依赖。
+- **`watermarkEngine.js`**: 引擎协调层。集成了混合检测逻辑，并实现了 **持久化 Worker** 和 **Canvas 重用**。
 
 ---
 
-## 🧮 核心算法：反向 Alpha 混合
+## 💎 最佳实践与性能 (Performance)
 
-水印合成公式：
-`C_out = C_src * (1 - alpha) + C_logo * alpha`
+### 1. 多线程模型 (Threading)
+- 网页版不再频繁创建 Worker，而是启动时初始化单例 Worker，通过消息传递处理 `Transferable Objects` (ArrayBuffer)，避免大图克隆开销。
+- Userscript 版由于跨域限制，默认回退至主线程同步执行。
 
-去水印还原公式：
-`C_src = (C_out - C_logo * alpha) / (1 - alpha)`
+### 2. 工程化标准 (Engineering Standards)
+- **代码规范**：集成 ESLint 和 Prettier 进行风格统一。
+- **自动化测试**：使用 Node.js Native Test Runner，覆盖 100% 核心链路。
+- **CI/CD**：引入 GitHub Actions 自动验证每一次提交。
 
-### 💎 参数一致性与动态对齐 (Best Practices)
-在处理反向算法时，必须注意**浮点数精度的放大效应**：
-- **误差放大**: 在 `alpha` 较高（如 0.95）时，分母 `(1 - alpha)` 极小，此时 `watermarked` 像素点的 1 单位四舍五入误差会被放大 20 倍。
-- **动态容差测试**: 在编写单元测试时，测试用例应当根据 `alpha` 的值动态计算 `tolerance`（容差），计算公式建议为 `Math.ceil(0.51 / (1 - alpha))`。
-- **类型安全**: 跨环境传递图像数据（如 CLI 中的 Buffer 到 Uint8ClampedArray）时，应始终通过 `.buffer` 引用底层物理内存，确保数据的一致性对齐。
+### 3. 外部接口化 (Interfacing)
+- **CLI 模式**：通过 `node src/cli.js -i <in> -o <out> --json` 实现机器可读输出（包含探测元数据）。
+- **Python Bridge**：提供带有完整类型提示的抽象类，方便 AI 工作流集成。
 
 ---
 
 ## 📈 路线图 (Roadmap)
 
-### 第一阶段：架构优化 (COMPLETED ✅)
+### 第一阶段：架构优化与标准化 (COMPLETED ✅ v1.1)
 - [x] 核心算法与 DOM 环境彻底解耦。
-- [x] 引入 Web Worker 异步处理。
-- [x] 实现高性能 Node.js CLI。
-- [x] 建立 100% 覆盖核心逻辑的原生自动化测试套件。
+- [x] 引入 Web Worker 异步处理与持久化。
+- [x] 实现高性能 Node.js CLI (支持并发、JSON、管道)。
+- [x] **稳健探测**：实现基于像素特征的零 EXIF 依赖检测。
+- [x] **工程化**：建立标准化 Lint、Format 及 GitHub Actions CI 流水线。
+- [x] 提供带有类型提示的 Python 集成 SDK。
 
 ### 第二阶段：检测与增强 (Short-term 🚀)
-- [ ] **多模型支持**：引入其它 AI 模型（如 DALL-E, Midjourney）的水印特征库。
-- [ ] **像素级特征检测**：不依赖 EXIF，通过采样边缘像素特征自动判定水印区域。
-- [ ] **批量导出优化**：Web 端支持更高效的 ZIP 实时流式压缩。
+- [ ] **多模型特征提取**：研究 DALL-E 3 和 Midjourney 的水印特征并集成。
+- [ ] **网页端实时预览优化**：引入 WebGL 片元着色器加速渲染 A/B 对比效果。
+- [ ] **性能压测工具**：开发针对万级图像处理生成的报告评估工具。
 
 ### 第三阶段：工程化提升 (Long-term 🛠)
-- [ ] **WebAssembly (Wasm) 迁移**：将像素混合循环迁移至 Rust，提升极特大分辨率图片的处理速度。
-- [ ] **移动端应用 (PWA)**：完全适配移动端，支持拍照即去。
+- [ ] **WebAssembly (Wasm) 迁移**：将像素混合循环迁移至 Rust，针对 4K+ 图像极致提速。
+- [ ] **浏览器原生插件**：开发跨浏览器的 Extension 自动去水印预览。
+- [ ] **移动端应用适配**：利用 Capacitor 或 PWA 提供移动端原生拍摄去水印能力。
+

@@ -33,46 +33,70 @@ node src/cli.js -i ./images -o ./processed_images
 ---
 
 ## 🛠 使用方式
-
 ### 1. 网页版 (Web Experience)
 最直观的使用方式，适合单张或小批量处理。
 - **访问**：打开 `dist/index.html` (或部署后的地址)。
 - **操作**：
   1. 将 Gemini 生成的图片拖入上传区。
-  2. 程序会自动识别并瞬间完成处理。
-  3. **对比滑块**：点击“切换对比模式”，左右滑动查看去水印前后的极致无损细节。
-  4. 点击“下载结果”保存。
+  2. 程序会自动识别（优先使用像素特征检测）并完成处理。
+  3. **对比滑块**：点击“切换对比模式”，左右滑动查看无损细节。
+  4. **诊断日志**：右侧边栏提供实时处理延迟和内存管理监控。
 
-### 2. 自动化服务 (CLI)
-适合开发者和需要大批量处理本地文件的场景。
-- **环境要求**：Node.js v18+ 
-- **安装依赖**：`npm install`
-- **使用命令**：
-  ```bash
-  # 处理单张图片
-  npm run cli -- -i input.webp -o output_dir
-  
-  # 批量处理整个目录
-  npm run cli -- -i ./my_folder -o ./processed_results
-  ```
-- **输出**：自动将处理后的图片重命名并保存为 PNG (或指定格式)。
+### 2. 命令行工具 (CLI) - 进阶用法
+适合需要大规模批量处理图片的开发者。
 
-### 3. 油猴脚本 (Userscript)
-无缝集成在 Gemini 官网页面中。
-- **安装**：安装 `dist/userscript/gemini-watermark-remover.user.js`。
-- **功能**：在 Gemini 生成图片时，右键或通过拦截器直接获取无水印版本。
+#### 使用前提
+- 安装了 [Node.js](https://nodejs.org/) v18+。
+- 在项目目录运行 `pnpm install` 安装依赖。
+
+#### 命令示例
+```bash
+# 1. 常规批量处理 (处理图像或目录)
+node src/cli.js -i ./images -o ./processed
+
+# 2. 机器友好模式 (输出包含详细探测信息的 JSON)
+node src/cli.js -i input.png -o output.png --json
+
+# 3. 高性能管道模式 (Unix 风格)
+cat image.png | node src/cli.js --pipe > clean.png
+```
+
+---
+
+## 🐍 Python 集成实现 (Integration)
+
+如果您需要在 Python 程序中调用本工具，可以使用我们封装的“桥接类”：
+
+### Python 调用示例
+```python
+from python.remover import GeminiWatermarkRemover
+
+# 初始化桥接
+remover = GeminiWatermarkRemover("./")
+
+# 1. 批量处理
+results = remover.remove_watermark("./input_dir", "./output_dir")
+for res in results:
+    print(f"File: {res['file']}, Method: {res['detection']}")
+
+# 2. 字节流管道处理
+with open("input.png", "rb") as f:
+    clean_bytes = remover.remove_watermark_pipe(f.read())
+```
 
 ---
 
 ## 🔬 技术原理简述
 Gemini 的水印是在生成图层上覆盖了一个固定透明度的 Logo。本工具通过：
 1. **校准**：获取水印在 48x48 和 96x96 两种规格下的精确 Alpha 映射。
-2. **定位**：根据图像尺寸算法定位水印位置。
+2. **定位**：
+   - **优先级 1**：像素互相关探测 (Robust Detector)，支持裁剪图。
+   - **优先级 2**：基于图像尺寸的规则推定。
 3. **解算**：使用公式 `Original = (Watermarked - Alpha * Logo) / (1 - Alpha)` 完美还原像素。
 
 ---
 
 ## ⚠️ 注意事项
 - 本工具仅适用于 Gemini AI 原生生成的包含“Made with Google AI”水印的图片。
-- 请确保输入的图片未经缩放、裁剪或二次压缩，否则算法定位和 Alpha 校准可能会偏移。
+- 像素探测算法对大部分背景有效，但在纯白背景上水印极不明显时可能回退到尺寸检测。
 - 仅供学习与技术交流使用。
