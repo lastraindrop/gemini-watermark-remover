@@ -17,3 +17,8 @@ yarn-error.log*
 .env*.local
 test_output/
 .env
+
+# python
+python/__pycache__/
+*.py[cod] 
+.test_results.txt
