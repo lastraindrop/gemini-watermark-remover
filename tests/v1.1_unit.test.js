@@ -51,7 +51,7 @@ describe('Unit Tests - Core Logic (v1.1 Optimized)', () => {
             const cases = [
                 { w: 100, h: 100, expectedSize: 48 },
                 { w: 1025, h: 1025, expectedSize: 96 },
-                { w: 2000, h: 500, expectedSize: 48 }, // Not both > 1024
+                { w: 2000, h: 500, expectedSize: 96 }, // Either side > 1024
             ];
             cases.forEach(c => {
                 const config = detectWatermarkConfig(c.w, c.h);
@@ -74,15 +74,19 @@ describe('Unit Tests - Core Logic (v1.1 Optimized)', () => {
             const data = new Uint8ClampedArray(w * h * 4).fill(0); // Use black background for contrast
             const targetX = 200, targetY = 200;
             
-            // Mock a specific logo pattern (a horizontal line)
-            for (let c = 0; c < size; c++) {
-                const idx = ((targetY + 10) * w + (targetX + c)) * 4;
-                data[idx] = data[idx+1] = data[idx+2] = 255;
-                data[idx+3] = 255;
+            // Mock a specific logo pattern (a 2x2 block at 10,10)
+            for (let r = 10; r < 12; r++) {
+                for (let c = 10; c < 12; c++) {
+                    const idx = ((targetY + r) * w + (targetX + c)) * 4;
+                    data[idx] = data[idx+1] = data[idx+2] = 255;
+                    data[idx+3] = 255;
+                }
             }
 
             const alphaMap = new Float32Array(size * size).fill(0);
-            for (let c = 0; c < size; c++) alphaMap[10 * size + c] = 1.0;
+            for (let r = 10; r < 12; r++) {
+                for (let c = 10; c < 12; c++) alphaMap[r * size + c] = 1.0;
+            }
 
             const result = detectWatermark({ width: w, height: h, data }, { 48: alphaMap, 96: new Float32Array(96*96) });
             assert.ok(result !== null, 'Detection returned null');

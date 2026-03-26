@@ -10,7 +10,7 @@
 - **`config.js`**: 纯逻辑模块。包含 `detectWatermarkConfig` 和 `calculateWatermarkPosition`。
 - **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。
 - **`blendModes.js`**: 核心算法实现。统一导出了 `removeWatermark` 函数供 Web Worker 和主线程公用，使用 `Math.fround` 确保精度一致性。
-- **`detector.js`**: (New v1.1) 稳健探测层。使用滑动窗口互相关算法识别水印的精确像素位置，解决 EXIF/尺寸依赖。
+- **`detector.js`**: (v1.2 Enhanced) 稳健探测层。使用 **NCC (归一化互相关)** 与 **多候选点检索** 算法识别水印的精确像素位置，解决 EXIF/尺寸依赖，并能应对比例变化与裁剪。
 - **`watermarkEngine.js`**: 引擎协调层。集成了混合检测逻辑，并实现了 **持久化 Worker** 和 **Canvas 重用**。
 
 ---
@@ -19,6 +19,7 @@
 
 ### 1. 多线程模型 (Threading)
 - 网页版不再频繁创建 Worker，而是启动时初始化单例 Worker，通过消息传递处理 `Transferable Objects` (ArrayBuffer)，避免大图克隆开销。
+- **并发协议**：实现了基于 `taskId` 的异步消息映射机制。即使 `app.js` 以高并发模式（`concurrency > 1`）向单例 Worker 发送任务，引擎也能通过 `taskId` 精确归还数据，杜绝了串行污染和竞态条件。
 - Userscript 版由于跨域限制，默认回退至主线程同步执行。
 
 ### 2. 工程化标准 (Engineering Standards)
@@ -34,11 +35,13 @@
 
 ## 📈 路线图 (Roadmap)
 
-### 第一阶段：架构优化与标准化 (COMPLETED ✅ v1.1)
+### 第一阶段：架构优化与标准化 (COMPLETED ✅ v1.1 - v1.2)
 - [x] 核心算法与 DOM 环境彻底解耦。
 - [x] 引入 Web Worker 异步处理与持久化。
 - [x] 实现高性能 Node.js CLI (支持并发、JSON、管道)。
-- [x] **稳健探测**：实现基于像素特征的零 EXIF 依赖检测。
+- [x] **稳健探测**：实现基于 **NCC** 与 **多候选点** 的零 EXIF 依赖检测，支持任意比例缩放。
+- [x] **高精度逻辑**：支持两阶段搜索（粗查+精调）与智能维度判定。
+- [x] **对抗性验证**：建立 `v1.2` 对抗性压力测试套件，确保 100% 检出率。
 - [x] **工程化**：建立标准化 Lint、Format 及 GitHub Actions CI 流水线。
 - [x] 提供带有类型提示的 Python 集成 SDK。
 

@@ -1,7 +1,4 @@
-/**
- * Watermark Detector
- * Uses pixel-correlation to locate watermarks without relying on EXIF/dimensions.
- */
+import { detectWatermarkConfig } from './config.js';
 
 /**
  * Detect watermark position and size using pixel correlation
@@ -10,8 +7,10 @@
  * @returns {Object|null} {x, y, size, confidence} or null if not found
  */
 export function detectWatermark(imageData, alphaMaps) {
-    const { width, height, data } = imageData;
-    const sizes = [96, 48]; // Try larger first
+    const { width, height } = imageData;
+    const config = detectWatermarkConfig(width, height);
+    const expectedSize = config.logoSize;
+    const sizes = [96, 48];
     
     let bestResult = null;
     let maxConfidence = -1;
@@ -20,31 +19,57 @@ export function detectWatermark(imageData, alphaMaps) {
         const alphaMap = alphaMaps[size];
         if (!alphaMap) continue;
 
-        // Gemini watermarks are always in the bottom-right quadrant.
-        // We search in a region: [width/2, height/2] to [width, height]
-        // Specifically, standard margins are 32 or 64. 
-        // We'll search with a margin of error.
-        const searchRangeX = Math.floor(width * 0.2); // Last 20%
-        const searchRangeY = Math.floor(height * 0.2); // Last 20%
+        // Expanded search range: Last 35% of the image to handle padding/cropping
+        const searchRangeX = Math.floor(width * 0.35);
+        const searchRangeY = Math.floor(height * 0.35);
         
-        const startX = width - searchRangeX - size;
-        const startY = height - searchRangeY - size;
+        const startX = Math.max(0, width - searchRangeX - size);
+        const startY = Math.max(0, height - searchRangeY - size);
+
+        const candidates = [];
+        const maxCandidates = 3;
 
         for (let y = startY; y < height - size; y += 2) {
-            for (let x = startX; x < width - size; x += 2) {
+            for (let x = startX ; x < width - size; x += 2) {
                 const confidence = calculateCorrelation(imageData, x, y, size, alphaMap);
-                if (confidence > maxConfidence) {
-                    maxConfidence = confidence;
-                    bestResult = { x, y, size, confidence };
+                if (confidence > 0.4) { // Minimum threshold for a candidate
+                    candidates.push({ x, y, confidence });
+                    candidates.sort((a, b) => b.confidence - a.confidence);
+                    if (candidates.length > maxCandidates) candidates.pop();
+                }
+            }
+        }
+
+        // Stage 2: Fine-tuning (step=1) for all top candidates
+        for (const candidate of candidates) {
+            const fineRange = 4;
+            for (let fy = Math.max(startY, candidate.y - fineRange); fy <= Math.min(height - size, candidate.y + fineRange); fy++) {
+                for (let fx = Math.max(startX, candidate.x - fineRange); fx <= Math.min(width - size, candidate.x + fineRange); fx++) {
+                    let confidence = calculateCorrelation(imageData, fx, fy, size, alphaMap, true);
+                    
+                    // Final decision scoring (coordinate-precise)
+                    let score = confidence;
+                    if (size === expectedSize) score += 0.05;
+                    const marginX = width - fx - size;
+                    const marginY = height - fy - size;
+                    if ([32, 48, 64].includes(marginX) || [32, 48, 64].includes(marginY)) {
+                        score += 0.02;
+                    }
+
+                    if (score > maxConfidence) {
+                        maxConfidence = score;
+                        bestResult = { x: fx, y: fy, size, confidence };
+                    }
                 }
             }
         }
         
-        if (maxConfidence > 0.9) break; 
+        if (maxConfidence > 1.05) break; 
     }
 
-    // Threshold for detection (0.6 is safer for varied backgrounds)
-    if (maxConfidence > 0.6) {
+    // Threshold for detection
+    // NCC usually has higher contrast between match and no-match
+    if (maxConfidence > 0.65) {
         return bestResult;
     }
 
@@ -53,32 +78,36 @@ export function detectWatermark(imageData, alphaMaps) {
 
 /**
  * Calculate similarity between image region and alpha map
- * Simplified Cross-Correlation
+ * @param {boolean} fullPrecision - If true, do not downsample
  */
-function calculateCorrelation(imageData, x, y, size, alphaMap) {
+function calculateCorrelation(imageData, x, y, size, alphaMap, fullPrecision = false) {
     const { data, width: imgWidth } = imageData;
-    let dotProduct = 0;
-    let imgMag = 0;
-    let alphaMag = 0;
-
-    for (let row = 0; row < size; row += 2) { // Downsample for speed
+    const step = fullPrecision ? 1 : 2;
+    
+    let sumI = 0, sumI2 = 0, sumA = 0, sumA2 = 0, sumIA = 0, count = 0;
+    
+    for (let row = 0; row < size; row += step) {
         const imgRowOffset = (y + row) * imgWidth + x;
         const alphaRowOffset = row * size;
-
-        for (let col = 0; col < size; col += 2) {
+        for (let col = 0; col < size; col += step) {
             const imgIdx = (imgRowOffset + col) << 2;
-            const alphaIdx = alphaRowOffset + col;
-
-            // Use max channel as brightness proxy
             const brightness = Math.max(data[imgIdx], data[imgIdx + 1], data[imgIdx + 2]) / 255.0;
-            const alpha = alphaMap[alphaIdx];
-
-            dotProduct += brightness * alpha;
-            imgMag += brightness * brightness;
-            alphaMag += alpha * alpha;
+            const alpha = alphaMap[alphaRowOffset + col];
+            
+            sumI += brightness;
+            sumI2 += brightness * brightness;
+            sumA += alpha;
+            sumA2 += alpha * alpha;
+            sumIA += brightness * alpha;
+            count++;
         }
     }
 
-    if (imgMag === 0 || alphaMag === 0) return 0;
-    return dotProduct / (Math.sqrt(imgMag) * Math.sqrt(alphaMag));
+    const varI = count * sumI2 - sumI * sumI;
+    const varA = count * sumA2 - sumA * sumA;
+    
+    if (varI <= 0 || varA <= 0) return 0;
+    
+    const denom = Math.sqrt(varI * varA);
+    return (count * sumIA - sumI * sumA) / denom;
 }

@@ -12,6 +12,23 @@
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
+    // Global Error Boundary
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'fixed top-0 left-0 w-full bg-red-600 text-white p-4 z-[9999] font-mono text-xs overflow-auto max-h-48 shadow-2xl';
+      errorDiv.innerHTML = `<strong>[RUNTIME ERROR]</strong> ${msg}<br><small>${url} : ${lineNo}:${columnNo}</small>`;
+      document.body.appendChild(errorDiv);
+      return false;
+    };
+    window.onunhandledrejection = function(event) {
+      console.error('Unhandled rejection:', event.reason);
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'fixed top-0 left-0 w-full bg-orange-600 text-white p-4 z-[9999] font-mono text-xs shadow-2xl';
+      errorDiv.innerHTML = `<strong>[PROMISE REJECTION]</strong> ${event.reason?.message || event.reason}`;
+      document.body.appendChild(errorDiv);
+    };
+  </script>
+  <script>
     tailwind.config = {
       theme: {
         extend: {
@@ -38,6 +55,7 @@
       }
     }
   </script>
+  <style>
     body { 
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       overflow-x: hidden;
@@ -163,6 +181,31 @@
       border-left-color: #10B981;
       margin-left: 4px;
     }
+
+    /* Scanning Animation */
+    @keyframes scan {
+      0% { top: 0%; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+    .scan-line {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(to bottom, transparent, rgba(16, 185, 129, 0.8), transparent);
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+      z-index: 10;
+      display: none;
+    }
+    .scan-active .scan-line {
+      display: block;
+      animation: scan 2s linear infinite;
+    }
+    .flex-center { display: flex; align-items: center; justify-content: center; }
+    .btn-gradient { background: linear-gradient(135deg, #10B981, #059669); }
+    .btn-gradient:hover { background: linear-gradient(135deg, #059669, #047857); }
   </style>
 </head>
 <body class="bg-white text-gray-800 antialiased selection:bg-primary selection:text-white flex flex-col min-h-screen loading">
@@ -192,6 +235,10 @@
         </h1>
       </div>
       <nav class="flex gap-2 md:gap-6 text-sm font-medium text-gray-600 items-center">
+        <button id="directoryModeBtn" class="hidden md:flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-all font-semibold border border-blue-100">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+          <span data-i18n="nav.directoryMode">目录模式</span>
+        </button>
         <a href="userscript/gemini-watermark-remover.user.js" target="_blank" class="hidden md:inline-block hover:text-primary transition-colors" data-i18n="nav.userscript">油猴脚本</a>
         <a href="https://allenkuo.medium.com/removing-gemini-ai-watermarks-a-deep-dive-into-reverse-alpha-blending-bbbd83af2a3f" target="_blank" rel="noopener noreferrer" class="hidden md:inline-block hover:text-primary transition-colors" data-i18n="nav.principle">去水印原理</a>
         <a href="https://github.com/journey-ad/gemini-watermark-remover" target="_blank" rel="noopener noreferrer" class="hover:text-primary transition-colors">GitHub</a>
@@ -221,6 +268,30 @@
             <p class="text-sm text-gray-400 font-medium" data-i18n="upload.hint">支持 JPG, PNG, WebP • 100% 本地安全</p>
           </div>
           <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple class="hidden" />
+        </div>
+      </div>
+
+      <!-- Directory Mode Panel (Hidden by Default) -->
+      <div id="directoryPanel" class="animate-fade-up [animation-delay:400ms] max-w-4xl mx-auto glass-card rounded-3xl shadow-premium p-6 md:p-8 border border-blue-50/50 hidden">
+        <div class="flex flex-col md:flex-row gap-6 items-center justify-between">
+            <div class="flex-1 text-left">
+                <h3 class="text-xl font-bold text-gray-900 mb-2">目录自动批处理</h3>
+                <p class="text-sm text-gray-500">选择输入和输出目录，全自动处理所有图片</p>
+            </div>
+            <div class="flex gap-4">
+                <button id="setInputDirBtn" class="px-6 py-3 bg-white border-2 border-dashed border-blue-200 text-blue-600 rounded-xl font-bold hover:bg-blue-50 transition-all">设置输入目录</button>
+                <div class="flex items-center text-gray-300"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg></div>
+                <button id="setOutputDirBtn" class="px-6 py-3 bg-white border-2 border-dashed border-emerald-200 text-emerald-600 rounded-xl font-bold hover:bg-emerald-50 transition-all">设置输出目录</button>
+            </div>
+        </div>
+        <div id="dirStatus" class="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100 hidden">
+            <div class="flex justify-between items-center text-sm font-medium mb-4">
+                <div class="flex flex-col gap-1">
+                    <span class="text-gray-400">INPUT: <span id="inputDirPath" class="text-gray-900 font-mono">/</span></span>
+                    <span class="text-gray-400">OUTPUT: <span id="outputDirPath" class="text-gray-900 font-mono">/</span></span>
+                </div>
+                <button id="startDirProcessBtn" class="px-8 py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-all disabled:opacity-30 disabled:cursor-not-allowed" disabled>开始全量处理</button>
+            </div>
         </div>
       </div>
     </section>
@@ -270,8 +341,9 @@
                 <span id="processedInfo" class="text-xs text-emerald-600 font-mono font-bold"></span>
               </div>
             </div>
-            <div id="resultContainer" class="h-[300px] md:h-[600px] p-4 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0iI2Y5ZmRmZCI+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZjJmMmYyIi8+PHJlY3QgeD0iMTAiIHk9IjEwIiB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIGZpbGw9IiNmMmYyZjIiLz48L3N2Zz4=')] relative">
-              <img id="processedImage" class="max-w-full max-h-full mx-auto rounded-lg shadow-sm block" data-zoomable />
+            <div id="resultContainer" class="h-[300px] md:h-[600px] p-4 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0iI2Y5ZmRmZCI+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZjJmMmYyIi8+PHJlY3QgeD0iMTAiIHk9IjEwIiB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIGZpbGw9IiNmMmYyZjIiLz48L3N2Zz4=')] relative transition-all duration-300">
+              <div class="scan-line"></div>
+              <img id="processedImage" class="max-w-full max-h-full mx-auto rounded-lg shadow-sm block transition-opacity duration-300" data-zoomable />
               
               <div id="comparisonSlider" class="comparison-slider hidden rounded-lg overflow-hidden border border-gray-100">
                 <img id="sliderOriginal" src="" alt="Original">
@@ -323,10 +395,15 @@
 
     <section id="multiPreview" class="max-w-7xl mx-auto px-4 pb-24 scroll-mt-24" style="display: none;">
       <div class="mb-6 flex justify-between items-center">
-        <h3 class="text-xl font-bold text-gray-900">
+        <h3 class="text-xl font-bold text-gray-900 flex items-center gap-3">
+          <span class="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span>
           <span id="progressText">处理进度: 0/0</span>
         </h3>
-        <button id="downloadAllBtn" class="py-2.5 px-6 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium transition-all flex items-center gap-2" style="display: none;">
+        <div class="flex gap-2">
+          <button id="clearAllBtn" class="py-2.5 px-6 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl font-medium transition-all">
+            清空列表
+          </button>
+          <button id="downloadAllBtn" class="py-2.5 px-6 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium transition-all flex items-center gap-2" style="display: none;">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
           <span data-i18n="btn.downloadAll">全部下载</span>
         </button>

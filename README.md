@@ -13,7 +13,7 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 - ✅ **100% Client-side** - No backend, no server-side processing. Your data stays in your browser.
 - ✅ **Privacy-First** - Images are never uploaded to any server. Period.
 - ✅ **Mathematical Precision** - Based on the Reverse Alpha Blending formula, not "hallucinating" AI models.
-- ✅ **Robust Hybrid Detection** - Uses both dimension rules and **Pixel Correlation** to find watermarks even without original metadata.
+- ✅ **Robust Hybrid Detection** - Uses both dimension rules and high-precision **NCC (Normalized Cross-Correlation)** to find watermarks even after cropping or scaling.
 - ✅ **Batch Processing** - Support for multiple file uploads and high-performance parallel CLI processing.
 - ✅ **Developer Friendly** - ESLint/Prettier standardized, CI/CD integrated, and full Python Bridge support.
 - ✅ **Cross-Platform** - Runs smoothly on browsers, Node.js (v18+), and as a Python library.
@@ -112,12 +112,12 @@ By capturing the watermark on a known solid background, we reconstruct the exact
 ## Detection Rules
 
 The engine uses a **Hybrid Detection Strategy**:
-1. **Pixel Correlation (Primary)**: Scans the bottom-right region using sliding-window correlation against known watermark patterns. This is robust against cropping and metadata stripping.
-2. **Dimension Rules (Fallback)**: Uses image size to estimate the most likely watermark position.
+1. **Pixel Correlation (Primary)**: Uses Normalized Cross-Correlation (NCC) with multi-candidate search. Automatically finds the watermark center even if the image is cropped, scaled, or metadata is missing.
+2. **Dimension Rules (Secondary)**: Infers location based on image resolution.
 
 | Base image Dimension | Target Size | Alignment | Default Margins |
 | :--- | :--- | :--- | :--- |
-| Width > 1024 **AND** Height > 1024 | 96×96 | Bottom-Right | 64px |
+| Width > 1024 **OR** Height > 1024 | 96×96 | Bottom-Right | 64px |
 | Otherwise | 48×48 | Bottom-Right | 32px |
 
 ## Project Structure

@@ -1,3 +1,11 @@
+import zhCN from './i18n/zh-CN.json';
+import enUS from './i18n/en-US.json';
+
+const translations = {
+    'zh-CN': zhCN,
+    'en-US': enUS
+};
+
 const i18n = {
   locale: localStorage.getItem('locale') || (navigator.language.startsWith('zh') ? 'zh-CN' : 'en-US'),
   translations: {},
@@ -9,8 +17,7 @@ const i18n = {
   },
 
   async loadTranslations(locale) {
-    const res = await fetch(`./i18n/${locale}.json?_=${Date.now()}`);
-    this.translations = await res.json();
+    this.translations = translations[locale] || translations['zh-CN'];
     this.locale = locale;
     localStorage.setItem('locale', locale);
   },

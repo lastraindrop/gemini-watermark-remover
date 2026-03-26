@@ -9,12 +9,16 @@
   },
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "gemini-watermark-remover": "./src/cli.js"
+  },
   "scripts": {
     "dev": "node build.js",
     "build": "NODE_ENV=production node build.js",
     "serve": "npx serve dist",
     "test": "node --test tests/v1.1_*.test.js",
     "cli": "node src/cli.js",
+    "gui": "python python/gui.py",
     "lint": "eslint src",
     "format": "prettier --write src"
   },

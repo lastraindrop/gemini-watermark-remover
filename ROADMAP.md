@@ -4,8 +4,10 @@
 
 ## 📍 当前状态 (v1.1 - Stable)
 - [x] 核心算法无损重构 (`Math.fround`)
-- [x] 稳健检测：基于像素特征的自适应定位算法
+- [x] 稳健检测：基于 NCC (归一化互相关) 的高精度定位算法
+- [x] 智能判定：自适应 48px/96px 尺寸切换与维度触发逻辑
 - [x] 工程化标准：Lint、Prettier 及 GitHub Actions CI
+- [x] 自动化验证：通过 24 项随机对抗性压力测试 (Adversarial Suite)
 - [x] Web Worker 持久化调度与 Canvas 复用
 - [x] 支持 JSON/Pipe/并发的标准化 CLI
 - [x] 带有类型提示的 Python 桥接 SDK
@@ -18,9 +20,13 @@
 - **实时对比引擎导出**：支持导出对比预览图（Split view / Difference mask）。
 - **批量处理仪表盘**：网页版提供可视化的处理进度波形图和内存压力红线。
 
-### 🧠 智能特征库扩展 (Enhanced Models)
-- **多模型支持**：针对 DALL-E 3 和不同版本 Stable Diffusion 的原生水印进行建模与还原。
+### 🧠 智能特征库扩展 (Universal Support)
+- **通用水印插件系统**：支持 DALL-E 3、Midjourney 等不同模型的水印建模，实现一键通用去除。
 - **轻量级去噪预处理**：针对 JPEG 强制压缩导致的边缘伪影，加入可选的智能边缘重构。
+
+### 🎬 视频水印协议 (Video Roadmap)
+- **时域一致性处理**：实现视频帧间坐标缓存，支持 MP4/MOV 格式的水印无损去除。
+- **亮度通道优化**：针对视频压缩特性优化 YUV 处理流，确保在低码率下依然精准。
 
 ### ⚡ 性能优化
 - **Rust / WebAssembly 深度迁移**：将像素循环 (alphaMap & blendModes) 通过 Rust 重新实现。

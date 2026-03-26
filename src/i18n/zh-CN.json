@@ -18,6 +18,8 @@
   "btn.toggleView": "切换对比模式",
   "progress.text": "处理进度",
   "btn.downloadAll": "全部下载",
+  "nav.directoryMode": "目录模式",
+  "status.ready": "已准备就绪",
   "feature.title": "功能特点",
   "feature.speed.title": "极速处理",
   "feature.speed.desc": "基于现代浏览器技术加速处理，毫秒级响应，无需等待排队",

@@ -19,9 +19,11 @@ export class WatermarkEngine {
         this.bgCaptures = bgCaptures;
         this.alphaMaps = {};
         this._worker = null;
-        this._workerPromise = null;
+        this._workerHandlers = new Map();
+        this._nextTaskId = 0;
         this._reusableCanvas = null;
         this._reusableCtx = null;
+        this._useWorker = false;
     }
 
     static async create() {
@@ -46,7 +48,33 @@ export class WatermarkEngine {
     _getWorker() {
         if (!window.Worker || window.GM_info) return null;
         if (!this._worker) {
-            this._worker = new Worker('worker.js');
+            try {
+                this._worker = new Worker('worker.js');
+                this._worker.onmessage = (e) => {
+                    const { taskId, imageData } = e.data;
+                    const handler = this._workerHandlers.get(taskId);
+                    if (handler) {
+                        this._workerHandlers.delete(taskId);
+                        handler.resolve(imageData);
+                    }
+                };
+                this._worker.onerror = (e) => {
+                    console.warn('Worker error, switching to main thread:', e);
+                    this._useWorker = false;
+                    // Cancel all pending tasks
+                    this._workerHandlers.forEach(h => h.reject(new Error('Worker crashed')));
+                    this._workerHandlers.clear();
+                    if (this._worker) {
+                        this._worker.terminate();
+                        this._worker = null;
+                    }
+                };
+                this._useWorker = true;
+            } catch (err) {
+                console.warn('Failed to start worker (likely file:// protocol):', err);
+                this._useWorker = false;
+                return null;
+            }
         }
         return this._worker;
     }
@@ -110,25 +138,28 @@ export class WatermarkEngine {
         }
 
         const worker = this._getWorker();
-        if (worker) {
-            // We use a temporary listener for the current request
-            // This works because app.js processes images in a way that respects the promise
-            // For true concurrency with one worker, we'd need message IDs.
-            await new Promise((resolve) => {
-                const handler = (e) => {
-                    worker.removeEventListener('message', handler);
-                    ctx.putImageData(e.data.imageData, 0, 0);
-                    resolve();
-                };
-                worker.addEventListener('message', handler);
-                worker.postMessage({ imageData, alphaMap, position }, [imageData.data.buffer]);
-            });
+        if (worker && this._useWorker) {
+            const taskId = this._nextTaskId++;
+            try {
+                const processedImageData = await new Promise((resolve, reject) => {
+                    this._workerHandlers.set(taskId, { resolve, reject });
+                    worker.postMessage({ imageData, alphaMap, position, taskId }, [imageData.data.buffer]);
+                });
+                ctx.putImageData(processedImageData, 0, 0);
+            } catch (err) {
+                console.warn('Worker task failed, falling back to main thread:', err);
+                removeWatermark(imageData, alphaMap, position);
+                ctx.putImageData(imageData, 0, 0);
+            }
         } else {
             removeWatermark(imageData, alphaMap, position);
             ctx.putImageData(imageData, 0, 0);
         }
 
-        return canvas;
+        return { 
+            canvas, 
+            detectionMode: pixelDetect ? 'pixel' : 'config' 
+        };
     }
 
     getWatermarkInfo(imageWidth, imageHeight) {
@@ -150,4 +181,3 @@ export class WatermarkEngine {
         this.alphaMaps = {};
     }
 }
-

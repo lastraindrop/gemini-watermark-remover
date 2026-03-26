@@ -95,6 +95,8 @@ class CLIEngine {
         })
         .toFormat(extname(outputPath).slice(1) || 'png')
         .toFile(outputPath);
+
+        return { detection: pixelDetect ? 'pixel' : 'config' };
     }
 }
 
@@ -146,8 +148,12 @@ async function main() {
             process.stdout.write(outBuffer);
             process.exit(0);
         } catch (err) {
-            if (!params.json) console.error(err);
-            else console.log(JSON.stringify({ status: 'error', message: err.message }));
+            const msg = err.message || 'Unknown error';
+            if (params.json) {
+                console.log(JSON.stringify({ status: 'error', message: msg }));
+            } else {
+                console.error(`❌ Pipe Error: ${msg}`);
+            }
             process.exit(1);
         }
         return;
@@ -188,7 +194,7 @@ async function main() {
             
         const start = performance.now();
         try {
-            await engine.processImage(file, out);
+            const meta = await engine.processImage(file, out);
             const duration = (performance.now() - start).toFixed(0);
             if (params.json) {
                 console.log(JSON.stringify({ 
@@ -196,10 +202,10 @@ async function main() {
                     file: basename(file), 
                     output: out, 
                     duration_ms: duration,
-                    detection: pixelDetect ? 'pixel' : 'config'
+                    detection: meta.detection
                 }));
             } else {
-                console.log(`✅ Saved: ${basename(out)} (${duration}ms)`);
+                console.log(`✅ Saved: ${basename(out)} (${duration}ms, detection: ${meta.detection})`);
             }
         } catch (err) {
             if (params.json) {

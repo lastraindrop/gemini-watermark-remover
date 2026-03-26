@@ -1,24 +1,44 @@
-import subprocess
-import json
 import os
+import json
+import subprocess
 import sys
+import shutil
 from typing import List, Dict, Any, Union, Optional
 
 class GeminiWatermarkRemover:
     """
     Python bridge for gemini-watermark-remover.
-    Requires Node.js and the project to be built.
+    Requires Node.js.
     """
-    def __init__(self, project_path: str):
-        self.project_path = os.path.abspath(project_path)
-        self.cli_path = os.path.join(self.project_path, "src", "cli.js")
+    def __init__(self, project_path: Optional[str] = None):
+        # 1. Resolve Project Root
+        if project_path:
+            self.project_path = os.path.abspath(project_path)
+        else:
+            # Try to find current working directory or package location
+            self.project_path = os.getcwd()
+
+        # 2. Resolve CLI Path (Environment Variable > Specified Path > Local Search)
+        env_path = os.environ.get("GWR_CLI_PATH")
+        if env_path:
+            self.cli_path = os.path.abspath(env_path)
+        else:
+            local_cli = os.path.join(self.project_path, "src", "cli.js")
+            if os.path.exists(local_cli):
+                self.cli_path = local_cli
+            else:
+                # Last resort: try to find it in the global binaries if it was linked
+                self.cli_path = shutil.which("gemini-watermark-remover")
         
         self._verify_environment()
 
     def _verify_environment(self) -> None:
         """Verifies that Node.js and the CLI tool are available."""
-        if not os.path.exists(self.cli_path):
-            raise FileNotFoundError(f"CLI tool not found at {self.cli_path}. Ensure the project path is correct.")
+        if not self.cli_path or not os.path.exists(self.cli_path):
+            raise FileNotFoundError(
+                f"CLI tool not found. Please provide a valid project_path, "
+                "link the package globally, or set GWR_CLI_PATH."
+            )
         
         try:
             subprocess.run(["node", "--version"], capture_output=True, check=True)
@@ -39,21 +59,30 @@ class GeminiWatermarkRemover:
         ]
         
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            # We use a wrapper if cli_path is a JS file, or direct execution if it's a binary/link
+            exec_cmd = ["node", self.cli_path] if self.cli_path.endswith(".js") else [self.cli_path]
+            final_cmd = exec_cmd + ["--input", input_path, "--output", output_path, "--json"]
+            
+            result = subprocess.run(final_cmd, capture_output=True, text=True, check=True)
             results = []
-            for line in result.stdout.strip().split('\n'):
-                if line.strip():
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if line.startswith('{') and line.endswith('}'):
                     try:
                         results.append(json.loads(line))
                     except json.JSONDecodeError:
                         continue
             return results
         except subprocess.CalledProcessError as e:
-            error_msg = e.stderr or e.stdout
-            try:
-                return [json.loads(error_msg)]
-            except:
-                return [{"status": "error", "message": error_msg.strip()}]
+            error_msg = (e.stderr or e.stdout).strip()
+            # Try to find JSON in the error message
+            for line in error_msg.splitlines():
+                if line.strip().startswith('{'):
+                    try:
+                        return [json.loads(line)]
+                    except:
+                        pass
+            return [{"status": "error", "message": error_msg}]
 
     def remove_watermark_pipe(self, image_bytes: bytes) -> bytes:
         """

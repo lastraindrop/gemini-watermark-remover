@@ -13,6 +13,17 @@ let zoom = null;
 // dom elements references
 const uploadArea = document.getElementById('uploadArea');
 const fileInput = document.getElementById('fileInput');
+const directoryModeBtn = document.getElementById('directoryModeBtn');
+const directoryPanel = document.getElementById('directoryPanel');
+const setInputDirBtn = document.getElementById('setInputDirBtn');
+const setOutputDirBtn = document.getElementById('setOutputDirBtn');
+const startDirProcessBtn = document.getElementById('startDirProcessBtn');
+const dirStatus = document.getElementById('dirStatus');
+const inputDirPathEl = document.getElementById('inputDirPath');
+const outputDirPathEl = document.getElementById('outputDirPath');
+
+let inputDirHandle = null;
+let outputDirHandle = null;
 const singlePreview = document.getElementById('singlePreview');
 const multiPreview = document.getElementById('multiPreview');
 const imageList = document.getElementById('imageList');
@@ -20,10 +31,9 @@ const progressText = document.getElementById('progressText');
 const downloadAllBtn = document.getElementById('downloadAllBtn');
 const originalImage = document.getElementById('originalImage');
 const processedSection = document.getElementById('processedSection');
-const processedImage = document.getElementById('processedImage');
-const originalInfo = document.getElementById('originalInfo');
 const processedInfo = document.getElementById('processedInfo');
 const downloadBtn = document.getElementById('downloadBtn');
+const clearAllBtn = document.getElementById('clearAllBtn');
 const resetBtn = document.getElementById('resetBtn');
 const viewModeBtn = document.getElementById('viewModeBtn');
 const comparisonSlider = document.getElementById('comparisonSlider');
@@ -31,13 +41,14 @@ const sliderOriginal = document.getElementById('sliderOriginal');
 const sliderProcessed = document.getElementById('sliderProcessed');
 const sliderResize = comparisonSlider.querySelector('.resize');
 const sliderHandle = comparisonSlider.querySelector('.handle');
+const resultContainer = document.getElementById('resultContainer');
 
 // New Diagnostic UI References
 const engineStatus = document.getElementById('engineStatus');
 const workerStatus = document.getElementById('workerStatus');
 const memoryCount = document.getElementById('memoryCount');
 const lastLatency = document.getElementById('lastLatency');
-const auditLogList = document.getElementById('auditLogList');
+const auditLogList = null; // Will be resolved dynamically
 const sideBySideView = document.getElementById('sideBySideView');
 const sideOriginal = document.getElementById('sideOriginal');
 const sideProcessed = document.getElementById('sideProcessed');
@@ -49,6 +60,11 @@ const modeSideBtn = document.getElementById('modeSideBtn');
  */
 const AuditLog = {
     log(message, type = 'info') {
+        let list = document.getElementById('auditLogList');
+        if (!list) {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            return;
+        }
         const entry = document.createElement('div');
         const now = new Date();
         const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
@@ -61,7 +77,7 @@ const AuditLog = {
 
         entry.className = `${colorClass} py-0.5 border-b border-white/5 last:border-0`;
         entry.innerHTML = `<span class="opacity-50">[${timeStr}]</span> [${type.toUpperCase()}] ${message}`;
-        auditLogList.prepend(entry);
+        list.prepend(entry);
     }
 };
 
@@ -97,23 +113,30 @@ const objectUrlManager = {
 async function init() {
     try {
         AuditLog.log('Application starting...', 'info');
+        if (window.location.protocol === 'file:') {
+            AuditLog.log('Running via file:// protocol. Some features (Workers, Fetch) might be restricted.', 'warn');
+        }
+
         await i18n.init();
         setupLanguageSwitch();
         showLoading(i18n.t('status.loading'));
 
+        AuditLog.log('Initializing WatermarkEngine...', 'process');
         engine = await WatermarkEngine.create();
-        AuditLog.log('WatermarkEngine initialized successfully', 'success');
+        
+        const hasWorker = engine._getWorker() !== null && engine._useWorker;
+        AuditLog.log(`WatermarkEngine ready (Worker: ${hasWorker ? 'ON' : 'OFF'})`, 'success');
+        
         engineStatus.textContent = 'READY';
         engineStatus.className = 'text-emerald-400 font-bold';
         
-        // Detect worker support
-        const hasWorker = window.Worker && !window.GM_info;
         workerStatus.textContent = hasWorker ? 'ACTIVE' : 'DISABLED';
         workerStatus.className = hasWorker ? 'text-emerald-400' : 'text-gray-500';
-        AuditLog.log(`Web Worker status: ${hasWorker ? 'ENABLED' : 'DISABLED (UserScript Mode or No Support)'}`, hasWorker ? 'success' : 'warn');
+        AuditLog.log(`Web Worker status: ${hasWorker ? 'ENABLED' : 'DISABLED (UserScript or Fallback Mode)'}`, hasWorker ? 'success' : 'warn');
 
         hideLoading();
         setupEventListeners();
+        setupDirectoryMode();
 
         zoom = mediumZoom('[data-zoomable]', {
             margin: 24,
@@ -166,6 +189,7 @@ function setupEventListeners() {
     });
 
     downloadAllBtn.addEventListener('click', downloadAll);
+    if (clearAllBtn) clearAllBtn.addEventListener('click', reset);
     resetBtn.addEventListener('click', reset);
     
     // Updated Mode Toggles
@@ -233,7 +257,12 @@ function handleFiles(files) {
         return true;
     });
 
-    if (validFiles.length === 0) return;
+    if (validFiles.length === 0) {
+        AuditLog.log('No valid images selected (supports JPG, PNG, WebP up to 20MB)', 'warn');
+        return;
+    }
+
+    AuditLog.log(`Selected ${validFiles.length} files. Starting processing flow...`, 'info');
 
     objectUrlManager.clear();
     imageQueue = validFiles.map((file, index) => ({
@@ -258,6 +287,8 @@ function handleFiles(files) {
         multiPreview.style.display = 'block';
         imageList.innerHTML = '';
         updateProgress();
+        AuditLog.log(`Batch mode activated: ${imageQueue.length} images queued`, 'info');
+        setStatusMessage(i18n.t('status.processing'), 'process');
         multiPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
         imageQueue.forEach(item => createImageCard(item));
         processQueue();
@@ -285,14 +316,17 @@ async function processSingle(item) {
 
         const startTime = performance.now();
         AuditLog.log(`Processing image: ${item.name} (${img.width}x${img.height})`, 'process');
-
-        const result = await engine.removeWatermarkFromImage(img);
+        
+        resultContainer.classList.add('scan-active');
+        const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img);
+        resultContainer.classList.remove('scan-active');
+        
         const endTime = performance.now();
         const latency = (endTime - startTime).toFixed(0);
         lastLatency.textContent = `Latency: ${latency}ms`;
-        AuditLog.log(`Processing complete for ${item.name} in ${latency}ms`, 'success');
+        AuditLog.log(`Processing complete [Mode: ${detectionMode.toUpperCase()}] for ${item.name} in ${latency}ms`, 'success');
 
-        const blob = await new Promise(resolve => result.toBlob(resolve, 'image/png'));
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
         item.processedBlob = blob;
 
         item.processedUrl = objectUrlManager.create(blob);
@@ -365,15 +399,15 @@ async function processQueue() {
                 item.originalImg = img;
                 item.originalUrl = img.src;
                 
-                const result = await engine.removeWatermarkFromImage(img);
+                const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img);
                 const endTime = performance.now();
                 const latency = (endTime - startTime).toFixed(0);
                 
-                const blob = await new Promise(resolve => result.toBlob(resolve, 'image/png'));
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
                 item.processedBlob = blob;
 
                 item.processedUrl = objectUrlManager.create(blob);
-                AuditLog.log(`Batch: ${item.name} done in ${latency}ms`, 'success');
+                AuditLog.log(`Batch: ${item.name} done [${detectionMode}] in ${latency}ms`, 'success');
                 const resultImg = document.getElementById(`result-${item.id}`);
                 if (resultImg) {
                     resultImg.src = item.processedUrl;
@@ -413,6 +447,8 @@ async function processQueue() {
 
     if (processedCount > 0) {
         downloadAllBtn.style.display = 'flex';
+        setStatusMessage(i18n.t('status.success'), 'success');
+        AuditLog.log('All batch tasks completed', 'success');
     }
 }
 
@@ -455,4 +491,118 @@ async function downloadAll() {
     a.click();
 }
 
-init();
+/**
+ * Directory Mode Logic
+ */
+function setupDirectoryMode() {
+    if (!window.showDirectoryPicker) {
+        AuditLog.log('Native File System API not supported in this browser.', 'warn');
+        return;
+    }
+    
+    if (directoryModeBtn) {
+        directoryModeBtn.classList.remove('hidden');
+        directoryModeBtn.addEventListener('click', () => {
+            const isHidden = directoryPanel.classList.toggle('hidden');
+            uploadArea.parentElement.classList.toggle('hidden', !isHidden);
+            AuditLog.log(`Directory Mode ${isHidden ? 'deactivated' : 'activated'}`, 'info');
+        });
+    }
+
+    if (setInputDirBtn) setInputDirBtn.addEventListener('click', () => selectDirectory('input'));
+    if (setOutputDirBtn) setOutputDirBtn.addEventListener('click', () => selectDirectory('output'));
+    if (startDirProcessBtn) startDirProcessBtn.addEventListener('click', processDirectory);
+}
+
+async function selectDirectory(type) {
+    try {
+        const handle = await window.showDirectoryPicker();
+        if (type === 'input') inputDirHandle = handle;
+        else outputDirHandle = handle;
+
+        dirStatus.classList.remove('hidden');
+        const pathEl = type === 'input' ? inputDirPathEl : outputDirPathEl;
+        pathEl.textContent = handle.name;
+        
+        startDirProcessBtn.disabled = !(inputDirHandle && outputDirHandle);
+        AuditLog.log(`${type.toUpperCase()} directory set: ${handle.name}`, 'success');
+    } catch (err) {
+        AuditLog.log(`Directory selection cancelled: ${err.message}`, 'warn');
+    }
+}
+
+async function processDirectory() {
+    if (!inputDirHandle || !outputDirHandle) return;
+    
+    startDirProcessBtn.disabled = true;
+    startDirProcessBtn.textContent = i18n.t('status.processing');
+    AuditLog.log('Starting automated directory processing...', 'process');
+    
+    const files = [];
+    for await (const entry of inputDirHandle.values()) {
+        if (entry.kind === 'file' && /\.(jpe?g|png|webp)$/i.test(entry.name)) {
+            files.push(await entry.getFile());
+        }
+    }
+
+    if (files.length === 0) {
+        AuditLog.log('No valid images found in input directory.', 'warn');
+        startDirProcessBtn.disabled = false;
+        startDirProcessBtn.textContent = '开始全量处理';
+        return;
+    }
+
+    AuditLog.log(`Found ${files.length} images. Starting batch...`, 'info');
+    
+    singlePreview.style.display = 'none';
+    multiPreview.style.display = 'block';
+    imageList.innerHTML = '';
+    imageQueue = files.map((file, index) => ({
+        id: Date.now() + index,
+        file,
+        name: file.name,
+        status: 'pending'
+    }));
+    processedCount = 0;
+    updateProgress();
+    imageQueue.forEach(item => createImageCard(item));
+
+    const concurrency = 2;
+    for (let i = 0; i < imageQueue.length; i += concurrency) {
+        await Promise.all(imageQueue.slice(i, i + concurrency).map(async item => {
+            item.status = 'processing';
+            updateStatus(item.id, i18n.t('status.processing'));
+            
+            try {
+                const img = await loadImage(item.file);
+                const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img);
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                
+                const fileHandle = await outputDirHandle.getFileHandle(`unwatermarked_${item.name.replace(/\.[^.]+$/, '')}.png`, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+
+                item.status = 'completed';
+                updateStatus(item.id, `✅ Saved [${detectionMode.toUpperCase()}]`, true);
+                processedCount++;
+                updateProgress();
+            } catch (err) {
+                item.status = 'error';
+                updateStatus(item.id, `❌ Error: ${err.message}`);
+                AuditLog.log(`Error processing ${item.name}: ${err.message}`, 'err');
+            }
+        }));
+    }
+
+    AuditLog.log(`Automated directory processing complete. ${processedCount}/${files.length} images saved.`, 'success');
+    startDirProcessBtn.disabled = false;
+    startDirProcessBtn.textContent = '完成';
+    setStatusMessage(i18n.t('status.success'), 'success');
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
