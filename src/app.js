@@ -35,6 +35,7 @@ const processedInfo = document.getElementById('processedInfo');
 const downloadBtn = document.getElementById('downloadBtn');
 const clearAllBtn = document.getElementById('clearAllBtn');
 const resetBtn = document.getElementById('resetBtn');
+const processedImage = document.getElementById('processedImage');
 const viewModeBtn = document.getElementById('viewModeBtn');
 const comparisonSlider = document.getElementById('comparisonSlider');
 const sliderOriginal = document.getElementById('sliderOriginal');
@@ -48,7 +49,6 @@ const engineStatus = document.getElementById('engineStatus');
 const workerStatus = document.getElementById('workerStatus');
 const memoryCount = document.getElementById('memoryCount');
 const lastLatency = document.getElementById('lastLatency');
-const auditLogList = null; // Will be resolved dynamically
 const sideBySideView = document.getElementById('sideBySideView');
 const sideOriginal = document.getElementById('sideOriginal');
 const sideProcessed = document.getElementById('sideProcessed');
@@ -58,6 +58,8 @@ const modeSideBtn = document.getElementById('modeSideBtn');
 /**
  * AuditLog Utility
  */
+const escapeHtml = (str) => str.toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 const AuditLog = {
     log(message, type = 'info') {
         let list = document.getElementById('auditLogList');
@@ -76,7 +78,7 @@ const AuditLog = {
         if (type === 'process') colorClass = 'text-blue-400';
 
         entry.className = `${colorClass} py-0.5 border-b border-white/5 last:border-0`;
-        entry.innerHTML = `<span class="opacity-50">[${timeStr}]</span> [${type.toUpperCase()}] ${message}`;
+        entry.innerHTML = `<span class="opacity-50">[${timeStr}]</span> [${type.toUpperCase()}] ${escapeHtml(message)}`;
         list.prepend(entry);
     }
 };
@@ -454,7 +456,13 @@ async function processQueue() {
 
 function updateStatus(id, text, isHtml = false) {
     const el = document.getElementById(`status-${id}`);
-    if (el) el.innerHTML = isHtml ? text : text.replace(/\n/g, '<br>');
+    if (el) {
+        if (isHtml) {
+            el.innerHTML = text;
+        } else {
+            el.textContent = text;
+        }
+    }
 }
 
 function updateProgress() {
@@ -486,9 +494,12 @@ async function downloadAll() {
 
     const blob = await zip.generateAsync({ type: 'blob' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    const zipUrl = objectUrlManager.create(blob);
+    a.href = zipUrl;
     a.download = `unwatermarked_${Date.now()}.zip`;
     a.click();
+    // Revoke after download trigger
+    setTimeout(() => objectUrlManager.revoke(zipUrl), 3000);
 }
 
 /**
@@ -548,7 +559,7 @@ async function processDirectory() {
     if (files.length === 0) {
         AuditLog.log('No valid images found in input directory.', 'warn');
         startDirProcessBtn.disabled = false;
-        startDirProcessBtn.textContent = '开始全量处理';
+        startDirProcessBtn.textContent = i18n.t('btn.startProcess');
         return;
     }
 
@@ -597,7 +608,7 @@ async function processDirectory() {
 
     AuditLog.log(`Automated directory processing complete. ${processedCount}/${files.length} images saved.`, 'success');
     startDirProcessBtn.disabled = false;
-    startDirProcessBtn.textContent = '完成';
+    startDirProcessBtn.textContent = i18n.t('status.success');
     setStatusMessage(i18n.t('status.success'), 'success');
 }
 

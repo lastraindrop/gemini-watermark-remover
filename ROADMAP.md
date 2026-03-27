@@ -4,13 +4,14 @@
 
 ## 📍 当前状态 (v1.1 - Stable)
 - [x] 核心算法无损重构 (`Math.fround`)
-- [x] 稳健检测：基于 NCC (归一化互相关) 的高精度定位算法
-- [x] 智能判定：自适应 48px/96px 尺寸切换与维度触发逻辑
-- [x] 工程化标准：Lint、Prettier 及 GitHub Actions CI
-- [x] 自动化验证：通过 24 项随机对抗性压力测试 (Adversarial Suite)
-- [x] Web Worker 持久化调度与 Canvas 复用
+- [x] 稳健检测：基于 NCC 与 Top-5 插入排序的高精度、高性能定位算法
+- [x] 智能判定：自适应 48px/96px 尺寸切换与维度触发逻辑 (MinSide >= 720)
+- [x] 工程化标准：Windows 兼容构建、Lint、Prettier 及 GitHub Actions CI
+- [x] 自动化验证：通过 **37 项** 可重现压力测试 (Seeded PRNG Adversarial Suite)
+- [x] 安全加固：内置 XSS 转义与内存泄漏主动防御系统
+- [x] Web Worker 持久化调度与主线程副本回退 (Fallback) 协议
 - [x] 支持 JSON/Pipe/并发的标准化 CLI
-- [x] 带有类型提示的 Python 桥接 SDK
+- [x] 带有类型提示的 Python 桥接 SDK 及 Tkinter 线程安全 GUI
 
 ---
 

@@ -4,6 +4,11 @@ import { detectWatermarkConfig, calculateWatermarkPosition } from '../src/core/c
 import { detectWatermark } from '../src/core/detector.js';
 import { removeWatermark } from '../src/core/blendModes.js';
 
+// Seeded PRNG for reproducibility
+let _seed = 42;
+const seededRandom = () => { _seed = (_seed * 16807) % 2147483647; return (_seed - 1) / 2147483646; };
+
+
 describe('Final Adversarial Stability Test', () => {
 
     // Realistic Alpha Map: Moderate alpha (0.1 - 0.6)
@@ -26,7 +31,7 @@ describe('Final Adversarial Stability Test', () => {
     };
 
     const runTrial = (width, height, id) => {
-        const originalColor = 40 + (Math.random() * 160);
+        const originalColor = 40 + (seededRandom() * 160);
         const logoColor = 255;
 
         const config = detectWatermarkConfig(width, height);
@@ -58,8 +63,8 @@ describe('Final Adversarial Stability Test', () => {
 
         removeWatermark(img, refAlphaMap, { x: detect.x, y: detect.y, width: detect.size, height: detect.size });
         for (let i = 0; i < 20; i++) {
-            const r = Math.floor(Math.random() * config.logoSize);
-            const c = Math.floor(Math.random() * config.logoSize);
+            const r = Math.floor(seededRandom() * config.logoSize);
+            const c = Math.floor(seededRandom() * config.logoSize);
             const idx = ((refPos.y + r) * width + (refPos.x + c)) * 4;
             // 2-pixel tolerance is reasonable for 8-bit color rounding
             assert.ok(Math.abs(img.data[idx] - originalColor) <= 2, `Pixel error at ${r},${c}`);
@@ -68,8 +73,8 @@ describe('Final Adversarial Stability Test', () => {
 
     // 20 Randomized trials
     for (let i = 0; i < 20; i++) {
-        const w = Math.floor(Math.random() * 2000) + 400;
-        const h = Math.floor(Math.random() * 2000) + 400;
+        const w = Math.floor(seededRandom() * 2000) + 400;
+        const h = Math.floor(seededRandom() * 2000) + 400;
         test(`Trial #${i+1} (${w}x${h})`, () => runTrial(w, h, i));
     }
 

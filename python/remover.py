@@ -50,13 +50,6 @@ class GeminiWatermarkRemover:
         Processes a single image or a directory.
         Returns a list of result dictionaries.
         """
-        cmd = [
-            "node", 
-            self.cli_path, 
-            "--input", input_path, 
-            "--output", output_path,
-            "--json"
-        ]
         
         try:
             # We use a wrapper if cli_path is a JS file, or direct execution if it's a binary/link
@@ -80,7 +73,7 @@ class GeminiWatermarkRemover:
                 if line.strip().startswith('{'):
                     try:
                         return [json.loads(line)]
-                    except:
+                    except Exception:
                         pass
             return [{"status": "error", "message": error_msg}]
 

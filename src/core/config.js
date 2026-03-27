@@ -10,10 +10,14 @@
  * @returns {Object} Watermark configuration {logoSize, marginRight, marginBottom}
  */
 export function detectWatermarkConfig(imageWidth, imageHeight) {
-    // Gemini's watermark rules:
-    // If either image width or height is greater than 1024, use 96×96 watermark
-    // Otherwise, use 48×48 watermark
-    if (imageWidth > 1024 || imageHeight > 1024) {
+    // Gemini's watermark rules (Refined v1.2.1):
+    // Use 96px only if the image is sufficiently large in BOTH dimensions
+    // or very large in one while maintaining reasonable size in the other.
+    // Rule: Max side > 1024 AND Min side >= 720 (v1.2.2 Refined)
+    const maxSide = Math.max(imageWidth, imageHeight);
+    const minSide = Math.min(imageWidth, imageHeight);
+
+    if (maxSide > 1024 && minSide >= 720) {
         return {
             logoSize: 96,
             marginRight: 64,

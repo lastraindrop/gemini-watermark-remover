@@ -5,13 +5,14 @@ import { detectWatermark } from '../src/core/detector.js';
 
 describe('V1.2 Precision & Robustness Tests', () => {
 
-    describe('1. Threshold Relaxation (config.js)', () => {
-        test('Should use 96px if EITHER dimension is > 1024', () => {
+    describe('1. Threshold Refinement (config.js)', () => {
+        test('Should use 96px ONLY if Max > 1024 and Min >= 720', () => {
             const cases = [
                 { w: 1500, h: 800, expected: 96 },
                 { w: 800, h: 1500, expected: 96 },
                 { w: 1024, h: 1024, expected: 48 },
-                { w: 1025, h: 500, expected: 96 }
+                { w: 1589, h: 672, expected: 48 }, // User's reported case
+                { w: 1025, h: 500, expected: 48 }  // Too thin
             ];
             cases.forEach(c => {
                 const config = detectWatermarkConfig(c.w, c.h);

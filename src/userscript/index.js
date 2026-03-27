@@ -54,8 +54,8 @@ async function processImage(imgElement) {
     const normalSizeBlob = await fetchBlob(replaceWithNormalSize(originalSrc));
     const normalSizeBlobUrl = URL.createObjectURL(normalSizeBlob);
     const normalSizeImg = await loadImage(normalSizeBlobUrl);
-    const processedCanvas = await engine.removeWatermarkFromImage(normalSizeImg);
-    const processedBlob = await canvasToBlob(processedCanvas);
+    const { canvas } = await engine.removeWatermarkFromImage(normalSizeImg);
+    const processedBlob = await canvasToBlob(canvas);
 
     URL.revokeObjectURL(normalSizeBlobUrl);
 
@@ -103,7 +103,7 @@ const setupMutationObserver = () => {
 async function processImageBlob(blob) {
   const blobUrl = URL.createObjectURL(blob);
   const img = await loadImage(blobUrl);
-  const canvas = await engine.removeWatermarkFromImage(img);
+  const { canvas } = await engine.removeWatermarkFromImage(img);
   URL.revokeObjectURL(blobUrl);
   return canvasToBlob(canvas);
 }
@@ -120,7 +120,7 @@ unsafeWindow.fetch = async (...args) => {
 
     const origUrl = replaceWithNormalSize(url);
     if (typeof args[0] === 'string') args[0] = origUrl;
-    else if (args[0]?.url) args[0].url = origUrl;
+    else if (args[0] instanceof Request) args[0] = new Request(origUrl, args[0]);
 
     const response = await origFetch(...args);
     if (!engine || !response.ok) return response;
@@ -146,7 +146,7 @@ unsafeWindow.fetch = async (...args) => {
     console.log('[Gemini Watermark Remover] Initializing...');
     engine = await WatermarkEngine.create();
 
-    processAllImages();
+    processAllImagesThrottled();
     setupMutationObserver();
 
     console.log('[Gemini Watermark Remover] Ready');

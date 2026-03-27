@@ -13,8 +13,9 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 - ✅ **100% Client-side** - No backend, no server-side processing. Your data stays in your browser.
 - ✅ **Privacy-First** - Images are never uploaded to any server. Period.
 - ✅ **Mathematical Precision** - Based on the Reverse Alpha Blending formula, not "hallucinating" AI models.
-- ✅ **Robust Hybrid Detection** - Uses both dimension rules and high-precision **NCC (Normalized Cross-Correlation)** to find watermarks even after cropping or scaling.
+- ✅ **Robust Hybrid Detection** - Uses both dimension rules and high-performance **NCC (Normalized Cross-Correlation)** with Top-5 insertion sort optimization to find watermarks even after cropping or scaling.
 - ✅ **Batch Processing** - Support for multiple file uploads and high-performance parallel CLI processing.
+- ✅ **Security Hardened** - Built-in XSS protection, anti-memory-leak strategies, and robust Web Worker fallback mechanisms.
 - ✅ **Developer Friendly** - ESLint/Prettier standardized, CI/CD integrated, and full Python Bridge support.
 - ✅ **Cross-Platform** - Runs smoothly on browsers, Node.js (v18+), and as a Python library.
 
@@ -112,8 +113,9 @@ By capturing the watermark on a known solid background, we reconstruct the exact
 ## Detection Rules
 
 The engine uses a **Hybrid Detection Strategy**:
-1. **Pixel Correlation (Primary)**: Uses Normalized Cross-Correlation (NCC) with multi-candidate search. Automatically finds the watermark center even if the image is cropped, scaled, or metadata is missing.
-2. **Dimension Rules (Secondary)**: Infers location based on image resolution.
+1. **Pixel Correlation (Primary)**: Uses Optimized Normalized Cross-Correlation (NCC) with **Top-5 insertion sort ranking**. Automatically finds the watermark center even if the image is cropped, scaled, or metadata is missing.
+2. **Dimension Rules (Secondary)**: Infers location based on image resolution. Supports dynamic 48px/96px switching based on resolution thresholds.
+3. **Safety Fallback**: If the Worker thread fails or buffer is detached, it gracefully falls back to the main thread with a cloned data buffer to ensure 100% completion.
 
 | Base image Dimension | Target Size | Alignment | Default Margins |
 | :--- | :--- | :--- | :--- |
@@ -124,22 +126,24 @@ The engine uses a **Hybrid Detection Strategy**:
 
 ```text
 gemini-watermark-remover/
-├── public/
-│   ├── index.html         # Main page
-│   └── terms.html         # Terms of Service page
+├── public/                # Web UI assets (HTML/CSS)
 ├── src/
-│   ├── core/
+│   ├── core/              # Engine Core (Environment agnostic)
 │   │   ├── alphaMap.js    # Alpha map calculation logic
 │   │   ├── blendModes.js  # Optimized Reverse Alpha Blending
 │   │   ├── config.js      # Watermark dimension rules
-│   │   ├── detector.js    # Robust Pixel-based Detector
-│   │   └── watermarkEngine.js  # Orchestrator with persistence & reuse
-├── tests/                 # Unified v1.1 test suite (Unit & Integration)
-├── .github/workflows/      # CI/CD (GitHub Actions)
-├── .eslintrc.json         # Code quality config
-├── python/                # Python bridge with Type Hints
-├── cli.js                 # Standardized CLI (JSON, Pipe, Parallel)
-└── package.json           # Scripts (lint, format, test)
+│   │   ├── detector.js    # Robust Pixel-based Detector (NCC + Top-5)
+│   │   └── watermarkEngine.js  # Orchestrator with fallback & Worker management
+│   ├── i18n/              # Localization files (JSON)
+│   ├── userscript/        # Tampermonkey script sources
+│   ├── app.js             # Web Application logic
+│   ├── cli.js             # High-performance Node.js CLI
+│   ├── i18n.js            # Translation orchestrator
+│   └── utils.js           # Shared utilities (Memory management)
+├── python/                # Python bridge with Type Hints & Tkinter GUI
+├── tests/                 # Comprehensive test suite (37+ cases)
+├── build.js               # esbuild-based build pipeline
+└── package.json           # Scripts (test, build, cli, gui)
 ```
 
 ## Core Modules

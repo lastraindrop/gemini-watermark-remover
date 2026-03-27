@@ -12,64 +12,82 @@ export function detectWatermark(imageData, alphaMaps) {
     const expectedSize = config.logoSize;
     const sizes = [96, 48];
     
-    let bestResult = null;
-    let maxConfidence = -1;
-
+    const allCandidates = [];
+    const searchRangeX = Math.floor(width * 0.40); // Expanded range (v1.2.2)
+    const searchRangeY = Math.floor(height * 0.40);
+    
     for (const size of sizes) {
         const alphaMap = alphaMaps[size];
         if (!alphaMap) continue;
 
-        // Expanded search range: Last 35% of the image to handle padding/cropping
-        const searchRangeX = Math.floor(width * 0.35);
-        const searchRangeY = Math.floor(height * 0.35);
-        
         const startX = Math.max(0, width - searchRangeX - size);
         const startY = Math.max(0, height - searchRangeY - size);
+        const sizeCandidates = [];
 
-        const candidates = [];
-        const maxCandidates = 3;
-
+        // Stage 1: Coarse search
         for (let y = startY; y < height - size; y += 2) {
             for (let x = startX ; x < width - size; x += 2) {
                 const confidence = calculateCorrelation(imageData, x, y, size, alphaMap);
-                if (confidence > 0.4) { // Minimum threshold for a candidate
-                    candidates.push({ x, y, confidence });
-                    candidates.sort((a, b) => b.confidence - a.confidence);
-                    if (candidates.length > maxCandidates) candidates.pop();
+                if (confidence > 0.4) {
+                    // Maintain top-5 via insertion (avoid full sort on every hit)
+                    const candidate = { x, y, size, confidence };
+                    if (sizeCandidates.length < 5) {
+                        sizeCandidates.push(candidate);
+                    } else if (confidence > sizeCandidates[sizeCandidates.length - 1].confidence) {
+                        sizeCandidates[sizeCandidates.length - 1] = candidate;
+                    } else {
+                        continue;
+                    }
+                    // Insert sort: move the new element to its correct position
+                    for (let k = sizeCandidates.length - 1; k > 0 && sizeCandidates[k].confidence > sizeCandidates[k-1].confidence; k--) {
+                        [sizeCandidates[k], sizeCandidates[k-1]] = [sizeCandidates[k-1], sizeCandidates[k]];
+                    }
                 }
             }
         }
 
-        // Stage 2: Fine-tuning (step=1) for all top candidates
-        for (const candidate of candidates) {
+        // Stage 2: Fine-tuning for this size's candidates
+        for (const candidate of sizeCandidates) {
             const fineRange = 4;
             for (let fy = Math.max(startY, candidate.y - fineRange); fy <= Math.min(height - size, candidate.y + fineRange); fy++) {
                 for (let fx = Math.max(startX, candidate.x - fineRange); fx <= Math.min(width - size, candidate.x + fineRange); fx++) {
                     let confidence = calculateCorrelation(imageData, fx, fy, size, alphaMap, true);
-                    
-                    // Final decision scoring (coordinate-precise)
-                    let score = confidence;
-                    if (size === expectedSize) score += 0.05;
-                    const marginX = width - fx - size;
-                    const marginY = height - fy - size;
-                    if ([32, 48, 64].includes(marginX) || [32, 48, 64].includes(marginY)) {
-                        score += 0.02;
-                    }
-
-                    if (score > maxConfidence) {
-                        maxConfidence = score;
-                        bestResult = { x: fx, y: fy, size, confidence };
+                    if (confidence > 0.5) {
+                        allCandidates.push({ x: fx, y: fy, size, confidence });
                     }
                 }
             }
         }
-        
-        if (maxConfidence > 1.05) break; 
     }
 
-    // Threshold for detection
-    // NCC usually has higher contrast between match and no-match
-    if (maxConfidence > 0.65) {
+    // Stage 3: Global Ranking (v1.2.2 Intelligent Scoring)
+    let bestResult = null;
+    let maxScore = -1;
+
+    for (const candidate of allCandidates) {
+        const { x, y, size, confidence } = candidate;
+        let score = confidence;
+
+        // 1. Margin Alignment Bonus (+0.03)
+        const marginX = width - x - size;
+        const marginY = height - y - size;
+        if ([32, 48, 64].includes(marginX) || [32, 48, 64].includes(marginY)) {
+            score += 0.03;
+        }
+
+        // 2. Predictive Size Bonus (+0.02)
+        if (size === expectedSize) {
+            score += 0.02;
+        }
+
+        if (score > maxScore) {
+            maxScore = score;
+            bestResult = { x, y, size, confidence, score };
+        }
+    }
+
+    // Minimum quality threshold for the winner
+    if (bestResult && bestResult.confidence > 0.6) {
         return bestResult;
     }
 

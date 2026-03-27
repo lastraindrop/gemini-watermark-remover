@@ -51,11 +51,15 @@ export class WatermarkEngine {
             try {
                 this._worker = new Worker('worker.js');
                 this._worker.onmessage = (e) => {
-                    const { taskId, imageData } = e.data;
+                    const { taskId, imageData, error } = e.data;
                     const handler = this._workerHandlers.get(taskId);
                     if (handler) {
                         this._workerHandlers.delete(taskId);
-                        handler.resolve(imageData);
+                        if (error) {
+                            handler.reject(new Error(error));
+                        } else {
+                            handler.resolve(imageData);
+                        }
                     }
                 };
                 this._worker.onerror = (e) => {
@@ -140,6 +144,8 @@ export class WatermarkEngine {
         const worker = this._getWorker();
         if (worker && this._useWorker) {
             const taskId = this._nextTaskId++;
+            // Clone data for fallback in case worker fails (as original buffer will be transferred)
+            const fallbackData = new Uint8ClampedArray(imageData.data);
             try {
                 const processedImageData = await new Promise((resolve, reject) => {
                     this._workerHandlers.set(taskId, { resolve, reject });
@@ -148,8 +154,9 @@ export class WatermarkEngine {
                 ctx.putImageData(processedImageData, 0, 0);
             } catch (err) {
                 console.warn('Worker task failed, falling back to main thread:', err);
-                removeWatermark(imageData, alphaMap, position);
-                ctx.putImageData(imageData, 0, 0);
+                const fallbackImageData = new ImageData(fallbackData, canvas.width, canvas.height);
+                removeWatermark(fallbackImageData, alphaMap, position);
+                ctx.putImageData(fallbackImageData, 0, 0);
             }
         } else {
             removeWatermark(imageData, alphaMap, position);

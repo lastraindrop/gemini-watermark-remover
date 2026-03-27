@@ -51,7 +51,7 @@ describe('Unit Tests - Core Logic (v1.1 Optimized)', () => {
             const cases = [
                 { w: 100, h: 100, expectedSize: 48 },
                 { w: 1025, h: 1025, expectedSize: 96 },
-                { w: 2000, h: 500, expectedSize: 96 }, // Either side > 1024
+                { w: 2000, h: 500, expectedSize: 48 }, // Too thin for 96px
             ];
             cases.forEach(c => {
                 const config = detectWatermarkConfig(c.w, c.h);

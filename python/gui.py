@@ -108,6 +108,9 @@ class ModernGUI:
         else: self.output_entry = path_entry
 
     def log(self, msg, level="info"):
+        if threading.current_thread() is not threading.main_thread():
+            self.root.after(0, lambda: self.log(msg, level))
+            return
         timestamp = datetime.now().strftime("%H:%M:%S")
         color = self.colors["text"]
         if level == "success": color = self.colors["primary"]
@@ -158,7 +161,9 @@ class ModernGUI:
                     self.log(f"Processing ({i+1}/{total}): {os.path.basename(f)}", "info")
                     res = self.remover.remove_watermark(f, dest)
                     self._handle_result(res)
-                    self.progress["value"] = ((i + 1) / total) * 100
+                    # Update progress bar safely
+                    val = ((i + 1) / total) * 100
+                    self.root.after(0, lambda v=val: self.progress.configure(value=v))
             else:
                 res = self.remover.remove_watermark(src, dest)
                 self._handle_result(res)
@@ -173,7 +178,7 @@ class ModernGUI:
     def _handle_result(self, results):
         for r in results:
             status = r.get("status")
-            name = r.get("input", "unknown")
+            name = r.get("file", r.get("input", "unknown"))
             if status == "success":
                 self.log(f"Success: {os.path.basename(name)}", "success")
             else:

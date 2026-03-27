@@ -14,7 +14,8 @@ import { detectWatermarkConfig, calculateWatermarkPosition } from './core/config
 import { detectWatermark } from './core/detector.js';
 
 // Load embedded assets (we need to read them from the filesystem in Node)
-const __dirname = new URL('.', import.meta.url).pathname.replace(/^\/([a-zA-Z]):/, '$1:');
+import { fileURLToPath } from 'node:url';
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const BG_48_PATH = resolve(__dirname, 'assets/bg_48.png');
 const BG_96_PATH = resolve(__dirname, 'assets/bg_96.png');
 

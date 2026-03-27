@@ -5,11 +5,11 @@ export function loadImage(input) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
-            if (input instanceof File || input instanceof Blob) {
-                // We don't revoke here because the caller might need the image to remain valid
-                // However, in a real app, you'd want a strategy for this.
-            }
             resolve(img);
+            // Revoke after decode: the img element retains the decoded bitmap
+            if (input instanceof File || input instanceof Blob) {
+                URL.revokeObjectURL(img.src);
+            }
         };
         img.onerror = reject;
         if (input instanceof File || input instanceof Blob) {
