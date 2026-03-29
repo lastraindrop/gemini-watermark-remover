@@ -2,28 +2,27 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.1 - Stable)
-- [x] 核心算法无损重构 (`Math.fround`)
-- [x] 稳健检测：基于 NCC 与 Top-5 插入排序的高精度、高性能定位算法
-- [x] 智能判定：自适应 48px/96px 尺寸切换与维度触发逻辑 (MinSide >= 720)
-- [x] 工程化标准：Windows 兼容构建、Lint、Prettier 及 GitHub Actions CI
-- [x] 自动化验证：通过 **37 项** 可重现压力测试 (Seeded PRNG Adversarial Suite)
-- [x] 安全加固：内置 XSS 转义与内存泄漏主动防御系统
-- [x] Web Worker 持久化调度与主线程副本回退 (Fallback) 协议
-- [x] 支持 JSON/Pipe/并发的标准化 CLI
-- [x] 带有类型提示的 Python 桥接 SDK 及 Tkinter 线程安全 GUI
+## 📍 当前状态 (v1.4 - Advanced Alignment)
+- [x] **官方尺寸库 (Gemini Catalog)**：内置 512px 到 4096px 的官方分辨率映射，支持 21:9 超宽屏。
+- [x] **分层探测策略 (Layered Policy)**：实现“目录首选 -> 标准锚点 -> 深度扫描”的三级定位体系。
+- [x] **Sobel 边缘特征匹配**：在深度扫描中引入梯度 NCC 评分，解决高纹理背景下的背景淹没问题。
+- [x] **尺寸宽容度 (MAX_SCALE_MISMATCH)**：支持 ±2% 的非标准缩放/裁剪自动适配。
+- [x] **稳健检测**：基于 NCC 与 Top-5 插入排序的高精度定位。
+- [x] **工程化标准**：Windows 兼容构建、Lint、Prettier 及 GitHub Actions CI。
+- [x] **安全加固**：内置 XSS 转义与内存泄漏主动防御系统。
+- [x] **标准化集成**：提供带类型提示的 Python SDK 与高性能 CLI。
 
 ---
 
 ## 🚀 次世代计划 (Next Phase: 2026 Q2)
 
 ### 🎨 视觉与交互增强
-- **实时对比引擎导出**：支持导出对比预览图（Split view / Difference mask）。
-- **批量处理仪表盘**：网页版提供可视化的处理进度波形图和内存压力红线。
+- **智能切边还原 (Auto-Crop Repair)**：针对被人工裁剪过的水印残余，实现自动检测并扩边还原。
+- **实时对比预览**：在网页端支持 Side-by-Side 实时差异比对图。
 
 ### 🧠 智能特征库扩展 (Universal Support)
-- **通用水印插件系统**：支持 DALL-E 3、Midjourney 等不同模型的水印建模，实现一键通用去除。
-- **轻量级去噪预处理**：针对 JPEG 强制压缩导致的边缘伪影，加入可选的智能边缘重构。
+- **通用水印插件系统**：支持 DALL-E 3、Midjourney 等不同模型的水印建模。
+- **轻量级去噪预处理**：针对 JPEG 压缩导致的边缘伪影，加入可选的智能边缘重构，防止“去水印后模糊”。
 
 ### 🎬 视频水印协议 (Video Roadmap)
 - **时域一致性处理**：实现视频帧间坐标缓存，支持 MP4/MOV 格式的水印无损去除。

@@ -7,11 +7,15 @@
 项目遵循模块化设计，将核心算法与环境实现（Web/Node）彻底解耦：
 
 ### 1. 核心层 (`src/core/`)
-- **`config.js`**: 纯逻辑模块。包含 `detectWatermarkConfig` 和 `calculateWatermarkPosition`。
+- **`catalog.js`**: (v1.4 New) **官方分辨率目录**。内置了从 512px 到 4096px 的 Gemini 官方比例输出数据。
+- **`config.js`**: 水印维度预测。v1.4 已重构为优先调用 `catalog.js` 进行精确匹配，仅在非标准尺寸下使用启发式逻辑。
 - **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。
-- **`blendModes.js`**: 核心算法实现。统一导出了 `removeWatermark` 函数供 Web Worker 和主线程公用，使用 `Math.fround` 确保精度一致性。
-- **`detector.js`**: (v1.2.5 Enhanced) 稳健探测层。使用 **NCC (归一化互相关)** 与 **Top-5 插入排序** 算法识别水印的精确像素位置，解决 EXIF/尺寸依赖，并显著提升了大区域搜索性能。
-- **`watermarkEngine.js`**: 引擎协调层。集成了混合检测逻辑，实现了 **线程安全回退机制** (Worker 失败时使用副本回滚至主线程) 以及 **Canvas 重用**。
+- **`blendModes.js`**: 核心算法实现。统一导出了 `removeWatermark` 函数，使用 `Math.fround` 确保各端精度对齐。
+- **`detector.js`**: (v1.4 Advanced Alignment) **分层探测器**。
+    - **Tier 1: 目录优先**：直接比对官方分辨率锚点，实现秒级高置信度锁定。
+    - **Tier 2: 锚点加权**：对 32/64px 标准边距进行分值补偿，防噪点干扰。
+    - **Tier 3: 深度 Sobel 扫描**：引入 **Sobel 梯度算子** 进行边缘 NCC 匹配（公式：`Score = 0.6 * Gray + 0.4 * Sobel`），极大提升了复杂风景背景下的鲁棒性。
+- **`watermarkEngine.js`**: 引擎协调层。支持 `deepScan` 选项配置，并在检测失败时提供稳健的回退逻辑。
 
 ---
 

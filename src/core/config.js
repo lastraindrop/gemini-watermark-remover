@@ -1,7 +1,4 @@
-/**
- * Watermark configuration logic
- * Pure functions for detecting and calculating watermark parameters
- */
+import { getCatalogConfig } from './catalog.js';
 
 /**
  * Detect watermark configuration based on image size
@@ -10,14 +7,16 @@
  * @returns {Object} Watermark configuration {logoSize, marginRight, marginBottom}
  */
 export function detectWatermarkConfig(imageWidth, imageHeight) {
-    // Gemini's watermark rules (Refined v1.2.1):
-    // Use 96px only if the image is sufficiently large in BOTH dimensions
-    // or very large in one while maintaining reasonable size in the other.
-    // Rule: Max side > 1024 AND Min side >= 720 (v1.2.2 Refined)
+    // 1. Try Catalog-based matching (Highly precise)
+    const catalog = getCatalogConfig(imageWidth, imageHeight);
+    if (catalog) return catalog;
+
+    // 2. Heuristic fallback for non-cataloged sizes
     const maxSide = Math.max(imageWidth, imageHeight);
     const minSide = Math.min(imageWidth, imageHeight);
 
-    if (maxSide > 1024 && minSide >= 720) {
+    // v1.4.0 Refined Heuristic:
+    if (maxSide > 1500 || (maxSide > 1024 && minSide >= 900)) {
         return {
             logoSize: 96,
             marginRight: 64,

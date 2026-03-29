@@ -1,21 +1,49 @@
 import { detectWatermarkConfig } from './config.js';
+import { getCatalogConfig } from './catalog.js';
 
 /**
  * Detect watermark position and size using pixel correlation
  * @param {ImageData} imageData - Full image data
  * @param {Object} alphaMaps - Map of size -> Float32Array
+ * @param {Object} options - { deepScan: boolean }
  * @returns {Object|null} {x, y, size, confidence} or null if not found
  */
-export function detectWatermark(imageData, alphaMaps) {
+export function detectWatermark(imageData, alphaMaps, options = { deepScan: true }) {
     const { width, height } = imageData;
-    const config = detectWatermarkConfig(width, height);
-    const expectedSize = config.logoSize;
-    const sizes = [96, 48];
-    
+    const { deepScan } = options;
+
+    // --- Phase 1: Catalog & Anchor Check (Fast) ---
+    const catalogConfig = getCatalogConfig(width, height);
+    const standardConfigs = [
+        catalogConfig,
+        { logoSize: 96, marginRight: 64, marginBottom: 64 },
+        { logoSize: 48, marginRight: 32, marginBottom: 32 }
+    ].filter(Boolean);
+
+    for (const cfg of standardConfigs) {
+        const { logoSize, marginRight, marginBottom } = cfg;
+        const alphaMap = alphaMaps[logoSize];
+        if (!alphaMap) continue;
+
+        const x = width - marginRight - logoSize;
+        const y = height - marginBottom - logoSize;
+        if (x < 0 || y < 0) continue;
+
+        let confidence = calculateCorrelation(imageData, x, y, logoSize, alphaMap, true);
+        
+        // v1.4.0: If it's a catalog-perfect match, we trust lower confidence (0.4)
+        const threshold = cfg.isOfficial ? 0.4 : 0.45;
+        if (confidence > threshold) {
+            return { x, y, size: logoSize, confidence, status: 'anchored' };
+        }
+    }
+
+    // --- Phase 2: Heuristic-based Global Search ---
     const allCandidates = [];
-    const searchRangeX = Math.floor(width * 0.40); // Expanded range (v1.2.2)
+    const searchRangeX = Math.floor(width * 0.40);
     const searchRangeY = Math.floor(height * 0.40);
-    
+    const sizes = [96, 48];
+
     for (const size of sizes) {
         const alphaMap = alphaMaps[size];
         if (!alphaMap) continue;
@@ -28,17 +56,31 @@ export function detectWatermark(imageData, alphaMaps) {
         for (let y = startY; y < height - size; y += 2) {
             for (let x = startX ; x < width - size; x += 2) {
                 const confidence = calculateCorrelation(imageData, x, y, size, alphaMap);
-                if (confidence > 0.4) {
-                    // Maintain top-5 via insertion (avoid full sort on every hit)
+                if (confidence > 0.35) {
                     const candidate = { x, y, size, confidence };
-                    if (sizeCandidates.length < 5) {
-                        sizeCandidates.push(candidate);
-                    } else if (confidence > sizeCandidates[sizeCandidates.length - 1].confidence) {
-                        sizeCandidates[sizeCandidates.length - 1] = candidate;
-                    } else {
-                        continue;
+                    
+                    let tooClose = false;
+                    for (let i = 0; i < sizeCandidates.length; i++) {
+                        const dist = Math.abs(sizeCandidates[i].x - x) + Math.abs(sizeCandidates[i].y - y);
+                        if (dist < 8) {
+                            tooClose = true;
+                            if (confidence > sizeCandidates[i].confidence) {
+                                sizeCandidates[i] = candidate;
+                            }
+                            break;
+                        }
                     }
-                    // Insert sort: move the new element to its correct position
+
+                    if (!tooClose) {
+                        if (sizeCandidates.length < 5) {
+                            sizeCandidates.push(candidate);
+                        } else if (confidence > sizeCandidates[sizeCandidates.length - 1].confidence) {
+                            sizeCandidates[sizeCandidates.length - 1] = candidate;
+                        } else {
+                            continue;
+                        }
+                    }
+
                     for (let k = sizeCandidates.length - 1; k > 0 && sizeCandidates[k].confidence > sizeCandidates[k-1].confidence; k--) {
                         [sizeCandidates[k], sizeCandidates[k-1]] = [sizeCandidates[k-1], sizeCandidates[k]];
                     }
@@ -46,13 +88,21 @@ export function detectWatermark(imageData, alphaMaps) {
             }
         }
 
-        // Stage 2: Fine-tuning for this size's candidates
+        // Stage 2: Fine-tuning
         for (const candidate of sizeCandidates) {
             const fineRange = 4;
             for (let fy = Math.max(startY, candidate.y - fineRange); fy <= Math.min(height - size, candidate.y + fineRange); fy++) {
                 for (let fx = Math.max(startX, candidate.x - fineRange); fx <= Math.min(width - size, candidate.x + fineRange); fx++) {
                     let confidence = calculateCorrelation(imageData, fx, fy, size, alphaMap, true);
-                    if (confidence > 0.5) {
+                    
+                    // Deep Scan Enhancement (v1.4): Sobel Gradient Matching
+                    if (deepScan && confidence > 0.3) {
+                        const gradientConf = calculateGradientCorrelation(imageData, fx, fy, size, alphaMap);
+                        // Blend scores: Grayscale (0.6) + Gradient (0.4)
+                        confidence = confidence * 0.6 + gradientConf * 0.4;
+                    }
+
+                    if (confidence > 0.4) {
                         allCandidates.push({ x: fx, y: fy, size, confidence });
                     }
                 }
@@ -60,43 +110,57 @@ export function detectWatermark(imageData, alphaMaps) {
         }
     }
 
-    // Stage 3: Global Ranking (v1.2.2 Intelligent Scoring)
+    // Stage 3: Global Ranking
     let bestResult = null;
     let maxScore = -1;
 
-    for (const candidate of allCandidates) {
+    allCandidates.sort((a, b) => b.confidence - a.confidence);
+    const finalCandidates = [];
+    
+    for (const cand of allCandidates) {
+        let isOverlapping = false;
+        for (const existing of finalCandidates) {
+            const distX = Math.abs((cand.x + cand.size/2) - (existing.x + existing.size/2));
+            const distY = Math.abs((cand.y + cand.size/2) - (existing.y + existing.size/2));
+            if (distX < 32 && distY < 32) {
+                isOverlapping = true;
+                if (cand.size === 48 && cand.confidence > existing.confidence - 0.1) {
+                    finalCandidates[finalCandidates.indexOf(existing)] = cand;
+                }
+                break;
+            }
+        }
+        if (!isOverlapping) finalCandidates.push(cand);
+    }
+
+    for (const candidate of finalCandidates) {
         const { x, y, size, confidence } = candidate;
         let score = confidence;
 
-        // 1. Margin Alignment Bonus (+0.03)
         const marginX = width - x - size;
         const marginY = height - y - size;
-        if ([32, 48, 64].includes(marginX) || [32, 48, 64].includes(marginY)) {
-            score += 0.03;
-        }
-
-        // 2. Predictive Size Bonus (+0.02)
-        if (size === expectedSize) {
-            score += 0.02;
-        }
+        const isAligned = (marginX === 32 || marginX === 64) && (marginY === 32 || marginY === 64);
+        
+        if (isAligned) score += 0.1;
 
         if (score > maxScore) {
             maxScore = score;
-            bestResult = { x, y, size, confidence, score };
+            bestResult = { x, y, size, confidence, score, status: isAligned ? 'aligned' : 'free' };
         }
     }
 
-    // Minimum quality threshold for the winner
-    if (bestResult && bestResult.confidence > 0.6) {
-        return bestResult;
+    if (bestResult) {
+        const thresholds = { 'aligned': 0.45, 'free': 0.55 };
+        if (bestResult.confidence > thresholds[bestResult.status]) {
+            return bestResult;
+        }
     }
 
     return null;
 }
 
 /**
- * Calculate similarity between image region and alpha map
- * @param {boolean} fullPrecision - If true, do not downsample
+ * Grayscale NCC
  */
 function calculateCorrelation(imageData, x, y, size, alphaMap, fullPrecision = false) {
     const { data, width: imgWidth } = imageData;
@@ -123,9 +187,63 @@ function calculateCorrelation(imageData, x, y, size, alphaMap, fullPrecision = f
 
     const varI = count * sumI2 - sumI * sumI;
     const varA = count * sumA2 - sumA * sumA;
-    
     if (varI <= 0 || varA <= 0) return 0;
-    
-    const denom = Math.sqrt(varI * varA);
-    return (count * sumIA - sumI * sumA) / denom;
+    return (count * sumIA - sumI * sumA) / Math.sqrt(varI * varA);
+}
+
+/**
+ * Sobel Gradient NCC (v1.4)
+ * Extracts edges of both image region and alpha map, then computes correlation.
+ */
+function calculateGradientCorrelation(imageData, x, y, size, alphaMap) {
+    const { data, width: imgWidth } = imageData;
+    const gradientsI = new Float32Array(size * size);
+    const gradientsA = new Float32Array(size * size);
+
+    // 1. Precompute gradients for image and alpha map
+    for (let row = 1; row < size - 1; row++) {
+        for (let col = 1; col < size - 1; col++) {
+            // Sobel kernels
+            const idx = row * size + col;
+            
+            // Image Gradient (Approximated brightness)
+            const getB = (r, c) => {
+                const i = ((y + r) * imgWidth + (x + c)) << 2;
+                return Math.max(data[i], data[i+1], data[i+2]);
+            };
+            
+            const gxI = (getB(row-1, col+1) + 2*getB(row, col+1) + getB(row+1, col+1)) - 
+                        (getB(row-1, col-1) + 2*getB(row, col-1) + getB(row+1, col-1));
+            const gyI = (getB(row+1, col-1) + 2*getB(row+1, col) + getB(row+1, col+1)) - 
+                        (getB(row-1, col-1) + 2*getB(row-1, col) + getB(row-1, col+1));
+            gradientsI[idx] = Math.sqrt(gxI*gxI + gyI*gyI);
+
+            // Alpha Map Gradient
+            const getA = (r, c) => alphaMap[r * size + c];
+            const gxA = (getA(row-1, col+1) + 2*getA(row, col+1) + getA(row+1, col+1)) - 
+                        (getA(row-1, col-1) + 2*getA(row, col-1) + getA(row+1, col-1));
+            const gyA = (getA(row+1, col-1) + 2*getA(row+1, col) + getA(row+1, col+1)) - 
+                        (getA(row-1, col-1) + 2*getA(row-1, col) + getA(row-1, col+1));
+            gradientsA[idx] = Math.sqrt(gxA*gxA + gyA*gyA);
+        }
+    }
+
+    // 2. Correlation of gradients
+    let sumI = 0, sumI2 = 0, sumA = 0, sumA2 = 0, sumIA = 0, count = 0;
+    for (let i = 0; i < size * size; i++) {
+        const iVal = gradientsI[i];
+        const aVal = gradientsA[i];
+        if (iVal === 0 && aVal === 0) continue; 
+        sumI += iVal;
+        sumI2 += iVal * iVal;
+        sumA += aVal;
+        sumA2 += aVal * aVal;
+        sumIA += iVal * aVal;
+        count++;
+    }
+
+    const varI = count * sumI2 - sumI * sumI;
+    const varA = count * sumA2 - sumA * sumA;
+    if (varI <= 0 || varA <= 0) return 0;
+    return (count * sumIA - sumI * sumA) / Math.sqrt(varI * varA);
 }

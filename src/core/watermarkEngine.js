@@ -114,9 +114,10 @@ export class WatermarkEngine {
     /**
      * Remove watermark from image based on watermark size
      * @param {HTMLImageElement|HTMLCanvasElement} image - Input image
-     * @returns {Promise<HTMLCanvasElement>} Processed canvas
+     * @param {Object} options - { deepScan: boolean }
+     * @returns {Promise<Object>} { canvas, detectionMode, status }
      */
-    async removeWatermarkFromImage(image) {
+    async removeWatermarkFromImage(image, options = { deepScan: true }) {
         const canvas = document.createElement('canvas');
         canvas.width = image.width;
         canvas.height = image.height;
@@ -128,15 +129,15 @@ export class WatermarkEngine {
         // Try pixel-based detection first
         const alphaMap48 = await this.getAlphaMap(48);
         const alphaMap96 = await this.getAlphaMap(96);
-        const pixelDetect = detectWatermark(imageData, { 48: alphaMap48, 96: alphaMap96 });
+        const pixelDetect = detectWatermark(imageData, { 48: alphaMap48, 96: alphaMap96 }, options);
 
-        let config, position, alphaMap;
+        let position, alphaMap;
         if (pixelDetect) {
             position = { x: pixelDetect.x, y: pixelDetect.y, width: pixelDetect.size, height: pixelDetect.size };
             alphaMap = pixelDetect.size === 48 ? alphaMap48 : alphaMap96;
         } else {
             // Fallback to dimension-based detection
-            config = detectWatermarkConfig(canvas.width, canvas.height);
+            const config = detectWatermarkConfig(canvas.width, canvas.height);
             position = calculateWatermarkPosition(canvas.width, canvas.height, config);
             alphaMap = config.logoSize === 48 ? alphaMap48 : alphaMap96;
         }

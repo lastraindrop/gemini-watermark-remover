@@ -112,15 +112,17 @@ By capturing the watermark on a known solid background, we reconstruct the exact
 
 ## Detection Rules
 
-The engine uses a **Hybrid Detection Strategy**:
-1. **Pixel Correlation (Primary)**: Uses Optimized Normalized Cross-Correlation (NCC) with **Top-5 insertion sort ranking**. Automatically finds the watermark center even if the image is cropped, scaled, or metadata is missing.
-2. **Dimension Rules (Secondary)**: Infers location based on image resolution. Supports dynamic 48px/96px switching based on resolution thresholds.
-3. **Safety Fallback**: If the Worker thread fails or buffer is detached, it gracefully falls back to the main thread with a cloned data buffer to ensure 100% completion.
+The engine uses a **Tiered Hybrid Detection Strategy (v1.4)**:
+1. **Tier 1: Catalog Direct Match (v1.4 New)**: Instantly matches the image against a database of **official Gemini export resolutions** (512x512, 1024x1024, 1536x672, etc.). If the resolution matches, the watermark is locked using precise official anchors.
+2. **Tier 2: Standard Anchor Check**: Validates standard margins (32px, 48px, 64px) using high-precision NCC.
+3. **Tier 3: Deep Sobel Scan (v1.4 New)**: A deep search mode that applies a **Sobel Gradient Filter** to both the template and the image. By matching the *edges* rather than just *pixel values*, it can find the logo even on highly textured backgrounds (grass, sky, etc.).
 
-| Base image Dimension | Target Size | Alignment | Default Margins |
+| Standard resolution tier | Logo Size | Default Margins | Support |
 | :--- | :--- | :--- | :--- |
-| Width > 1024 **OR** Height > 1024 | 96×96 | Bottom-Right | 64px |
-| Otherwise | 48×48 | Bottom-Right | 32px |
+| 0.5k (e.g. 512x512) | 48×48 | 32px | Included |
+| 1.0k (e.g. 1024x1024 / 1536x672) | 96×96 | 64px | Included |
+| 2.0k (e.g. 2048x2048) | 96×96 | 64px | Included |
+| 4.0k (e.g. 4096x4096) | 96×96 | 64px | Included |
 
 ## Project Structure
 
