@@ -2,15 +2,20 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.4 - Advanced Alignment)
-- [x] **官方尺寸库 (Gemini Catalog)**：内置 512px 到 4096px 的官方分辨率映射，支持 21:9 超宽屏。
-- [x] **分层探测策略 (Layered Policy)**：实现“目录首选 -> 标准锚点 -> 深度扫描”的三级定位体系。
-- [x] **Sobel 边缘特征匹配**：在深度扫描中引入梯度 NCC 评分，解决高纹理背景下的背景淹没问题。
-- [x] **尺寸宽容度 (MAX_SCALE_MISMATCH)**：支持 ±2% 的非标准缩放/裁剪自动适配。
-- [x] **稳健检测**：基于 NCC 与 Top-5 插入排序的高精度定位。
-- [x] **工程化标准**：Windows 兼容构建、Lint、Prettier 及 GitHub Actions CI。
-- [x] **安全加固**：内置 XSS 转义与内存泄漏主动防御系统。
-- [x] **标准化集成**：提供带类型提示的 Python SDK 与高性能 CLI。
+## 📍 当前状态 (v1.5 - Production Hardening)
+- [x] **Smart Edge Crop Tolerance**: Detect and remove watermarks even if partially outside image boundaries. (v1.5)
+- [x] **Adaptive Noise Reduction**: Enhanced detection confidence via pre-processing for low SNR images. (v1.5)
+- [x] **Batch Bounded Directory Mode**: Memory-safe automated batch processing for huge folders. (v1.5)
+- [x] **Tiered Hybrid Detection**: NCC + Sobel Gradient + Catalog matching. (v1.5)
+- [x] **Standardized Testing (node:test)**: Comprehensive test suite for CI/CD integration. (v1.5)
+- [x] **UI/UX Optimization**: Advanced Engine Parameters toggles and Audit Console. (v1.5)
+
+---
+
+### ⚡ 核心能力外溢
+- **v1.6: Sub-pixel Alignment (亚像素级对齐)**：针对非整数坐标的水印进行像素插值还原，消除最细微的锯齿感。
+- **v1.6: Multi-model Presets**: 加入 Imagen 3 等其他 AI 模型的水印特征预设。
+- **Rust / WebAssembly 深度迁移**：将核心像素循环 (blendModes & NCC) 通过 Rust 重新实现以对抗 8K 巨图。
 
 ---
 
@@ -22,7 +27,6 @@
 
 ### 🧠 智能特征库扩展 (Universal Support)
 - **通用水印插件系统**：支持 DALL-E 3、Midjourney 等不同模型的水印建模。
-- **轻量级去噪预处理**：针对 JPEG 压缩导致的边缘伪影，加入可选的智能边缘重构，防止“去水印后模糊”。
 
 ### 🎬 视频水印协议 (Video Roadmap)
 - **时域一致性处理**：实现视频帧间坐标缓存，支持 MP4/MOV 格式的水印无损去除。
@@ -46,6 +50,13 @@
 
 ### 🤖 泛化支持 (Generalized Support)
 - **通用 AI 视觉指纹库**：支持多款 AI 生成器（如 Midjourney, DALL-E, Stable Diffusion 各类定制水印）的特征识别与数学还原。
+
+### 📖 Core Detection Algorithm (v1.5)
+The engine uses a tiered approach:
+1. **Catalog Matching**: O(1) resolution lookup.
+2. **Noise-Aware NCC**: Optimized Normalized Cross-Correlation. If `noiseReduction` is enabled, a Fast Box Blur is applied to the detection copy to improve SNR.
+3. **Edge Crop Tolerance**: The search range and NCC calculation allow for negative coordinates and pixel overflow, enabling detection of watermarks that have been partially cropped.
+4. **Deep Sobel Gradient Scan**: NCC of image gradients for final verification.
 
 ---
 

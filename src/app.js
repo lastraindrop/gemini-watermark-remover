@@ -201,6 +201,16 @@ function setupEventListeners() {
     setupSlider();
 }
 
+/**
+ * Get current engine options from UI
+ */
+function getEngineOptions() {
+    return {
+        deepScan: document.getElementById('toggleDeepScan')?.checked ?? true,
+        noiseReduction: document.getElementById('toggleNoiseReduction')?.checked ?? false
+    };
+}
+
 function switchViewMode(mode) {
     if (mode === 'slider') {
         comparisonSlider.classList.remove('hidden');
@@ -317,10 +327,11 @@ async function processSingle(item) {
         `;
 
         const startTime = performance.now();
-        AuditLog.log(`Processing image: ${item.name} (${img.width}x${img.height})`, 'process');
+        const options = getEngineOptions();
+        AuditLog.log(`Processing image: ${item.name} (${img.width}x${img.height}) [NR: ${options.noiseReduction}]`, 'process');
         
         resultContainer.classList.add('scan-active');
-        const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img);
+        const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img, options);
         resultContainer.classList.remove('scan-active');
         
         const endTime = performance.now();
@@ -386,14 +397,16 @@ function createImageCard(item) {
 }
 
 async function processQueue() {
-    const concurrency = 2; // Reduced for stability
+    const concurrency = Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 2) - 1));
+    const options = getEngineOptions();
+    AuditLog.log(`Batch started with concurrency: ${concurrency} [NR: ${options.noiseReduction}]`, 'info');
+
     for (let i = 0; i < imageQueue.length; i += concurrency) {
         await Promise.all(imageQueue.slice(i, i + concurrency).map(async item => {
             if (item.status !== 'pending') return;
 
             item.status = 'processing';
             updateStatus(item.id, i18n.t('status.processing'));
-            AuditLog.log(`Batch [${i/concurrency + 1}]: Processing ${item.name}`, 'process');
 
             try {
                 const startTime = performance.now();
@@ -401,7 +414,7 @@ async function processQueue() {
                 item.originalImg = img;
                 item.originalUrl = img.src;
                 
-                const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img);
+                const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img, options);
                 const endTime = performance.now();
                 const latency = (endTime - startTime).toFixed(0);
                 
@@ -578,15 +591,27 @@ async function processDirectory() {
     updateProgress();
     imageQueue.forEach(item => createImageCard(item));
 
-    const concurrency = 2;
-    for (let i = 0; i < imageQueue.length; i += concurrency) {
-        await Promise.all(imageQueue.slice(i, i + concurrency).map(async item => {
-            item.status = 'processing';
+    const concurrency = Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 2) - 1));
+    const options = getEngineOptions();
+    AuditLog.log(`Automated directory processing started (Batch size: ${concurrency}, NR: ${options.noiseReduction})`, 'process');
+    
+    processedCount = 0;
+    updateProgress();
+    
+    // Process in bounded chunks to prevent memory explosion if directory is huge
+    for (let i = 0; i < files.length; i += concurrency) {
+        const chunk = files.slice(i, i + concurrency);
+        await Promise.all(chunk.map(async (file, chunkIdx) => {
+            const itemId = Date.now() + i + chunkIdx;
+            const item = { id: itemId, file, name: file.name, status: 'processing' };
+            
+            // Add a virtual card for tracking in the UI (but don't keep image data in memory longer than needed)
+            createImageCard(item);
             updateStatus(item.id, i18n.t('status.processing'));
             
             try {
                 const img = await loadImage(item.file);
-                const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img);
+                const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img, options);
                 const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
                 
                 const fileHandle = await outputDirHandle.getFileHandle(`unwatermarked_${item.name.replace(/\.[^.]+$/, '')}.png`, { create: true });
@@ -594,17 +619,18 @@ async function processDirectory() {
                 await writable.write(blob);
                 await writable.close();
 
-                item.status = 'completed';
                 updateStatus(item.id, `✅ Saved [${detectionMode.toUpperCase()}]`, true);
                 processedCount++;
                 updateProgress();
+                
+                // GC Hint: original image and canvas are local to this closure
             } catch (err) {
-                item.status = 'error';
                 updateStatus(item.id, `❌ Error: ${err.message}`);
                 AuditLog.log(`Error processing ${item.name}: ${err.message}`, 'err');
             }
         }));
     }
+
 
     AuditLog.log(`Automated directory processing complete. ${processedCount}/${files.length} images saved.`, 'success');
     startDirProcessBtn.disabled = false;

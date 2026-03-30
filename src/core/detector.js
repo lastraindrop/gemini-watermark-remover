@@ -8,11 +8,22 @@ import { getCatalogConfig } from './catalog.js';
  * @param {Object} options - { deepScan: boolean }
  * @returns {Object|null} {x, y, size, confidence} or null if not found
  */
-export function detectWatermark(imageData, alphaMaps, options = { deepScan: true }) {
+export function detectWatermark(imageData, alphaMaps, options = { deepScan: true, noiseReduction: false }) {
     const { width, height } = imageData;
-    const { deepScan } = options;
+    const { deepScan, noiseReduction } = options;
+
+    let searchData = imageData;
+    if (noiseReduction) {
+        searchData = {
+            ...imageData,
+            data: fastBoxBlur(imageData.data, width, height)
+        };
+    }
+
+    const allCandidates = [];
 
     // --- Phase 1: Catalog & Anchor Check (Fast) ---
+
     const catalogConfig = getCatalogConfig(width, height);
     const standardConfigs = [
         catalogConfig,
@@ -20,6 +31,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         { logoSize: 48, marginRight: 32, marginBottom: 32 }
     ].filter(Boolean);
 
+    const anchoredCandidates = [];
     for (const cfg of standardConfigs) {
         const { logoSize, marginRight, marginBottom } = cfg;
         const alphaMap = alphaMaps[logoSize];
@@ -29,34 +41,45 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         const y = height - marginBottom - logoSize;
         if (x < 0 || y < 0) continue;
 
-        let confidence = calculateCorrelation(imageData, x, y, logoSize, alphaMap, true);
-        
-        // v1.4.0: If it's a catalog-perfect match, we trust lower confidence (0.4)
-        const threshold = cfg.isOfficial ? 0.4 : 0.45;
+        let confidence = calculateCorrelation(searchData, x, y, logoSize, alphaMap, true);
+        const threshold = cfg.isOfficial ? 0.35 : 0.45; // v1.5: Lowered official threshold
         if (confidence > threshold) {
-            return { x, y, size: logoSize, confidence, status: 'anchored' };
+            anchoredCandidates.push({ x, y, size: logoSize, confidence, status: 'anchored' });
         }
+    }
+    
+    if (anchoredCandidates.length > 0) {
+        anchoredCandidates.sort((a, b) => b.confidence - a.confidence);
+        const bestAnchored = anchoredCandidates[0];
+        // If anchored confidence is very high, return immediately
+        if (bestAnchored.confidence > 0.6) return bestAnchored;
+        allCandidates.push(bestAnchored);
     }
 
     // --- Phase 2: Heuristic-based Global Search ---
-    const allCandidates = [];
-    const searchRangeX = Math.floor(width * 0.40);
-    const searchRangeY = Math.floor(height * 0.40);
+
+    const searchRangeX = Math.floor(width * 0.45);
+    const searchRangeY = Math.floor(height * 0.45);
     const sizes = [96, 48];
 
     for (const size of sizes) {
         const alphaMap = alphaMaps[size];
         if (!alphaMap) continue;
 
-        const startX = Math.max(0, width - searchRangeX - size);
-        const startY = Math.max(0, height - searchRangeY - size);
+        // v1.5: Allow searching slightly beyond borders for edge-cropped watermarks
+        const startX = Math.max(-size / 2, width - searchRangeX - size);
+        const startY = Math.max(-size / 2, height - searchRangeY - size);
         const sizeCandidates = [];
+        
+        console.log(`Searching size ${size}: startX=${startX}, startY=${startY}, rangeX=${searchRangeX}, rangeY=${searchRangeY}`);
 
         // Stage 1: Coarse search
-        for (let y = startY; y < height - size; y += 2) {
-            for (let x = startX ; x < width - size; x += 2) {
-                const confidence = calculateCorrelation(imageData, x, y, size, alphaMap);
-                if (confidence > 0.35) {
+        for (let y = startY; y < height - size / 2; y += 2) {
+            for (let x = startX ; x < width - size / 2; x += 2) {
+                const confidence = calculateCorrelation(searchData, x, y, size, alphaMap);
+                
+                if (confidence > 0.3) {
+
                     const candidate = { x, y, size, confidence };
                     
                     let tooClose = false;
@@ -91,24 +114,31 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         // Stage 2: Fine-tuning
         for (const candidate of sizeCandidates) {
             const fineRange = 4;
-            for (let fy = Math.max(startY, candidate.y - fineRange); fy <= Math.min(height - size, candidate.y + fineRange); fy++) {
-                for (let fx = Math.max(startX, candidate.x - fineRange); fx <= Math.min(width - size, candidate.x + fineRange); fx++) {
-                    let confidence = calculateCorrelation(imageData, fx, fy, size, alphaMap, true);
+            for (let fy = Math.max(startY, candidate.y - fineRange); fy <= Math.min(height - size / 2, candidate.y + fineRange); fy++) {
+                for (let fx = Math.max(startX, candidate.x - fineRange); fx <= Math.min(width - size / 2, candidate.x + fineRange); fx++) {
+                    let confidence = calculateCorrelation(searchData, fx, fy, size, alphaMap, true);
+
                     
                     // Deep Scan Enhancement (v1.4): Sobel Gradient Matching
                     if (deepScan && confidence > 0.3) {
-                        const gradientConf = calculateGradientCorrelation(imageData, fx, fy, size, alphaMap);
+                        const gradientConf = calculateGradientCorrelation(searchData, fx, fy, size, alphaMap);
                         // Blend scores: Grayscale (0.6) + Gradient (0.4)
                         confidence = confidence * 0.6 + gradientConf * 0.4;
                     }
 
-                    if (confidence > 0.4) {
-                        allCandidates.push({ x: fx, y: fy, size, confidence });
+                    const stage2Threshold = noiseReduction ? 0.3 : 0.35; // v1.5: Adaptive threshold for noise
+                    if (confidence > stage2Threshold) {
+                        const marginX = width - fx - size;
+                        const marginY = height - fy - size;
+                        const isAligned = (marginX === 32 || marginX === 64) && (marginY === 32 || marginY === 64);
+                        allCandidates.push({ x: fx, y: fy, size, confidence, status: isAligned ? 'aligned' : 'free' });
                     }
+
                 }
             }
         }
     }
+
 
     // Stage 3: Global Ranking
     let bestResult = null;
@@ -134,45 +164,51 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     }
 
     for (const candidate of finalCandidates) {
-        const { x, y, size, confidence } = candidate;
+        const { x, y, size, confidence, status } = candidate;
         let score = confidence;
 
-        const marginX = width - x - size;
-        const marginY = height - y - size;
-        const isAligned = (marginX === 32 || marginX === 64) && (marginY === 32 || marginY === 64);
-        
-        if (isAligned) score += 0.1;
+        // Scoring Bias: Aligned or Anchored get a boost
+        if (status === 'anchored') score += 0.2;
+        else if (status === 'aligned') score += 0.1;
 
         if (score > maxScore) {
             maxScore = score;
-            bestResult = { x, y, size, confidence, score, status: isAligned ? 'aligned' : 'free' };
+            bestResult = { x, y, size, confidence, score, status };
         }
     }
 
     if (bestResult) {
-        const thresholds = { 'aligned': 0.45, 'free': 0.55 };
-        if (bestResult.confidence > thresholds[bestResult.status]) {
+        const thresholds = { 'anchored': 0.35, 'aligned': 0.4, 'free': 0.5 }; // v1.5: Lowered from 0.4/0.45/0.55
+        if (bestResult.confidence > (thresholds[bestResult.status] || 0.5)) {
             return bestResult;
         }
     }
+
 
     return null;
 }
 
 /**
  * Grayscale NCC
+ * v1.5: Added out-of-bounds safety
  */
 function calculateCorrelation(imageData, x, y, size, alphaMap, fullPrecision = false) {
-    const { data, width: imgWidth } = imageData;
+    const { data, width: imgWidth, height: imgHeight } = imageData;
     const step = fullPrecision ? 1 : 2;
     
     let sumI = 0, sumI2 = 0, sumA = 0, sumA2 = 0, sumIA = 0, count = 0;
     
     for (let row = 0; row < size; row += step) {
-        const imgRowOffset = (y + row) * imgWidth + x;
+        const curY = y + row;
+        if (curY < 0 || curY >= imgHeight) continue;
+
+        const imgRowOffset = curY * imgWidth;
         const alphaRowOffset = row * size;
         for (let col = 0; col < size; col += step) {
-            const imgIdx = (imgRowOffset + col) << 2;
+            const curX = x + col;
+            if (curX < 0 || curX >= imgWidth) continue;
+
+            const imgIdx = (imgRowOffset + curX) << 2;
             const brightness = Math.max(data[imgIdx], data[imgIdx + 1], data[imgIdx + 2]) / 255.0;
             const alpha = alphaMap[alphaRowOffset + col];
             
@@ -185,28 +221,36 @@ function calculateCorrelation(imageData, x, y, size, alphaMap, fullPrecision = f
         }
     }
 
+    if (count < (size * size) / (6 * step * step)) return 0; // Too little visible area (allow ~16% visibility)
+
+
     const varI = count * sumI2 - sumI * sumI;
     const varA = count * sumA2 - sumA * sumA;
     if (varI <= 0 || varA <= 0) return 0;
     return (count * sumIA - sumI * sumA) / Math.sqrt(varI * varA);
 }
 
+
 /**
  * Sobel Gradient NCC (v1.4)
- * Extracts edges of both image region and alpha map, then computes correlation.
+ * v1.5: Added out-of-bounds safety
  */
 function calculateGradientCorrelation(imageData, x, y, size, alphaMap) {
-    const { data, width: imgWidth } = imageData;
+    const { data, width: imgWidth, height: imgHeight } = imageData;
     const gradientsI = new Float32Array(size * size);
     const gradientsA = new Float32Array(size * size);
 
     // 1. Precompute gradients for image and alpha map
     for (let row = 1; row < size - 1; row++) {
+        const curY = y + row;
+        if (curY < 1 || curY >= imgHeight - 1) continue;
+
         for (let col = 1; col < size - 1; col++) {
-            // Sobel kernels
+            const curX = x + col;
+            if (curX < 1 || curX >= imgWidth - 1) continue;
+
             const idx = row * size + col;
             
-            // Image Gradient (Approximated brightness)
             const getB = (r, c) => {
                 const i = ((y + r) * imgWidth + (x + c)) << 2;
                 return Math.max(data[i], data[i+1], data[i+2]);
@@ -218,7 +262,6 @@ function calculateGradientCorrelation(imageData, x, y, size, alphaMap) {
                         (getB(row-1, col-1) + 2*getB(row-1, col) + getB(row-1, col+1));
             gradientsI[idx] = Math.sqrt(gxI*gxI + gyI*gyI);
 
-            // Alpha Map Gradient
             const getA = (r, c) => alphaMap[r * size + c];
             const gxA = (getA(row-1, col+1) + 2*getA(row, col+1) + getA(row+1, col+1)) - 
                         (getA(row-1, col-1) + 2*getA(row, col-1) + getA(row+1, col-1));
@@ -228,7 +271,6 @@ function calculateGradientCorrelation(imageData, x, y, size, alphaMap) {
         }
     }
 
-    // 2. Correlation of gradients
     let sumI = 0, sumI2 = 0, sumA = 0, sumA2 = 0, sumIA = 0, count = 0;
     for (let i = 0; i < size * size; i++) {
         const iVal = gradientsI[i];
@@ -242,8 +284,33 @@ function calculateGradientCorrelation(imageData, x, y, size, alphaMap) {
         count++;
     }
 
+    if (count < 10) return 0;
     const varI = count * sumI2 - sumI * sumI;
     const varA = count * sumA2 - sumA * sumA;
     if (varI <= 0 || varA <= 0) return 0;
     return (count * sumIA - sumI * sumA) / Math.sqrt(varI * varA);
 }
+
+/**
+ * Fast 3x3 Box Blur for noise reduction in detection
+ */
+function fastBoxBlur(data, width, height) {
+    const output = new Uint8ClampedArray(data);
+    for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+            const idx = (y * width + x) << 2;
+            for (let c = 0; c < 3; c++) {
+                let sum = 0;
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        sum += data[((y + dy) * width + (x + dx)) * 4 + c];
+                    }
+                }
+                output[idx + c] = (sum / 9) | 0;
+            }
+            output[idx + 3] = data[idx + 3];
+        }
+    }
+    return output;
+}
+

@@ -16,7 +16,8 @@
     "dev": "node build.js",
     "build": "npx -y cross-env NODE_ENV=production node build.js",
     "serve": "npx serve dist",
-    "test": "node --test tests/v1.1_*.test.js tests/v1.2_*.test.js tests/repro_issue.test.js",
+    "test": "node --test tests/*.test.js",
+
     "cli": "node src/cli.js",
     "gui": "python python/gui.py",
     "lint": "eslint src",

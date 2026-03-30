@@ -28,10 +28,17 @@ export function removeWatermark(imageData, alphaMap, position) {
 
     // Process each pixel in the watermark area
     for (let row = 0; row < height; row++) {
-        const rowOffset = (y + row) * imgWidth + x;
+        const curY = y + row;
+        if (curY < 0 || curY >= height + y) continue; // Basic row skip (though usually handled by loop)
+        if (curY < 0 || curY >= imageData.height) continue; // Image boundary check
+
+        const rowOffset = curY * imgWidth;
         const alphaRowOffset = row * width;
 
         for (let col = 0; col < width; col++) {
+            const curX = x + col;
+            if (curX < 0 || curX >= imgWidth) continue; // Image boundary check
+
             // Get alpha value from map
             const alpha = Math.fround(alphaMap[alphaRowOffset + col]);
 
@@ -43,18 +50,17 @@ export function removeWatermark(imageData, alphaMap, position) {
             const alphaLogo = Math.fround(effectiveAlpha * logoVal);
 
             // Calculate index in original image (RGBA format, 4 bytes per pixel)
-            const imgIdx = (rowOffset + col) << 2;
+            const imgIdx = (rowOffset + curX) << 2;
 
             // Apply reverse alpha blending to RGB channels
-            // Unrolled loop for R, G, B
             for (let c = 0; c < 3; c++) {
                 const watermarked = data[imgIdx + c];
                 const original = (watermarked - alphaLogo) / oneMinusAlpha;
                 
-                // Math.round is used as per original logic to maintain visual fidelity
                 data[imgIdx + c] = Math.min(255, Math.max(0, Math.round(original)));
             }
         }
     }
+
 }
 

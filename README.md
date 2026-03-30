@@ -13,10 +13,11 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 - ✅ **100% Client-side** - No backend, no server-side processing. Your data stays in your browser.
 - ✅ **Privacy-First** - Images are never uploaded to any server. Period.
 - ✅ **Mathematical Precision** - Based on the Reverse Alpha Blending formula, not "hallucinating" AI models.
-- ✅ **Robust Hybrid Detection** - Uses both dimension rules and high-performance **NCC (Normalized Cross-Correlation)** with Top-5 insertion sort optimization to find watermarks even after cropping or scaling.
-- ✅ **Batch Processing** - Support for multiple file uploads and high-performance parallel CLI processing.
-- ✅ **Security Hardened** - Built-in XSS protection, anti-memory-leak strategies, and robust Web Worker fallback mechanisms.
-- ✅ **Developer Friendly** - ESLint/Prettier standardized, CI/CD integrated, and full Python Bridge support.
+- ✅ **Robust Hybrid Detection (v1.5)** - Uses dimension rules, **NCC (Normalized Cross-Correlation)**, and **Adaptive Noise Reduction** to find watermarks even in low-quality or partially cropped images.
+- ✅ **Edge-Crop Resilience** - Smart detection and removal for watermarks partially outside image boundaries.
+- ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation with bounded batching.
+- ✅ **Security Hardened** - Built-in XSS protection, anti-memory-leak strategies, and robust Web Worker fallback.
+- ✅ **Developer Friendly** - Full unit test suite (node:test), standardized test_utils, and CI/CD integrated.
 - ✅ **Cross-Platform** - Runs smoothly on browsers, Node.js (v18+), and as a Python library.
 
 ## Examples
@@ -112,10 +113,11 @@ By capturing the watermark on a known solid background, we reconstruct the exact
 
 ## Detection Rules
 
-The engine uses a **Tiered Hybrid Detection Strategy (v1.4)**:
-1. **Tier 1: Catalog Direct Match (v1.4 New)**: Instantly matches the image against a database of **official Gemini export resolutions** (512x512, 1024x1024, 1536x672, etc.). If the resolution matches, the watermark is locked using precise official anchors.
-2. **Tier 2: Standard Anchor Check**: Validates standard margins (32px, 48px, 64px) using high-precision NCC.
-3. **Tier 3: Deep Sobel Scan (v1.4 New)**: A deep search mode that applies a **Sobel Gradient Filter** to both the template and the image. By matching the *edges* rather than just *pixel values*, it can find the logo even on highly textured backgrounds (grass, sky, etc.).
+The engine uses a **Tiered Hybrid Detection Strategy (v1.5)**:
+1. **Tier 1: Catalog Direct Match**: Instantly matches against official resolution database (512x512, 1024x1024, 21:9, etc.).
+2. **Tier 2: Adaptive Noise-Aware Search**: If `noiseReduction` is enabled, applies specialized blurring to search a denoised version of the image, while maintaining pixel-perfect removal precision.
+3. **Tier 3: Smart Edge-Crop Recovery**: Allows the search window to overflow image boundaries, detecting watermarks that have been partially cropped (up to 60% occlusion support).
+4. **Tier 4: Deep Sobel Intensity Scan**: Matches gradients using Sobel filters to ensure accuracy on high-texture backgrounds.
 
 | Standard resolution tier | Logo Size | Default Margins | Support |
 | :--- | :--- | :--- | :--- |
@@ -143,7 +145,11 @@ gemini-watermark-remover/
 │   ├── i18n.js            # Translation orchestrator
 │   └── utils.js           # Shared utilities (Memory management)
 ├── python/                # Python bridge with Type Hints & Tkinter GUI
-├── tests/                 # Comprehensive test suite (37+ cases)
+├── tests/                 # Standardized test suite (node:test)
+│   ├── test_utils.js      # Robust image/alpha-map factory for testing
+│   ├── detector.test.js   # Multi-size & Noise resilience testing
+│   ├── core_math.test.js  # Reverse alpha-blend math validation
+│   └── pipeline.test.js   # Full E2E logic integration
 ├── build.js               # esbuild-based build pipeline
 └── package.json           # Scripts (test, build, cli, gui)
 ```

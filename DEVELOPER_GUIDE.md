@@ -11,11 +11,12 @@
 - **`config.js`**: 水印维度预测。v1.4 已重构为优先调用 `catalog.js` 进行精确匹配，仅在非标准尺寸下使用启发式逻辑。
 - **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。
 - **`blendModes.js`**: 核心算法实现。统一导出了 `removeWatermark` 函数，使用 `Math.fround` 确保各端精度对齐。
-- **`detector.js`**: (v1.4 Advanced Alignment) **分层探测器**。
-    - **Tier 1: 目录优先**：直接比对官方分辨率锚点，实现秒级高置信度锁定。
-    - **Tier 2: 锚点加权**：对 32/64px 标准边距进行分值补偿，防噪点干扰。
-    - **Tier 3: 深度 Sobel 扫描**：引入 **Sobel 梯度算子** 进行边缘 NCC 匹配（公式：`Score = 0.6 * Gray + 0.4 * Sobel`），极大提升了复杂风景背景下的鲁棒性。
-- **`watermarkEngine.js`**: 引擎协调层。支持 `deepScan` 选项配置，并在检测失败时提供稳健的回退逻辑。
+- **`detector.js`**: (v1.5 Robust Detection) **分层混合探测器**。
+    - **Tier 1: 官方目录匹配**：直接比对官方分辨率锚点，实现秒级高置信度锁定。
+    - **Tier 2: 自适应降噪搜索**：(v1.5) 引入 `fastBoxBlur` 预处理。通过对探测副本进行平滑处理提高信噪比（SNR），解决高压缩 JPEG 的识别难题。
+    - **Tier 3: 智能切边容错**：(v1.5) 允许探测窗口溢出图像边界，识别并修复部分被裁剪（Occluded）的水印。
+    - **Tier 4: 深度 Sobel 梯度扫描**：应用 Sobel 算子进行边缘匹配，提升复杂背景下的稳定性。
+- **`watermarkEngine.js`**: 引擎协调层。支持 `noiseReduction` 和 `deepScan` 选项配置。
 
 ---
 
@@ -28,16 +29,17 @@
 - Userscript 版由于跨域限制，默认回退至主线程同步执行。
 
 ### 2. 内存管理 (Memory Context)
-- **生命周期管控**：在 `utils.js` 中实现了图片加载即释放的策略 (`revokeObjectURL`)。对于批量处理生成的 ZIP Blob，采用 Lease-based 延时释放，确保下载触发后的资源及时回收，防止长时间处理导致的 OOM。
+- **生命周期管控**：在 `utils.js` 中实现了图片加载即释放的策略 (`revokeObjectURL`)。对于批量处理生成的 ZIP Blob，采用 Lease-based 延时释放。
+- **Bounded Batching (v1.5)**：目录处理模式引入了有限并发队列方案，防止成千上万张图片同时压入内存导致 OOM。
 - **Canvas 重用**：主应用层维持单例对比 Canvas，仅在尺寸变化时重新分配内存。
 
-### 2. 工程化标准 (Engineering Standards)
+### 3. 工程化标准 (Engineering Standards)
 - **代码规范**：集成 ESLint 和 Prettier 进行风格统一。
-- **自动化测试**：使用 Node.js Native Test Runner，目前覆盖 **37 项** 核心测试用例。
-- **测试重现性**：在 `v1.2` 对抗测试中使用 **Seeded PRNG (固定种子伪随机数)**。这确保了在不同环境下随机生成的干扰背景与尺寸组合完全一致，使 Bug 的复现与定位更具确定性。
+- **标准化测试 (v1.5)**：弃用了散乱的脚本，统一使用 Node.js Native Test Runner (`node --test tests/*.test.js`)。
+- **测试工厂 (`test_utils.js`)**：引入了标准化的图像与 Alpha 映射工厂，支持 21:9 超宽屏、9:16 人像以及受控噪点注入测试。
 - **CI/CD**：引入 GitHub Actions 自动验证每一次提交，确保在 Ubuntu/Node 版本矩阵下表现一致。
 
-### 3. 外部接口化 (Interfacing)
+### 4. 外部接口化 (Interfacing)
 - **CLI 模式**：通过 `node src/cli.js -i <in> -o <out> --json` 实现机器可读输出（包含探测元数据）。
 - **Python Bridge**：提供带有完整类型提示的抽象类，方便 AI 工作流集成。
 
