@@ -10,13 +10,28 @@
 - **`catalog.js`**: (v1.4 New) **官方分辨率目录**。内置了从 512px 到 4096px 的 Gemini 官方比例输出数据。
 - **`config.js`**: 水印维度预测。v1.4 已重构为优先调用 `catalog.js` 进行精确匹配，仅在非标准尺寸下使用启发式逻辑。
 - **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。
-- **`blendModes.js`**: 核心算法实现。统一导出了 `removeWatermark` 函数，使用 `Math.fround` 确保各端精度对齐。
-- **`detector.js`**: (v1.5 Robust Detection) **分层混合探测器**。
-    - **Tier 1: 官方目录匹配**：直接比对官方分辨率锚点，实现秒级高置信度锁定。
-    - **Tier 2: 自适应降噪搜索**：(v1.5) 引入 `fastBoxBlur` 预处理。通过对探测副本进行平滑处理提高信噪比（SNR），解决高压缩 JPEG 的识别难题。
-    - **Tier 3: 智能切边容错**：(v1.5) 允许探测窗口溢出图像边界，识别并修复部分被裁剪（Occluded）的水印。
-    - **Tier 4: 深度 Sobel 梯度扫描**：应用 Sobel 算子进行边缘匹配，提升复杂背景下的稳定性。
+- [x] **Smart Edge Crop Tolerance**: Detect and remove watermarks even if partially outside image boundaries. (v1.5)
+- [x] **Adaptive Noise Reduction**: Enhanced detection confidence via pre-processing for low SNR images. (v1.5)
+- [x] **Batch Bounded Directory Mode**: Memory-safe automated batch processing for huge folders. (v1.5)
+- [x] **Tiered Hybrid Detection**: NCC + Sobel Gradient + Catalog matching. (v1.5)
+- [x] **Standardized Testing (node:test)**: Comprehensive test suite with 100% core logic coverage. (v1.5)
+- [x] **UI/UX Optimization**: Advanced Engine Parameters toggles and Audit Console. (v1.5)
 - **`watermarkEngine.js`**: 引擎协调层。支持 `noiseReduction` 和 `deepScan` 选项配置。
+
+### 2. 参数一致性协议 (Core Parameter Protocol)
+
+为了确保各平台（Web, CLI, Python）与测试套件的动态对齐，所有水印配置对象 **必须** 严格遵循以下命名协议：
+
+| 属性名 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `logoSize` | `Number` | 水印正方形边长 (通常为 48 或 96) |
+| `marginRight` | `Number` | 水印距离图像右边缘的像素距离 |
+| `marginBottom` | `Number` | 水印距离图像下边缘的像素距离 |
+| `isOfficial` | `Boolean` | (可选) 是否匹配官方分辨率目录条目 |
+
+**逻辑优先级**：
+1. **Catalog Match**: 优先检索 `catalog.js`。若命中，则直接应用官方偏移量，跳过启发式计算。
+2. **Heuristic Fallback**: 若未命中官方分辨率，则在 `config.js` 中根据图像长边 (maxSide) 进行分阶预测。
 
 ---
 
@@ -35,8 +50,9 @@
 
 ### 3. 工程化标准 (Engineering Standards)
 - **代码规范**：集成 ESLint 和 Prettier 进行风格统一。
-- **标准化测试 (v1.5)**：弃用了散乱的脚本，统一使用 Node.js Native Test Runner (`node --test tests/*.test.js`)。
-- **测试工厂 (`test_utils.js`)**：引入了标准化的图像与 Alpha 映射工厂，支持 21:9 超宽屏、9:16 人像以及受控噪点注入测试。
+- **标准化测试 (v1.5)**：使用 Node.js Native Test Runner (`npm test`)。
+- **验证范围**：覆盖了 `blendModes` 精度、`catalog` 容差、`config` 优先级、`detector` 置信度及 CLI 集成。
+- **测试工厂 (`test_utils.js`)**：支持 20MB+, 21:9 超宽屏、9:16 人像以及受控噪点注入测试。
 - **CI/CD**：引入 GitHub Actions 自动验证每一次提交，确保在 Ubuntu/Node 版本矩阵下表现一致。
 
 ### 4. 外部接口化 (Interfacing)

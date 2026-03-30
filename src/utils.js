@@ -38,23 +38,43 @@ export function getOriginalStatus({ is_google, is_original }) {
     return '';
 }
 
-const statusMessage = document.getElementById('statusMessage');
-export function setStatusMessage(message = '', type = '') {
-    statusMessage.textContent = message;
-    statusMessage.style.display = message ? 'block' : 'none';
-    const colorMap = { warn: 'text-warn', success: 'text-success' };
-    statusMessage.classList.remove(...Object.values(colorMap));
-    if (colorMap[type]) statusMessage.classList.add(colorMap[type]);
+function getStatusMessageEl() { return typeof document !== 'undefined' ? document.getElementById('statusMessage') : null; }
+function getLoadingOverlayEl() { return typeof document !== 'undefined' ? document.getElementById('loadingOverlay') : null; }
+
+export async function loadImage(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
 }
 
-const loadingOverlay = document.getElementById('loadingOverlay');
-export function showLoading(text = null) {
-    loadingOverlay.style.display = 'flex';
-    const textEl = loadingOverlay.querySelector('p');
-    if (textEl && text) textEl.textContent = text;
+export function setStatusMessage(message, type = 'info') {
+    const el = getStatusMessageEl();
+    if (!el) return;
+    el.textContent = message;
+    el.className = `mt-6 text-sm min-h-[1.25rem] ${type === 'err' ? 'text-err font-bold' : (type === 'success' ? 'text-success font-bold' : 'text-gray-500')}`;
+}
+
+export function showLoading(text) {
+    const el = getLoadingOverlayEl();
+    if (!el) return;
+    el.classList.remove('hidden');
+    if (text) {
+        const textEl = el.querySelector('[data-i18n="loading.text"]');
+        if (textEl) textEl.textContent = text;
+    }
 }
 
 export function hideLoading() {
-    loadingOverlay.style.display = 'none';
+    const el = getLoadingOverlayEl();
+    if (!el) return;
+    el.classList.add('hidden');
     document.body.classList.remove('loading');
 }

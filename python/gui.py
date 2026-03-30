@@ -31,6 +31,8 @@ class ModernGUI:
         except Exception as e:
             self.log(f"Initialization Failed: {str(e)}", "err")
             self.remover = None
+        
+        self.input_paths = None  # Robust path storage
 
         self._build_ui()
         self.log("Desktop Interface initialized. Ready for processing.", "success")
@@ -129,9 +131,16 @@ class ModernGUI:
             path = filedialog.askdirectory(title="Select Output Folder")
             
         if path:
-            entry = self.input_entry if mode == "input" else self.output_entry
+            if mode == "input":
+                self.input_paths = path
+                display_path = str(path)
+                entry = self.input_entry
+            else:
+                display_path = str(path)
+                entry = self.output_entry
+            
             entry.delete(0, tk.END)
-            entry.insert(0, str(path))
+            entry.insert(0, display_path)
 
     def start_task(self):
         src = self.input_entry.get()
@@ -152,22 +161,18 @@ class ModernGUI:
         try:
             self.log(f"Starting batch process...", "process")
             # Handle list of files vs directory
-            if "(" in src and ")" in src: # It's a tuple from askopenfilenames
-                # Simple logic for this demo: process one by one
-                import ast
-                src_list = ast.literal_eval(src)
-                total = len(src_list)
-                for i, f in enumerate(src_list):
+            if isinstance(self.input_paths, (list, tuple)):
+                total = len(self.input_paths)
+                for i, f in enumerate(self.input_paths):
                     self.log(f"Processing ({i+1}/{total}): {os.path.basename(f)}", "info")
                     res = self.remover.remove_watermark(f, dest)
                     self._handle_result(res)
-                    # Update progress bar safely
                     val = ((i + 1) / total) * 100
                     self.root.after(0, lambda v=val: self.progress.configure(value=v))
             else:
                 res = self.remover.remove_watermark(src, dest)
                 self._handle_result(res)
-                self.progress["value"] = 100
+                self.root.after(0, lambda: self.progress.configure(value=100))
             
             self.log("All tasks completed successfully.", "success")
         except Exception as e:

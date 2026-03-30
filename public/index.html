@@ -275,13 +275,13 @@
       <div id="directoryPanel" class="animate-fade-up [animation-delay:400ms] max-w-4xl mx-auto glass-card rounded-3xl shadow-premium p-6 md:p-8 border border-blue-50/50 hidden">
         <div class="flex flex-col md:flex-row gap-6 items-center justify-between">
             <div class="flex-1 text-left">
-                <h3 class="text-xl font-bold text-gray-900 mb-2">目录自动批处理</h3>
-                <p class="text-sm text-gray-500">选择输入和输出目录，全自动处理所有图片</p>
+                <h3 class="text-xl font-bold text-gray-900 mb-2" data-i18n="directory.title">目录自动批处理</h3>
+                <p class="text-sm text-gray-500" data-i18n="directory.desc">选择输入和输出目录，全自动处理所有图片</p>
             </div>
             <div class="flex gap-4">
-                <button id="setInputDirBtn" class="px-6 py-3 bg-white border-2 border-dashed border-blue-200 text-blue-600 rounded-xl font-bold hover:bg-blue-50 transition-all">设置输入目录</button>
+                <button id="setInputDirBtn" class="px-6 py-3 bg-white border-2 border-dashed border-blue-200 text-blue-600 rounded-xl font-bold hover:bg-blue-50 transition-all" data-i18n="btn.setInputDir">设置输入目录</button>
                 <div class="flex items-center text-gray-300"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg></div>
-                <button id="setOutputDirBtn" class="px-6 py-3 bg-white border-2 border-dashed border-emerald-200 text-emerald-600 rounded-xl font-bold hover:bg-emerald-50 transition-all">设置输出目录</button>
+                <button id="setOutputDirBtn" class="px-6 py-3 bg-white border-2 border-dashed border-emerald-200 text-emerald-600 rounded-xl font-bold hover:bg-emerald-50 transition-all" data-i18n="btn.setOutputDir">设置输出目录</button>
             </div>
         </div>
         <div id="dirStatus" class="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100 hidden">
@@ -290,7 +290,7 @@
                     <span class="text-gray-400">INPUT: <span id="inputDirPath" class="text-gray-900 font-mono">/</span></span>
                     <span class="text-gray-400">OUTPUT: <span id="outputDirPath" class="text-gray-900 font-mono">/</span></span>
                 </div>
-                <button id="startDirProcessBtn" class="px-8 py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-all disabled:opacity-30 disabled:cursor-not-allowed" disabled>开始全量处理</button>
+                <button id="startDirProcessBtn" class="px-8 py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-all disabled:opacity-30 disabled:cursor-not-allowed" data-i18n="btn.startProcess" disabled>开始全量处理</button>
             </div>
         </div>
       </div>
@@ -427,7 +427,7 @@
           <span id="progressText">处理进度: 0/0</span>
         </h3>
         <div class="flex gap-2">
-          <button id="clearAllBtn" class="py-2.5 px-6 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl font-medium transition-all">
+          <button id="clearAllBtn" class="py-2.5 px-6 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl font-medium transition-all" data-i18n="btn.clearAll">
             清空列表
           </button>
           <button id="downloadAllBtn" class="py-2.5 px-6 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium transition-all flex items-center gap-2" style="display: none;">

@@ -128,29 +128,26 @@ $$original = \frac{watermarked - \alpha \cdot logo}{1 - \alpha}$$
 ## 项目结构
 
 ```
-gemini-watermark-remover/
-├── public/
-│   ├── index.html         # 主页面
-│   └── terms.html         # 使用条款页面
 ├── src/
+│   ├── assets/            # 校准后的水印掩码 (bg_48, bg_96)
 │   ├── core/
 │   │   ├── alphaMap.js    # Alpha map 计算逻辑
 │   │   ├── blendModes.js  # 优化版反向 alpha 混合算法
-│   │   ├── config.js      # 水印尺寸与边距规则
-│   │   ├── detector.js    # 基于像素特征的稳健探测器
-│   │   └── watermarkEngine.js  # 引擎调度 (含持久化 Worker 与复用)
-├── assets/                # 原始素材 (bg_48, bg_96)
-├── i18n/                  # 国际化语言文件
-├── userscript/            # 油猴脚本
-├── python/                # 带有类型提示的 Python 集成 SDK
-├── app.js                 # 网站应用入口
-├── cli.js                 # 标准化命令行工具 (JSON, Pipe, 并发)
-├── i18n.js                # 国际化工具
-├── tests/                 # 标准化测试套件 (node:test)
-│   ├── test_utils.js      # 稳健的图像/Alpha 映射测试工厂
-│   ├── detector.test.js   # 多尺寸与噪点抗性测试
-│   ├── core_math.test.js  # 逆向 Alpha 混合数学验证
-│   └── pipeline.test.js   # 全流程 E2E 逻辑集成
+│   │   ├── catalog.js     # 官方 Gemini 分辨率数据库
+│   │   ├── config.js      # 水印尺寸规则与参数协议
+│   │   ├── detector.js    # 分级混合探测器 (NCC + Sobel + Catalog)
+│   │   └── watermarkEngine.js  # 引擎调度 (含持久化 Worker)
+│   ├── i18n/              # 国际化语言文件 (JSON)
+│   ├── userscript/        # 油猴脚本
+│   ├── app.js             # 网站应用入口
+│   ├── cli.js             # 标准化命令行工具 (JSON, Pipe, 并发)
+│   ├── i18n.js            # 国际化工具
+│   └── utils.js           # 共享工具类 (环境守护)
+├── python/                # 带有跨平台 GUI 的 Python 集成
+├── tests/                 # 标准化测试套件 (39+ 测试用例)
+│   ├── consistency.test.js # 新增：参数协议自动化校验
+│   ├── test_utils.js      # 稳健的测试工厂
+│   └── ...                # 详细的单元与集成测试
 ├── .github/workflows/      # CI/CD 自动化流水线
 └── package.json           # 标准化脚本 (lint, format, test)
 ```

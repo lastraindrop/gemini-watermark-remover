@@ -29,7 +29,6 @@ export function removeWatermark(imageData, alphaMap, position) {
     // Process each pixel in the watermark area
     for (let row = 0; row < height; row++) {
         const curY = y + row;
-        if (curY < 0 || curY >= height + y) continue; // Basic row skip (though usually handled by loop)
         if (curY < 0 || curY >= imageData.height) continue; // Image boundary check
 
         const rowOffset = curY * imgWidth;

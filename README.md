@@ -132,24 +132,25 @@ The engine uses a **Tiered Hybrid Detection Strategy (v1.5)**:
 gemini-watermark-remover/
 ├── public/                # Web UI assets (HTML/CSS)
 ├── src/
-│   ├── core/              # Engine Core (Environment agnostic)
-│   │   ├── alphaMap.js    # Alpha map calculation logic
-│   │   ├── blendModes.js  # Optimized Reverse Alpha Blending
-│   │   ├── config.js      # Watermark dimension rules
-│   │   ├── detector.js    # Robust Pixel-based Detector (NCC + Top-5)
-│   │   └── watermarkEngine.js  # Orchestrator with fallback & Worker management
-│   ├── i18n/              # Localization files (JSON)
-│   ├── userscript/        # Tampermonkey script sources
-│   ├── app.js             # Web Application logic
-│   ├── cli.js             # High-performance Node.js CLI
-│   ├── i18n.js            # Translation orchestrator
-│   └── utils.js           # Shared utilities (Memory management)
-├── python/                # Python bridge with Type Hints & Tkinter GUI
-├── tests/                 # Standardized test suite (node:test)
-│   ├── test_utils.js      # Robust image/alpha-map factory for testing
-│   ├── detector.test.js   # Multi-size & Noise resilience testing
-│   ├── core_math.test.js  # Reverse alpha-blend math validation
-│   └── pipeline.test.js   # Full E2E logic integration
+│   ├── assets/            # 校准后的水印掩码 (bg_48, bg_96)
+│   ├── core/
+│   │   ├── alphaMap.js    # Alpha map 计算逻辑
+│   │   ├── blendModes.js  # 优化版反向 alpha 混合算法
+│   │   ├── catalog.js     # 官方 Gemini 分辨率数据库
+│   │   ├── config.js      # 水印尺寸规则与参数协议
+│   │   ├── detector.js    # 分级混合探测器 (NCC + Sobel + Catalog)
+│   │   └── watermarkEngine.js  # 引擎调度 (含持久化 Worker)
+│   ├── i18n/              # 国际化语言文件 (JSON)
+│   ├── userscript/        # 油猴脚本
+│   ├── app.js             # 网站应用入口
+│   ├── cli.js             # 标准化命令行工具 (JSON, Pipe, 并发)
+│   ├── i18n.js            # 国际化工具
+│   └── utils.js           # 共享工具类 (环境守护)
+├── python/                # 带有跨平台 GUI 的 Python 集成
+├── tests/                 # 标准化测试套件 (39+ 测试用例)
+│   ├── consistency.test.js # 新增：参数协议自动化校验
+│   ├── test_utils.js      # 稳健的测试工厂
+│   └── ...                # 详细的单元与集成测试
 ├── build.js               # esbuild-based build pipeline
 └── package.json           # Scripts (test, build, cli, gui)
 ```

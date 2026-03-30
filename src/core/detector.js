@@ -71,7 +71,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         const startY = Math.max(-size / 2, height - searchRangeY - size);
         const sizeCandidates = [];
         
-        console.log(`Searching size ${size}: startX=${startX}, startY=${startY}, rangeX=${searchRangeX}, rangeY=${searchRangeY}`);
+
 
         // Stage 1: Coarse search
         for (let y = startY; y < height - size / 2; y += 2) {

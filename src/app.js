@@ -43,6 +43,7 @@ const sliderProcessed = document.getElementById('sliderProcessed');
 const sliderResize = comparisonSlider.querySelector('.resize');
 const sliderHandle = comparisonSlider.querySelector('.handle');
 const resultContainer = document.getElementById('resultContainer');
+const originalInfo = document.getElementById('originalInfo');
 
 // New Diagnostic UI References
 const engineStatus = document.getElementById('engineStatus');
@@ -64,7 +65,6 @@ const AuditLog = {
     log(message, type = 'info') {
         let list = document.getElementById('auditLogList');
         if (!list) {
-            console.log(`[${type.toUpperCase()}] ${message}`);
             return;
         }
         const entry = document.createElement('div');
@@ -599,14 +599,10 @@ async function processDirectory() {
     updateProgress();
     
     // Process in bounded chunks to prevent memory explosion if directory is huge
-    for (let i = 0; i < files.length; i += concurrency) {
-        const chunk = files.slice(i, i + concurrency);
-        await Promise.all(chunk.map(async (file, chunkIdx) => {
-            const itemId = Date.now() + i + chunkIdx;
-            const item = { id: itemId, file, name: file.name, status: 'processing' };
-            
-            // Add a virtual card for tracking in the UI (but don't keep image data in memory longer than needed)
-            createImageCard(item);
+    for (let i = 0; i < imageQueue.length; i += concurrency) {
+        const chunk = imageQueue.slice(i, i + concurrency);
+        await Promise.all(chunk.map(async (item) => {
+            item.status = 'processing';
             updateStatus(item.id, i18n.t('status.processing'));
             
             try {
@@ -619,12 +615,14 @@ async function processDirectory() {
                 await writable.write(blob);
                 await writable.close();
 
+                item.status = 'completed';
                 updateStatus(item.id, `✅ Saved [${detectionMode.toUpperCase()}]`, true);
                 processedCount++;
                 updateProgress();
                 
                 // GC Hint: original image and canvas are local to this closure
             } catch (err) {
+                item.status = 'error';
                 updateStatus(item.id, `❌ Error: ${err.message}`);
                 AuditLog.log(`Error processing ${item.name}: ${err.message}`, 'err');
             }

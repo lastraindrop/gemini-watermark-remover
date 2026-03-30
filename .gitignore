@@ -1,5 +1,14 @@
 # dependencies
-node_modules
+node_modules/
+dist/
+tmp*/
+.DS_Store
+*.log
+.vscode/
+.history
+
+# build
+dist/
 
 # misc
 .DS_Store

@@ -7,7 +7,8 @@ const translations = {
 };
 
 const i18n = {
-  locale: localStorage.getItem('locale') || (navigator.language.startsWith('zh') ? 'zh-CN' : 'en-US'),
+  locale: (typeof localStorage !== 'undefined' ? localStorage.getItem('locale') : null) || 
+          (typeof navigator !== 'undefined' && navigator.language?.startsWith('zh') ? 'zh-CN' : 'en-US'),
   translations: {},
 
   async init() {
