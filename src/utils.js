@@ -11,7 +11,7 @@ export function loadImage(input) {
                 URL.revokeObjectURL(img.src);
             }
         };
-        img.onerror = reject;
+        img.onerror = (e) => reject(new Error('Failed to load image'));
         if (input instanceof File || input instanceof Blob) {
             img.src = URL.createObjectURL(input);
         } else {
@@ -40,20 +40,6 @@ export function getOriginalStatus({ is_google, is_original }) {
 
 function getStatusMessageEl() { return typeof document !== 'undefined' ? document.getElementById('statusMessage') : null; }
 function getLoadingOverlayEl() { return typeof document !== 'undefined' ? document.getElementById('loadingOverlay') : null; }
-
-export async function loadImage(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = e.target.result;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-}
 
 export function setStatusMessage(message, type = 'info') {
     const el = getStatusMessageEl();

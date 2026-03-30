@@ -9,14 +9,18 @@
 - [x] **Tiered Hybrid Detection**: NCC + Sobel Gradient + Catalog matching. (v1.5)
 - [x] **Standardized Testing (node:test)**: Comprehensive test suite for all tiers (39+ tests). (v1.5)
 - [x] **Parameter Protocol Enforcement**: Hardened `logoSize/marginRight` consistency across engine and tests. (v1.5)
+- [x] **Persistent Settings**: UI preferences (language, scan mode) saved via `localStorage`. (v1.5.5)
+- [x] **Clipboard Support**: One-click "Copy to Clipboard" for processed images. (v1.5.5)
+- [x] **I18n Expansion**: Support for 5 languages (ZH, EN, RU, FR, JA) with auto-detection. (v1.5.5)
 
 ---
 
 ### ⚡ 核心能力外溢
-- **v1.6: Sub-pixel Alignment (亚像素级对齐)**：针对非整数坐标的水印进行像素插值还原，消除锯齿感。
-- **v1.6: Dynamic Parameter Autonomy**: 实现基于探测反馈的动态参数对齐，允许微调 `margin` 偏移量。
-- **v1.7: Multi-model Presets**: 加入 Imagen 3 等其他 AI 模型的水印特征。
-- **v1.7: Wasm Core (Alpha)**：将 NCC 探测与 Alpha 合成迁移至 Rust 以对抗 8K 巨图。
+- **v1.6: Sub-pixel Alignment (亚像素级对齐)**：针对非整数坐标的水印进行像素插值还原，消除缩放图像的锯齿感。
+- **v1.6: Dynamic Parameter Autonomy**: 基于探测置信度的动态偏移校准，实现 `±5px` 的自动对齐微调。
+- **v1.6: Delta View (差异可视化)**：增加 `|Original - Processed|` 视图，直观展示算法对非水印区的零干扰。
+- **v1.7: Multi-model Presets**: 加入 Google Imagen 3 与 SynthID 视觉标记特征库支持。
+- **v1.7: Wasm Core (Alpha)**：使用 Rust 重新实现核心像素循环，极大提升 8K+ 巨图处理速度。
 
 ---
 

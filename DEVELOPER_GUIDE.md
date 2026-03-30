@@ -16,9 +16,15 @@
 - [x] **Tiered Hybrid Detection**: NCC + Sobel Gradient + Catalog matching. (v1.5)
 - [x] **Standardized Testing (node:test)**: Comprehensive test suite with 100% core logic coverage. (v1.5)
 - [x] **UI/UX Optimization**: Advanced Engine Parameters toggles and Audit Console. (v1.5)
-- **`watermarkEngine.js`**: 引擎协调层。支持 `noiseReduction` 和 `deepScan` 选项配置。
+- **`watermarkEngine.js`**: 引擎调度层。支持 `noiseReduction` 和 `deepScan` 选项配置，并维护单例 Web Worker 与主线程回退。
+- **`i18n.js`**: (v1.5.5) **多语言引擎**。支持 5 国语言动态加载与浏览器语言自动识别。
 
-### 2. 参数一致性协议 (Core Parameter Protocol)
+### 2. 交互与持久化实现 (UI & Persistence)
+- **设置持久化**: 程序通过 `localStorage` 自动同步用户的 `locale`、`deepScan` 和 `noiseReduction` 偏好。
+- **一键剪贴板**: 使用现代 `Clipboard API` 实现 PNG 二进制数据复制。注意：此功能要求环境为 Secure Context (HTTPS 或 localhost)。
+- **Audit Console**: 实时追踪引擎状态、Worker 通信耗时及探测置信度，由 `AuditLog` 工具类驱动。
+
+### 3. 参数一致性协议 (Core Parameter Protocol)
 
 为了确保各平台（Web, CLI, Python）与测试套件的动态对齐，所有水印配置对象 **必须** 严格遵循以下命名协议：
 
@@ -29,9 +35,10 @@
 | `marginBottom` | `Number` | 水印距离图像下边缘的像素距离 |
 | `isOfficial` | `Boolean` | (可选) 是否匹配官方分辨率目录条目 |
 
-**逻辑优先级**：
+**逻辑优先级与动态对齐 (Dynamic Alignment)**：
 1. **Catalog Match**: 优先检索 `catalog.js`。若命中，则直接应用官方偏移量，跳过启发式计算。
 2. **Heuristic Fallback**: 若未命中官方分辨率，则在 `config.js` 中根据图像长边 (maxSide) 进行分阶预测。
+3. **Anti-Regression Testing**: 每次更新参数协议或配置规则后，**必须** 运行 `npm test`。现有的 `consistency.test.js` 会自动化校验 512px 到 4096px 的全路径参数一致性，防止 `logoSize` 或 `margin` 的硬编码回归。
 
 ---
 
@@ -63,24 +70,19 @@
 
 ## 📈 路线图 (Roadmap)
 
-### 第一阶段：架构优化与标准化 (COMPLETED ✅ v1.1 - v1.2)
-- [x] 核心算法与 DOM 环境彻底解耦。
-- [x] 引入 Web Worker 异步处理与持久化。
-- [x] 实现高性能 Node.js CLI (支持并发、JSON、管道)。
-- [x] **稳健探测**：实现基于 **NCC** 与 **Top-5 排名** 的零 EXIF 依赖检测，性能显著提升。
-- [x] **高精度逻辑**：支持两阶段搜索（粗查+精调）与智能维度判定。
-- [x] **对抗性验证**：建立 `v1.2` 可重现对抗性压力测试套件（Seeded PRNG），达到 100% 检出。
-- [x] **工程化**：建立标准化 Lint、Format 及 Windows 兼容的 cross-env CI 流水线。
-- [x] **安全加固**：实现 XSS 自动转义与内存泄漏主动防御。
-- [x] 提供带有类型提示的 Python 集成 SDK。
+### 第一阶段：架构优化与标准化 (COMPLETED ✅ v1.1 - v1.5.5)
+- [x] **v1.1-1.2**: 核心算法解耦、Web Worker 单例化、Node.js CLI 工具链。
+- [x] **v1.5**: 分级混合探测 (NCC/Sobel)、官方目录数据库 (`catalog.js`)、切边容错支持。
+- [x] **v1.5.5**: 设置持久化、一键剪贴板复制、五国语言支持 (ZH, EN, RU, FR, JA)。
 
 ### 第二阶段：检测与增强 (Short-term 🚀)
 - [ ] **多模型特征提取**：研究 DALL-E 3 和 Midjourney 的水印特征并集成。
 - [ ] **网页端实时预览优化**：引入 WebGL 片元着色器加速渲染 A/B 对比效果。
-- [ ] **性能压测工具**：开发针对万级图像处理生成的报告评估工具。
 
 ### 第三阶段：工程化提升 (Long-term 🛠)
 - [ ] **WebAssembly (Wasm) 迁移**：将像素混合循环迁移至 Rust，针对 4K+ 图像极致提速。
 - [ ] **浏览器原生插件**：开发跨浏览器的 Extension 自动去水印预览。
 - [ ] **移动端应用适配**：利用 Capacitor 或 PWA 提供移动端原生拍摄去水印能力。
 
+> [!NOTE]
+> 关于未来的详细开发路线，请参阅 [ROADMAP.md](./ROADMAP.md)。

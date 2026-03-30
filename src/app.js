@@ -120,7 +120,7 @@ async function init() {
         }
 
         await i18n.init();
-        setupLanguageSwitch();
+        setupLanguageSelector();
         showLoading(i18n.t('status.loading'));
 
         AuditLog.log('Initializing WatermarkEngine...', 'process');
@@ -139,6 +139,7 @@ async function init() {
         hideLoading();
         setupEventListeners();
         setupDirectoryMode();
+        loadSettings();
 
         zoom = mediumZoom('[data-zoomable]', {
             margin: 24,
@@ -155,16 +156,20 @@ async function init() {
 }
 
 /**
- * setup language switch
+ * setup language selector (v1.5.5)
  */
-function setupLanguageSwitch() {
-    const btn = document.getElementById('langSwitch');
-    btn.textContent = i18n.locale === 'zh-CN' ? 'EN' : '中文';
-    btn.addEventListener('click', async () => {
-        const newLocale = i18n.locale === 'zh-CN' ? 'en-US' : 'zh-CN';
+function setupLanguageSelector() {
+    const select = document.getElementById('langSelect');
+    if (!select) return;
+    
+    select.value = i18n.locale;
+    
+    select.addEventListener('change', async () => {
+        const newLocale = select.value;
         await i18n.switchLocale(newLocale);
-        btn.textContent = newLocale === 'zh-CN' ? 'EN' : '中文';
         updateDynamicTexts();
+        saveSettings();
+        AuditLog.log(`Locale changed to: ${newLocale}`, 'info');
     });
 }
 
@@ -194,6 +199,10 @@ function setupEventListeners() {
     if (clearAllBtn) clearAllBtn.addEventListener('click', reset);
     resetBtn.addEventListener('click', reset);
     
+    // Settings change listeners
+    document.getElementById('toggleDeepScan')?.addEventListener('change', saveSettings);
+    document.getElementById('toggleNoiseReduction')?.addEventListener('change', saveSettings);
+
     // Updated Mode Toggles
     modeSliderBtn.addEventListener('click', () => switchViewMode('slider'));
     modeSideBtn.addEventListener('click', () => switchViewMode('side'));
@@ -228,6 +237,62 @@ function switchViewMode(mode) {
         modeSliderBtn.className = 'px-3 py-1 text-[10px] font-bold rounded-md text-emerald-600 hover:bg-emerald-50 transition-all';
         modeSideBtn.className = 'px-3 py-1 text-[10px] font-bold rounded-md bg-emerald-500 text-white shadow-sm transition-all';
         AuditLog.log('Switched to SIDE-BY-SIDE view', 'info');
+    }
+}
+
+/**
+ * Persistence Layer v1.5
+ */
+function saveSettings() {
+    const settings = {
+        deepScan: document.getElementById('toggleDeepScan')?.checked ?? true,
+        noiseReduction: document.getElementById('toggleNoiseReduction')?.checked ?? false,
+        locale: i18n.locale
+    };
+    localStorage.setItem('gwr_settings', JSON.stringify(settings));
+    AuditLog.log('Settings saved to local storage', 'info');
+}
+
+async function loadSettings() {
+    try {
+        const saved = localStorage.getItem('gwr_settings');
+        if (!saved) return;
+        const settings = JSON.parse(saved);
+        
+        if (settings.deepScan !== undefined) {
+            const el = document.getElementById('toggleDeepScan');
+            if (el) el.checked = settings.deepScan;
+        }
+        if (settings.noiseReduction !== undefined) {
+            const el = document.getElementById('toggleNoiseReduction');
+            if (el) el.checked = settings.noiseReduction;
+        }
+        if (settings.locale && settings.locale !== i18n.locale) {
+            await i18n.switchLocale(settings.locale);
+            const btn = document.getElementById('langSwitch');
+            if (btn) btn.textContent = settings.locale === 'zh-CN' ? 'EN' : '中文';
+            updateDynamicTexts();
+        }
+        AuditLog.log('Settings restored from local storage', 'success');
+    } catch (err) {
+        console.warn('Failed to load settings:', err);
+    }
+}
+
+/**
+ * Clipboard Utility v1.5
+ */
+async function copyImageToClipboard(item) {
+    if (!item.processedBlob) return;
+    try {
+        const data = [new ClipboardItem({ 'image/png': item.processedBlob })];
+        await navigator.clipboard.write(data);
+        AuditLog.log('Image copied to clipboard!', 'success');
+        setStatusMessage(i18n.t('status.copied') || 'Copied to clipboard!', 'success');
+    } catch (err) {
+        AuditLog.log(`Failed to copy: ${err.message}`, 'err');
+        // Fallback for browsers that don't support ClipboardItem for PNG
+        setStatusMessage('Copy failed. Please right-click and save.', 'err');
     }
 }
 
@@ -357,6 +422,12 @@ async function processSingle(item) {
         processedSection.style.display = 'block';
         downloadBtn.style.display = 'flex';
         downloadBtn.onclick = () => downloadImage(item);
+
+        const copyBtn = document.getElementById('copyBtn');
+        if (copyBtn) {
+            copyBtn.style.display = 'flex';
+            copyBtn.onclick = () => copyImageToClipboard(item);
+        }
 
         processedInfo.innerHTML = `
             <span>${img.width}×${img.height}</span>

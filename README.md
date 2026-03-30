@@ -13,12 +13,15 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 - ✅ **100% Client-side** - No backend, no server-side processing. Your data stays in your browser.
 - ✅ **Privacy-First** - Images are never uploaded to any server. Period.
 - ✅ **Mathematical Precision** - Based on the Reverse Alpha Blending formula, not "hallucinating" AI models.
-- ✅ **Robust Hybrid Detection (v1.5)** - Uses dimension rules, **NCC (Normalized Cross-Correlation)**, and **Adaptive Noise Reduction** to find watermarks even in low-quality or partially cropped images.
+- ✅ **Robust Hybrid Detection (v1.5)** - Uses dimension rules, **NCC (Normalized Cross-Correlation)**, and **Adaptive Noise Reduction**.
 - ✅ **Edge-Crop Resilience** - Smart detection and removal for watermarks partially outside image boundaries.
-- ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation with bounded batching.
-- ✅ **Security Hardened** - Built-in XSS protection, anti-memory-leak strategies, and robust Web Worker fallback.
-- ✅ **Developer Friendly** - Full unit test suite (node:test), standardized test_utils, and CI/CD integrated.
-- ✅ **Cross-Platform** - Runs smoothly on browsers, Node.js (v18+), and as a Python library.
+- ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation.
+- ✅ **Multi-Language (5 Languages)** - Fully translated UI for **ZH, EN, JA, RU, FR** with auto-detection. (v1.5.5)
+- ✅ **Clipboard Copy** - One-click "Copy to Clipboard" for instant sharing. (v1.5.5)
+- ✅ **Persistent Settings** - Saves your scan preferences and language via `localStorage`. (v1.5.5)
+- ✅ **Security Hardened** - Built-in XSS protection and anti-memory-leak strategies.
+- ✅ **Developer Friendly** - Full unit test suite (node:test) and standardized test_utils.
+- ✅ **Cross-Platform** - Runs on browsers, Node.js, and as a Python desktop app.
 
 ## Examples
 
