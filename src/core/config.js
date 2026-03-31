@@ -16,7 +16,7 @@ export function detectWatermarkConfig(imageWidth, imageHeight) {
     const minSide = Math.min(imageWidth, imageHeight);
 
     // v1.4.0 Refined Heuristic:
-    if (maxSide > 1500 || (maxSide > 1024 && minSide >= 900)) {
+    if (maxSide >= 1500 || (maxSide > 1024 && minSide >= 900)) {
         return {
             logoSize: 96,
             marginRight: 64,

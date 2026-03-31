@@ -273,7 +273,33 @@
             <p class="mb-2 text-xl font-bold text-gray-800" data-i18n="upload.text">点击选择 或 拖拽图片至此</p>
             <p class="text-sm text-gray-400 font-medium" data-i18n="upload.hint">支持 JPG, PNG, WebP • 100% 本地安全</p>
           </div>
-          <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple class="hidden" />
+        </div>
+        
+        <!-- Advanced Engine Settings Panel: v1.5 functionality -->
+        <div class="mt-4 flex flex-wrap gap-4 items-center justify-center p-4 bg-gray-50/50 rounded-2xl border border-gray-100 shadow-glass">
+          <div class="flex items-center gap-3 bg-white px-5 py-2.5 rounded-xl border border-emerald-100 shadow-sm hover:shadow-md transition-all">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="deepScanToggle" class="sr-only peer" checked>
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 font-bold"></div>
+              <span class="ml-3 text-sm font-bold text-gray-700" data-i18n="settings.deepScan">深层扫描 (Deep Scan)</span>
+            </label>
+            <div class="group relative">
+              <svg class="h-4 w-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-dark text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">利用 Sobel 梯度进行二次校准，大幅提升低对比度区域探测精度。</div>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-3 bg-white px-5 py-2.5 rounded-xl border border-emerald-100 shadow-sm hover:shadow-md transition-all">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="noiseReductionToggle" class="sr-only peer">
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+              <span class="ml-3 text-sm font-bold text-gray-700" data-i18n="settings.noiseReduction">降噪处理 (Noise Reduction)</span>
+            </label>
+            <div class="group relative">
+              <svg class="h-4 w-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-dark text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">预处理高频噪点，通过 BoxBlur 提升相关度计算的稳定性。</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -340,6 +366,7 @@
                 <span class="w-2 h-2 rounded-full bg-primary"></span> <span data-i18n="preview.result">处理结果</span>
               </h3>
               <div class="flex gap-2 items-center">
+                <div id="tierBadge" class="hidden px-2 py-0.5 bg-gemini-gradient text-white text-[9px] rounded font-black tracking-widest uppercase shadow-sm">-- TIER</div>
                 <div class="flex bg-white rounded-lg p-0.5 border border-emerald-100 shadow-sm mr-2">
                   <button id="modeSliderBtn" class="px-3 py-1 text-[10px] font-bold rounded-md bg-emerald-500 text-white shadow-sm transition-all">SLIDER</button>
                   <button id="modeSideBtn" class="px-3 py-1 text-[10px] font-bold rounded-md text-emerald-600 hover:bg-emerald-50 transition-all">SIDE-BY-SIDE</button>

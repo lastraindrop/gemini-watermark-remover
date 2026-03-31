@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 
@@ -73,6 +73,27 @@ describe('CLI Integration Tests', () => {
         const result = spawnSync('node', ['src/cli.js', '-i', 'missing.png']);
         assert.strictEqual(result.status, 1);
     });
+
+    test('Directory batch processing', () => {
+        const batchInputDir = join(TMP_DIR, 'batch_input');
+        const batchOutputDir = join(TMP_DIR, 'batch_output');
+        if (!existsSync(batchInputDir)) mkdirSync(batchInputDir);
+        if (!existsSync(batchOutputDir)) mkdirSync(batchOutputDir);
+        
+        // Create 3 mock images
+        for (let i = 1; i <= 3; i++) {
+            const buffer = readFileSync(join(TMP_DIR, 'input.png'));
+            writeFileSync(join(batchInputDir, `img_${i}.png`), buffer);
+        }
+        
+        const result = spawnSync('node', ['src/cli.js', '-i', batchInputDir, '-o', batchOutputDir]);
+        
+        assert.strictEqual(result.status, 0);
+        // Verify 3 output files created with protocol prefix
+        for (let i = 1; i <= 3; i++) {
+            const expectedName = `unwatermarked_img_${i}.png`;
+            assert.ok(existsSync(join(batchOutputDir, expectedName)), `Batch output ${expectedName} missing`);
+        }
+    });
 });
 
-import { readFileSync } from 'node:fs';

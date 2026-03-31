@@ -42,9 +42,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         if (x < 0 || y < 0) continue;
 
         let confidence = calculateCorrelation(searchData, x, y, logoSize, alphaMap, true);
-        const threshold = cfg.isOfficial ? 0.35 : 0.45; // v1.5: Lowered official threshold
-        if (confidence > threshold) {
-            anchoredCandidates.push({ x, y, size: logoSize, confidence, status: 'anchored' });
+        const threshold = cfg.isOfficial ? 0.30 : 0.40; // v1.5.5: More inclusive anchored thresholds
+        if (confidence >= threshold) {
+            anchoredCandidates.push({ x, y, size: logoSize, confidence, mode: 'anchored' });
         }
     }
     
@@ -80,7 +80,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                 
                 if (confidence > 0.3) {
 
-                    const candidate = { x, y, size, confidence };
+                    const candidate = { x, y, size, confidence, mode: 'anchored' };
                     
                     let tooClose = false;
                     for (let i = 0; i < sizeCandidates.length; i++) {
@@ -122,8 +122,10 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                     // Deep Scan Enhancement (v1.4): Sobel Gradient Matching
                     if (deepScan && confidence > 0.3) {
                         const gradientConf = calculateGradientCorrelation(searchData, fx, fy, size, alphaMap);
-                        // Blend scores: Grayscale (0.6) + Gradient (0.4)
-                        confidence = confidence * 0.6 + gradientConf * 0.4;
+                        // v1.5: Only refine if gradient info exists to avoid confidence collapse on solid backgrounds
+                        if (gradientConf > 0) {
+                            confidence = confidence * 0.6 + gradientConf * 0.4;
+                        }
                     }
 
                     const stage2Threshold = noiseReduction ? 0.3 : 0.35; // v1.5: Adaptive threshold for noise
@@ -131,7 +133,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                         const marginX = width - fx - size;
                         const marginY = height - fy - size;
                         const isAligned = (marginX === 32 || marginX === 64) && (marginY === 32 || marginY === 64);
-                        allCandidates.push({ x: fx, y: fy, size, confidence, status: isAligned ? 'aligned' : 'free' });
+                        // v1.5: Prefer anchored status if inherited, otherwise aligned/free
+                        const mode = candidate.mode === 'anchored' ? 'anchored' : (isAligned ? 'aligned' : 'free');
+                        allCandidates.push({ x: fx, y: fy, size, confidence, mode });
                     }
 
                 }
@@ -164,22 +168,22 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     }
 
     for (const candidate of finalCandidates) {
-        const { x, y, size, confidence, status } = candidate;
+        const { x, y, size, confidence, mode } = candidate;
         let score = confidence;
 
         // Scoring Bias: Aligned or Anchored get a boost
-        if (status === 'anchored') score += 0.2;
-        else if (status === 'aligned') score += 0.1;
+        if (mode === 'anchored') score += 0.2;
+        else if (mode === 'aligned') score += 0.1;
 
         if (score > maxScore) {
             maxScore = score;
-            bestResult = { x, y, size, confidence, score, status };
+            bestResult = { x, y, size, confidence, score, mode };
         }
     }
 
     if (bestResult) {
-        const thresholds = { 'anchored': 0.35, 'aligned': 0.4, 'free': 0.5 }; // v1.5: Lowered from 0.4/0.45/0.55
-        if (bestResult.confidence > (thresholds[bestResult.status] || 0.5)) {
+        const thresholds = { 'anchored': 0.3, 'aligned': 0.35, 'free': 0.45 }; 
+        if (bestResult.confidence >= (thresholds[bestResult.mode] || 0.45)) {
             return bestResult;
         }
     }
@@ -241,6 +245,12 @@ function calculateGradientCorrelation(imageData, x, y, size, alphaMap) {
     const gradientsA = new Float32Array(size * size);
 
     // 1. Precompute gradients for image and alpha map
+    const getB = (r, c) => {
+        const i = ((y + r) * imgWidth + (x + c)) << 2;
+        return Math.max(data[i], data[i+1], data[i+2]);
+    };
+    const getA = (r, c) => alphaMap[r * size + c];
+
     for (let row = 1; row < size - 1; row++) {
         const curY = y + row;
         if (curY < 1 || curY >= imgHeight - 1) continue;
@@ -251,18 +261,12 @@ function calculateGradientCorrelation(imageData, x, y, size, alphaMap) {
 
             const idx = row * size + col;
             
-            const getB = (r, c) => {
-                const i = ((y + r) * imgWidth + (x + c)) << 2;
-                return Math.max(data[i], data[i+1], data[i+2]);
-            };
-            
             const gxI = (getB(row-1, col+1) + 2*getB(row, col+1) + getB(row+1, col+1)) - 
                         (getB(row-1, col-1) + 2*getB(row, col-1) + getB(row+1, col-1));
             const gyI = (getB(row+1, col-1) + 2*getB(row+1, col) + getB(row+1, col+1)) - 
                         (getB(row-1, col-1) + 2*getB(row-1, col) + getB(row-1, col+1));
             gradientsI[idx] = Math.sqrt(gxI*gxI + gyI*gyI);
 
-            const getA = (r, c) => alphaMap[r * size + c];
             const gxA = (getA(row-1, col+1) + 2*getA(row, col+1) + getA(row+1, col+1)) - 
                         (getA(row-1, col-1) + 2*getA(row, col-1) + getA(row+1, col-1));
             const gyA = (getA(row+1, col-1) + 2*getA(row+1, col) + getA(row+1, col+1)) - 

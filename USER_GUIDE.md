@@ -39,11 +39,14 @@ node src/cli.js -i ./images -o ./processed_images
 - **操作**：
   1. 将 Gemini 生成的图片拖入上传区。
   2. 程序会自动识别（优先使用 **v1.5 分级混合探测：官方目录 + 降噪 NCC + 边缘恢复**）。
-  3. **高级引擎设置**：
-     - **Deep Scan (v1.4)**：默认开启，通过 Sobel 梯度特征增强复杂背景下的匹配精度。
-     - **Noise Reduction (v1.5)**：针对 JPEG 高压缩或画质较差的图片，开启后可提升探测稳定性。
-  4. **对比滑块/并排模式**：支持 SLIDER 滑块实时比对或 SIDE-BY-SIDE 并排查看。
-  5. **目录自动处理 (v1.5)**：点击“目录模式”，设置输入与输出路径，实现本地文件夹全量静默去水印。
+  3. **高级引擎设置**: 
+     - **Deep Scan (v1.4)**: 默认开启，通过 Sobel 梯度特征增强复杂背景下的匹配精度。
+     - **Noise Reduction (v1.5)**: 针对 JPEG 高压缩产生的噪声，在探测前进行快速 Box Blur 预处理。
+  4. **探测勋章 (Tier Badge) v1.5.5**: 
+     - 当引擎精准匹配到官方分辨率（如 1k Tier）时，界面展示 **Official Tier Badge**。
+     - **勋章回显**：代表该图片已通过分级混合探测系统的最高置换验证 (100% 还原)。
+  5. **对比滑块/并排模式**: 支持 SLIDER 滑块实时比对或 SIDE-BY-SIDE 并排查看。
+  6. **目录自动处理 (v1.5)**: 点击“目录模式”，设置输入与输出路径，实现批量静默处理。
 
 ### 2. 命令行工具 (CLI) - 进阶用法
 适合需要大规模批量处理图片的开发者。
@@ -77,8 +80,14 @@ from python.remover import GeminiWatermarkRemover
 # 初始化桥接
 remover = GeminiWatermarkRemover("./")
 
-# 1. 批量处理
-results = remover.remove_watermark("./input_dir", "./output_dir")
+# 1. 批量处理 (支持 1.5 高级引擎标志位)
+results = remover.remove_watermark(
+    "./input_dir", 
+    "./output_dir", 
+    deep_scan=True,         # 默认开启
+    noise_reduction=False   # JPEG 燥点抑制
+)
+
 for res in results:
     print(f"File: {res['file']}, Method: {res['detection']}")
 

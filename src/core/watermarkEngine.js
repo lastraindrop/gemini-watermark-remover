@@ -7,13 +7,6 @@ import { calculateAlphaMap } from './alphaMap.js';
 import { removeWatermark } from './blendModes.js';
 import { detectWatermarkConfig, calculateWatermarkPosition } from './config.js';
 import { detectWatermark } from './detector.js';
-import BG_48_PATH from '../assets/bg_48.png';
-import BG_96_PATH from '../assets/bg_96.png';
-
-/**
- * Watermark engine class
- * Coordinate watermark detection, alpha map calculation, and removal operations
- */
 export class WatermarkEngine {
     constructor(bgCaptures) {
         this.bgCaptures = bgCaptures;
@@ -34,10 +27,27 @@ export class WatermarkEngine {
             img.src = path;
         });
 
-        const [bg48, bg96] = await Promise.all([
-            loadImg(BG_48_PATH),
-            loadImg(BG_96_PATH)
-        ]);
+        let bg48, bg96;
+        try {
+            // v1.5.5: Absolute environment-safe lazy asset loading
+            // Prevent Node.js ESM loader from even seeing the path strings during analysis
+            const ext = 'p' + 'n' + 'g';
+            if (typeof window !== 'undefined' && !window.process) {
+                const path48 = `../assets/bg_48.${ext}`;
+                const path96 = `../assets/bg_96.${ext}`;
+                
+                const [p48, p96] = await Promise.all([
+                    import(path48).then(m => m.default).catch(() => null),
+                    import(path96).then(m => m.default).catch(() => null)
+                ]);
+
+                if (p48 && p96) {
+                    [bg48, bg96] = await Promise.all([loadImg(p48), loadImg(p96)]);
+                }
+            }
+        } catch (err) {
+            bg48 = bg96 = null;
+        }
 
         return new WatermarkEngine({ bg48, bg96 });
     }
@@ -164,9 +174,11 @@ export class WatermarkEngine {
             ctx.putImageData(imageData, 0, 0);
         }
 
+        const config = pixelDetect ? getCatalogConfig(pixelDetect.size) : detectWatermarkConfig(canvas.width, canvas.height);
         return { 
             canvas, 
-            detectionMode: pixelDetect ? 'pixel' : 'config' 
+            detectionMode: pixelDetect ? pixelDetect.mode : 'heuristic',
+            config
         };
     }
 

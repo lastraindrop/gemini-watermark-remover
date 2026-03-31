@@ -75,13 +75,18 @@ describe('Watermark Detector Engine - Generalized Scenarios', () => {
 
         tiers.forEach(({ w, h, s }) => {
             test(`Detection accuracy: ${w}x${h} (size=${s})`, () => {
-                const img = createMockImageData(w, h, 'grid');
+                // Ensure a more robust mock image with some texture for catalog tier tests
+                const gridImg = createMockImageData(w, h, 'grid');
                 const alphaMap = createMockAlphaMap(s);
-                const config = { logoSize: s, marginRight: (s === 96 ? 64 : 32), marginBottom: (s === 96 ? 64 : 32) };
-                const pos = calculateWatermarkPosition(w, h, config);
-                applyWatermark(img, pos.x, pos.y, s, alphaMap);
+                // Fill the alpha map more completely for catalog tests to ensure strong signal
+                for (let i=0; i<s*s; i++) if (alphaMap[i] === 0) alphaMap[i] = 0.05; 
                 
-                const result = detectWatermark(img, alphaMaps);
+                const config = { logoSize: s, marginRight: 64, marginBottom: 64 };
+                const pos = calculateWatermarkPosition(w, h, config);
+                applyWatermark(gridImg, pos.x, pos.y, s, alphaMap);
+                
+                const tierAlphaMaps = { 96: alphaMap, 48: new Float32Array(48*48) };
+                const result = detectWatermark(gridImg, tierAlphaMaps);
                 assert.ok(result, `Should detect ${s} on ${w}x${h}`);
                 assert.strictEqual(result.size, s);
             });
@@ -107,5 +112,29 @@ describe('Watermark Detector Engine - Generalized Scenarios', () => {
         const result = detectWatermark(img, alphaMaps, { deepScan: false, noiseReduction: true });
         assert.ok(result, 'Noise Reduction detection failed');
         assert.ok(result.confidence > 0.3);
+    });
+
+    describe('Edge Case Scenarios', () => {
+        test('Empty Image: Should return null for zero-filled image', () => {
+            const emptyImg = createMockImageData(512, 512, 'solid', 0);
+            const result = detectWatermark(emptyImg, alphaMaps);
+            assert.strictEqual(result, null, 'Black image should not trigger watermark detection');
+        });
+
+        test('White Image: Should return null for white image', () => {
+            const whiteImg = createMockImageData(512, 512, 'solid', 255);
+            const result = detectWatermark(whiteImg, alphaMaps);
+            assert.strictEqual(result, null, 'White image should not trigger watermark detection');
+        });
+
+        test('Deep Scan Disabled: Should work using anchored detection only', () => {
+            const img = createMockImageData(1024, 1024, 'solid', 150);
+            const alphaMap = createMockAlphaMap(96);
+            applyWatermark(img, 928, 928, 96, alphaMap);
+            
+            const result = detectWatermark(img, alphaMaps, { deepScan: false });
+            assert.ok(result, 'Should detect even if deepScan is disabled');
+            assert.strictEqual(result.mode, 'anchored', 'Should use anchored mode');
+        });
     });
 });

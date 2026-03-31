@@ -45,7 +45,7 @@ class GeminiWatermarkRemover:
         except (subprocess.CalledProcessError, FileNotFoundError):
             raise RuntimeError("Node.js is not installed or not in PATH.")
 
-    def remove_watermark(self, input_path: str, output_path: str) -> List[Dict[str, Any]]:
+    def remove_watermark(self, input_path: str, output_path: str, deep_scan: bool = True, noise_reduction: bool = False) -> List[Dict[str, Any]]:
         """
         Processes a single image or a directory.
         Returns a list of result dictionaries.
@@ -55,6 +55,9 @@ class GeminiWatermarkRemover:
             # We use a wrapper if cli_path is a JS file, or direct execution if it's a binary/link
             exec_cmd = ["node", self.cli_path] if self.cli_path.endswith(".js") else [self.cli_path]
             final_cmd = exec_cmd + ["--input", input_path, "--output", output_path, "--json"]
+            
+            if not deep_scan: final_cmd.append("--no-deepScan")
+            if noise_reduction: final_cmd.append("--noiseReduction")
             
             result = subprocess.run(final_cmd, capture_output=True, text=True, check=True)
             results = []
@@ -77,12 +80,15 @@ class GeminiWatermarkRemover:
                         pass
             return [{"status": "error", "message": error_msg}]
 
-    def remove_watermark_pipe(self, image_bytes: bytes) -> bytes:
+    def remove_watermark_pipe(self, image_bytes: bytes, deep_scan: bool = True, noise_reduction: bool = False) -> bytes:
         """
         Processes image via stdin/stdout pipe.
         Returns processed image bytes.
         """
         cmd = ["node", self.cli_path, "--pipe"]
+        if not deep_scan: cmd.append("--no-deepScan")
+        if noise_reduction: cmd.append("--noiseReduction")
+        
         try:
             result = subprocess.run(
                 cmd, 

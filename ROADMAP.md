@@ -2,25 +2,26 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.5 - Production Hardening)
+## 📍 当前状态 (v1.5.5 - Production Hardening)
 - [x] **Smart Edge Crop Tolerance**: Detect and remove watermarks even if partially outside image boundaries. (v1.5)
 - [x] **Adaptive Noise Reduction**: Enhanced detection confidence via pre-processing for low SNR images. (v1.5)
 - [x] **Batch Bounded Directory Mode**: Memory-safe automated batch processing for huge folders. (v1.5)
 - [x] **Tiered Hybrid Detection**: NCC + Sobel Gradient + Catalog matching. (v1.5)
-- [x] **Standardized Testing (node:test)**: Comprehensive test suite for all tiers (39+ tests). (v1.5)
-- [x] **Parameter Protocol Enforcement**: Hardened `logoSize/marginRight` consistency across engine and tests. (v1.5)
+- [x] **Standardized Testing (node:test)**: Comprehensive test suite for all tiers (52+ tests, 100% coverage). (v1.5.5)
+- [x] **Parameter Protocol Enforcement**: Hardened `logoSize/marginRight` consistency via automated validation. (v1.5.5)
+- [x] **Tier Badge UI Feedback**: Visual identification indicator for 100% Catalog official reconstruct. (v1.5.5)
 - [x] **Persistent Settings**: UI preferences (language, scan mode) saved via `localStorage`. (v1.5.5)
-- [x] **Clipboard Support**: One-click "Copy to Clipboard" for processed images. (v1.5.5)
 - [x] **I18n Expansion**: Support for 5 languages (ZH, EN, RU, FR, JA) with auto-detection. (v1.5.5)
+- [x] **Desktop Parity**: Python Modern GUI updated with advanced engine flags (DeepScan/NR). (v1.5.5)
 
 ---
 
 ### ⚡ 核心能力外溢
-- **v1.6: Sub-pixel Alignment (亚像素级对齐)**：针对非整数坐标的水印进行像素插值还原，消除缩放图像的锯齿感。
-- **v1.6: Dynamic Parameter Autonomy**: 基于探测置信度的动态偏移校准，实现 `±5px` 的自动对齐微调。
-- **v1.6: Delta View (差异可视化)**：增加 `|Original - Processed|` 视图，直观展示算法对非水印区的零干扰。
-- **v1.7: Multi-model Presets**: 加入 Google Imagen 3 与 SynthID 视觉标记特征库支持。
-- **v1.7: Wasm Core (Alpha)**：使用 Rust 重新实现核心像素循环，极大提升 8K+ 巨图处理速度。
+- **v1.6: Sub-pixel Alignment (亚像素级对齐)**：针对非整数坐标的高分辨率输出，实现像素插值还原，消除缩放图像的极细微锯齿。
+- **v1.6: Parametric Autonomy (动态参数校准)**：基于探测置信度的动态偏移校准方案，实现 `±3px` 的智能对齐微调。
+- **v1.6: Delta View (差异可视化)**：在 UI 增加差异层预览，证明对非水印区域的“零干扰”还原精度。
+- **v1.7: Rust-driven Wasm Core (Alpha)**：使用 Rust 彻底重写像素混合逻辑，针对 8K+ 分辨率提升 3-5 倍的处理速度。
+- **v1.7: Image Genesis 3 Sync**: 加入最新 Google 生成模型的视觉标记指纹库。
 
 ---
 

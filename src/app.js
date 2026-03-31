@@ -55,6 +55,9 @@ const sideOriginal = document.getElementById('sideOriginal');
 const sideProcessed = document.getElementById('sideProcessed');
 const modeSliderBtn = document.getElementById('modeSliderBtn');
 const modeSideBtn = document.getElementById('modeSideBtn');
+const deepScanToggle = document.getElementById('deepScanToggle');
+const noiseReductionToggle = document.getElementById('noiseReductionToggle');
+const tierBadge = document.getElementById('tierBadge');
 
 /**
  * AuditLog Utility
@@ -200,8 +203,8 @@ function setupEventListeners() {
     resetBtn.addEventListener('click', reset);
     
     // Settings change listeners
-    document.getElementById('toggleDeepScan')?.addEventListener('change', saveSettings);
-    document.getElementById('toggleNoiseReduction')?.addEventListener('change', saveSettings);
+    document.getElementById('deepScanToggle')?.addEventListener('change', saveSettings);
+    document.getElementById('noiseReductionToggle')?.addEventListener('change', saveSettings);
 
     // Updated Mode Toggles
     modeSliderBtn.addEventListener('click', () => switchViewMode('slider'));
@@ -215,8 +218,8 @@ function setupEventListeners() {
  */
 function getEngineOptions() {
     return {
-        deepScan: document.getElementById('toggleDeepScan')?.checked ?? true,
-        noiseReduction: document.getElementById('toggleNoiseReduction')?.checked ?? false
+        deepScan: document.getElementById('deepScanToggle')?.checked ?? true,
+        noiseReduction: document.getElementById('noiseReductionToggle')?.checked ?? false
     };
 }
 
@@ -245,8 +248,8 @@ function switchViewMode(mode) {
  */
 function saveSettings() {
     const settings = {
-        deepScan: document.getElementById('toggleDeepScan')?.checked ?? true,
-        noiseReduction: document.getElementById('toggleNoiseReduction')?.checked ?? false,
+        deepScan: document.getElementById('deepScanToggle')?.checked ?? true,
+        noiseReduction: document.getElementById('noiseReductionToggle')?.checked ?? false,
         locale: i18n.locale
     };
     localStorage.setItem('gwr_settings', JSON.stringify(settings));
@@ -260,17 +263,17 @@ async function loadSettings() {
         const settings = JSON.parse(saved);
         
         if (settings.deepScan !== undefined) {
-            const el = document.getElementById('toggleDeepScan');
+            const el = document.getElementById('deepScanToggle');
             if (el) el.checked = settings.deepScan;
         }
         if (settings.noiseReduction !== undefined) {
-            const el = document.getElementById('toggleNoiseReduction');
+            const el = document.getElementById('noiseReductionToggle');
             if (el) el.checked = settings.noiseReduction;
         }
         if (settings.locale && settings.locale !== i18n.locale) {
             await i18n.switchLocale(settings.locale);
-            const btn = document.getElementById('langSwitch');
-            if (btn) btn.textContent = settings.locale === 'zh-CN' ? 'EN' : '中文';
+            const select = document.getElementById('langSelect');
+            if (select) select.value = settings.locale;
             updateDynamicTexts();
         }
         AuditLog.log('Settings restored from local storage', 'success');
@@ -396,8 +399,16 @@ async function processSingle(item) {
         AuditLog.log(`Processing image: ${item.name} (${img.width}x${img.height}) [NR: ${options.noiseReduction}]`, 'process');
         
         resultContainer.classList.add('scan-active');
-        const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img, options);
+        const { canvas, detectionMode, config } = await engine.removeWatermarkFromImage(img, options);
         resultContainer.classList.remove('scan-active');
+
+        // Update Tier Badge
+        if (config && config.isOfficial) {
+            tierBadge.textContent = `${config.logoSize}px ${config.name || 'Official'} Tier`;
+            tierBadge.classList.remove('hidden');
+        } else {
+            tierBadge.classList.add('hidden');
+        }
         
         const endTime = performance.now();
         const latency = (endTime - startTime).toFixed(0);

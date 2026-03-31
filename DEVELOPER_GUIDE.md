@@ -10,12 +10,6 @@
 - **`catalog.js`**: (v1.4 New) **官方分辨率目录**。内置了从 512px 到 4096px 的 Gemini 官方比例输出数据。
 - **`config.js`**: 水印维度预测。v1.4 已重构为优先调用 `catalog.js` 进行精确匹配，仅在非标准尺寸下使用启发式逻辑。
 - **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。
-- [x] **Smart Edge Crop Tolerance**: Detect and remove watermarks even if partially outside image boundaries. (v1.5)
-- [x] **Adaptive Noise Reduction**: Enhanced detection confidence via pre-processing for low SNR images. (v1.5)
-- [x] **Batch Bounded Directory Mode**: Memory-safe automated batch processing for huge folders. (v1.5)
-- [x] **Tiered Hybrid Detection**: NCC + Sobel Gradient + Catalog matching. (v1.5)
-- [x] **Standardized Testing (node:test)**: Comprehensive test suite with 100% core logic coverage. (v1.5)
-- [x] **UI/UX Optimization**: Advanced Engine Parameters toggles and Audit Console. (v1.5)
 - **`watermarkEngine.js`**: 引擎调度层。支持 `noiseReduction` 和 `deepScan` 选项配置，并维护单例 Web Worker 与主线程回退。
 - **`i18n.js`**: (v1.5.5) **多语言引擎**。支持 5 国语言动态加载与浏览器语言自动识别。
 
@@ -24,21 +18,25 @@
 - **一键剪贴板**: 使用现代 `Clipboard API` 实现 PNG 二进制数据复制。注意：此功能要求环境为 Secure Context (HTTPS 或 localhost)。
 - **Audit Console**: 实时追踪引擎状态、Worker 通信耗时及探测置信度，由 `AuditLog` 工具类驱动。
 
-### 3. 参数一致性协议 (Core Parameter Protocol)
+### 3. 参数协议与动态对齐 (Core Parameter Protocol v1.5.5)
 
-为了确保各平台（Web, CLI, Python）与测试套件的动态对齐，所有水印配置对象 **必须** 严格遵循以下命名协议：
+为了确保各平台（Web, CLI, Python）与测试套件的动态对齐并彻底消除硬编码回归，所有水印配置对象 **必须** 严格遵循以下契约：
 
-| 属性名 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `logoSize` | `Number` | 水印正方形边长 (通常为 48 或 96) |
-| `marginRight` | `Number` | 水印距离图像右边缘的像素距离 |
-| `marginBottom` | `Number` | 水印距离图像下边缘的像素距离 |
-| `isOfficial` | `Boolean` | (可选) 是否匹配官方分辨率目录条目 |
+| 属性名 | 类型 | 说明 | 初始源 |
+| :--- | :--- | :--- | :--- |
+| `logoSize` | `Number` | 水印正方形边长 (通常为 48 或 96) | `catalog.js` |
+| `marginRight` | `Number` | 水印距离图像右边缘的像素距离 | `catalog.js` |
+| `marginBottom` | `Number` | 水印距离图像下边缘的像素距离 | `catalog.js` |
+| `isOfficial` | `Boolean` | 是否匹配官方分辨率目录条目 | `detectWatermarkConfig` |
 
-**逻辑优先级与动态对齐 (Dynamic Alignment)**：
-1. **Catalog Match**: 优先检索 `catalog.js`。若命中，则直接应用官方偏移量，跳过启发式计算。
-2. **Heuristic Fallback**: 若未命中官方分辨率，则在 `config.js` 中根据图像长边 (maxSide) 进行分阶预测。
-3. **Anti-Regression Testing**: 每次更新参数协议或配置规则后，**必须** 运行 `npm test`。现有的 `consistency.test.js` 会自动化校验 512px 到 4096px 的全路径参数一致性，防止 `logoSize` 或 `margin` 的硬编码回归。
+**高级引擎选项 (Advanced Options)**：
+- `deepScan`: (Default: `true`) 启用后将额外对图像梯度进行 Sobel 扫描，大幅提升复杂背景下的识别精度。
+- `noiseReduction`: (Default: `false`) 针对 JPEG 高压缩产生的“蚊状噪声”，在探测前进行快速 Box Blur 预处理。
+
+**自动化对齐与红线机制 (Enforcement)**：
+1. **Catalog Single Source**: 所有的官方 Tier 参数统一维护在 `src/core/catalog.js`。严禁在 UI 层或 Python 层硬编码这些偏移量。
+2. **Recursive Validation**: 每次修改参数协议后，**必须** 运行 `npm test`。现有的 `tests/consistency.test.js` 会校验从 512px 到 4096px 的全场景参数一致性。
+3. **Python Bridge Alignment**: `python/remover.py` 通过 CLI 标志位（如 `--no-deepScan`）动态透传至 Node 内核，确保了 Web 与桌面端在算法表现上的原子一致性。
 
 ---
 

@@ -38,9 +38,12 @@ export const GEMINI_SIZE_CATALOG = [
     { width: 3168, height: 1344, tier: '2k' },
 
     // 4k Tier (logo: 96, margin: 64)
-    { width: 4096, height: 4096, tier: '4k' },
-    { width: 5504, height: 3072, tier: '4k' },
-    { width: 6336, height: 2688, tier: '4k' }
+    { width: 4096, height: 4096, tier: '4k' },   // 1:1
+    { width: 3072, height: 5504, tier: '4k' },   // 9:16
+    { width: 5504, height: 3072, tier: '4k' },   // 16:9
+    { width: 3392, height: 5056, tier: '4k' },   // 2:3
+    { width: 5056, height: 3392, tier: '4k' },   // 3:2
+    { width: 6336, height: 2688, tier: '4k' }    // 21:9
 ];
 
 /**

@@ -33,6 +33,8 @@ class ModernGUI:
             self.remover = None
         
         self.input_paths = None  # Robust path storage
+        self.deep_scan_var = tk.BooleanVar(value=True)
+        self.noise_reduction_var = tk.BooleanVar(value=False)
 
         self._build_ui()
         self.log("Desktop Interface initialized. Ready for processing.", "success")
@@ -58,9 +60,23 @@ class ModernGUI:
         self._create_path_section(content, "Input Source", "Select files or folder to process", "input")
         self._create_path_section(content, "Output Destination", "Where to save processed images", "output")
         
+        # Options Bar
+        options_bar = tk.Frame(content, bg=self.colors["bg"])
+        options_bar.pack(fill="x", pady=10)
+        
+        tk.Checkbutton(options_bar, text="Deep Scan (Highly Recommended)", variable=self.deep_scan_var,
+                       bg=self.colors["bg"], fg=self.colors["text"], selectcolor=self.colors["card"],
+                       activebackground=self.colors["bg"], activeforeground=self.colors["primary"],
+                       font=("Inter", 10), borderwidth=0, highlightthickness=0).pack(side="left", padx=(0, 20))
+        
+        tk.Checkbutton(options_bar, text="Enforce Noise Reduction (Stable)", variable=self.noise_reduction_var,
+                       bg=self.colors["bg"], fg=self.colors["text"], selectcolor=self.colors["card"],
+                       activebackground=self.colors["bg"], activeforeground=self.colors["primary"],
+                       font=("Inter", 10), borderwidth=0, highlightthickness=0).pack(side="left")
+
         # Action Bar
         action_bar = tk.Frame(content, bg=self.colors["bg"])
-        action_bar.pack(fill="x", pady=20)
+        action_bar.pack(fill="x", pady=15)
         
         self.process_btn = tk.Button(action_bar, text="START PROCESSING", command=self.start_task,
                                      bg=self.colors["primary"], fg="white", font=("Inter", 12, "bold"),
@@ -159,18 +175,23 @@ class ModernGUI:
 
     def run_process(self, src, dest):
         try:
-            self.log(f"Starting batch process...", "process")
-            # Handle list of files vs directory
-            if isinstance(self.input_paths, (list, tuple)):
+            ds = self.deep_scan_var.get()
+            nr = self.noise_reduction_var.get()
+            self.log(f"Starting process [DS={ds}, NR={nr}]...", "process")
+            
+            # Synchronize: If the entry content doesn't match the multi-file cache, fallback to single path
+            is_valid_multi = isinstance(self.input_paths, (list, tuple)) and str(self.input_paths) == src
+            
+            if is_valid_multi:
                 total = len(self.input_paths)
                 for i, f in enumerate(self.input_paths):
                     self.log(f"Processing ({i+1}/{total}): {os.path.basename(f)}", "info")
-                    res = self.remover.remove_watermark(f, dest)
+                    res = self.remover.remove_watermark(f, dest, deep_scan=ds, noise_reduction=nr)
                     self._handle_result(res)
                     val = ((i + 1) / total) * 100
                     self.root.after(0, lambda v=val: self.progress.configure(value=v))
             else:
-                res = self.remover.remove_watermark(src, dest)
+                res = self.remover.remove_watermark(src, dest, deep_scan=ds, noise_reduction=nr)
                 self._handle_result(res)
                 self.root.after(0, lambda: self.progress.configure(value=100))
             

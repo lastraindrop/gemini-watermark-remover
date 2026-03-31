@@ -1,5 +1,10 @@
 name = "gemini-watermark-remover"
 compatibility_date = "2025-01-16"
 
+# Cloudflare Workers Assets configuration
+# https://developers.cloudflare.com/workers/static-assets/
 [assets]
 directory = "./dist"
+
+[deploy]
+workers_dev = true

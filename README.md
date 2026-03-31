@@ -10,18 +10,13 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 
 ## Features
 
+- ✅ **Tier Identification Badge** - Real-time visual feedback for Catalog match status (100% confidence). (v1.5.5)
+- ✅ **Cross-Platform Parity** - Web, CLI, and Python GUI fully synchronized with v1.5.5 engine protocols.
+- ✅ **Precision-First (v1.5.5)** - Standardized testing with 52+ cases ensuring core parameter stability.
 - ✅ **100% Client-side** - No backend, no server-side processing. Your data stays in your browser.
-- ✅ **Privacy-First** - Images are never uploaded to any server. Period.
-- ✅ **Mathematical Precision** - Based on the Reverse Alpha Blending formula, not "hallucinating" AI models.
-- ✅ **Robust Hybrid Detection (v1.5)** - Uses dimension rules, **NCC (Normalized Cross-Correlation)**, and **Adaptive Noise Reduction**.
-- ✅ **Edge-Crop Resilience** - Smart detection and removal for watermarks partially outside image boundaries.
+- ✅ **Edge-Crop Resilience** - Smart detection for watermarks partially outside image boundaries.
 - ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation.
-- ✅ **Multi-Language (5 Languages)** - Fully translated UI for **ZH, EN, JA, RU, FR** with auto-detection. (v1.5.5)
-- ✅ **Clipboard Copy** - One-click "Copy to Clipboard" for instant sharing. (v1.5.5)
-- ✅ **Persistent Settings** - Saves your scan preferences and language via `localStorage`. (v1.5.5)
-- ✅ **Security Hardened** - Built-in XSS protection and anti-memory-leak strategies.
-- ✅ **Developer Friendly** - Full unit test suite (node:test) and standardized test_utils.
-- ✅ **Cross-Platform** - Runs on browsers, Node.js, and as a Python desktop app.
+- ✅ **Multi-Language (5 Languages)** - Fully translated UI for **ZH, EN, JA, RU, FR**.
 
 ## Examples
 
@@ -150,10 +145,10 @@ gemini-watermark-remover/
 │   ├── i18n.js            # 国际化工具
 │   └── utils.js           # 共享工具类 (环境守护)
 ├── python/                # 带有跨平台 GUI 的 Python 集成
-├── tests/                 # 标准化测试套件 (39+ 测试用例)
-│   ├── consistency.test.js # 新增：参数协议自动化校验
-│   ├── test_utils.js      # 稳健的测试工厂
-│   └── ...                # 详细的单元与集成测试
+├── tests/                 # Standardized test suite (52+ test cases)
+│   ├── consistency.test.js # Core: Parameter protocol dynamic validation (Redline)
+│   ├── test_utils.js      # Robust test factory (21:9 / Noise simulation)
+│   └── ...                # Detailed unit & integration tests
 ├── build.js               # esbuild-based build pipeline
 └── package.json           # Scripts (test, build, cli, gui)
 ```

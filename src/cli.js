@@ -54,7 +54,7 @@ class CLIEngine {
         return alphaMap;
     }
 
-    async _processBuffer(buffer) {
+    async _processBuffer(buffer, options = { deepScan: true, noiseReduction: false }) {
         const image = sharp(buffer);
         const metadata = await image.metadata();
         const { data, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -62,7 +62,7 @@ class CLIEngine {
         
         const alphaMap48 = await this.getAlphaMap(48);
         const alphaMap96 = await this.getAlphaMap(96);
-        const pixelDetect = detectWatermark(imageData, { 48: alphaMap48, 96: alphaMap96 });
+        const pixelDetect = detectWatermark(imageData, { 48: alphaMap48, 96: alphaMap96 }, options);
 
         let position, alphaMap;
         if (pixelDetect) {
@@ -90,9 +90,9 @@ class CLIEngine {
         };
     }
 
-    async processImage(inputPath, outputPath) {
+    async processImage(inputPath, outputPath, options = { deepScan: true, noiseReduction: false }) {
         const inputBuffer = readFileSync(inputPath);
-        const { buffer, metadata } = await this._processBuffer(inputBuffer);
+        const { buffer, metadata } = await this._processBuffer(inputBuffer, options);
         
         await sharp(buffer)
             .toFormat(extname(outputPath).slice(1) || 'png')
@@ -104,7 +104,12 @@ class CLIEngine {
 
 async function main() {
     const args = process.argv.slice(2);
-    const params = { json: args.includes('--json'), pipe: args.includes('--pipe') };
+    const params = { 
+        json: args.includes('--json'), 
+        pipe: args.includes('--pipe'),
+        deepScan: !args.includes('--no-deepScan'), // default true
+        noiseReduction: args.includes('--noiseReduction') // default false
+    };
     
     for (let i = 0; i < args.length; i++) {
         if (args[i] === '-i' || args[i] === '--input') params.input = args[++i];
@@ -123,7 +128,10 @@ async function main() {
                 process.stdin.on('error', reject);
             });
 
-            const { buffer } = await engine._processBuffer(inputBuffer);
+            const { buffer } = await engine._processBuffer(inputBuffer, { 
+                deepScan: params.deepScan, 
+                noiseReduction: params.noiseReduction 
+            });
             process.stdout.write(buffer);
             process.exit(0);
         } catch (err) {
@@ -142,7 +150,7 @@ async function main() {
         if (params.json) {
             console.log(JSON.stringify({ status: 'error', message: 'Missing input/output' }));
         } else {
-            console.log('Usage: node src/cli.js -i <input> -o <output> [--json] [--pipe]');
+            console.log('Usage: node src/cli.js -i <input> -o <output> [--json] [--pipe] [--noiseReduction] [--no-deepScan]');
         }
         process.exit(1);
     }
@@ -172,7 +180,10 @@ async function main() {
             
         const start = performance.now();
         try {
-            const meta = await engine.processImage(file, out);
+            const meta = await engine.processImage(file, out, { 
+                deepScan: params.deepScan, 
+                noiseReduction: params.noiseReduction 
+            });
             const duration = (performance.now() - start).toFixed(0);
             if (params.json) {
                 console.log(JSON.stringify({ 

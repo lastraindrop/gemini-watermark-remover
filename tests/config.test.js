@@ -41,4 +41,19 @@ describe('Watermark Config Logic - Priority & Fallback', () => {
         const pos = calculateWatermarkPosition(10, 10, config);
         assert.ok(pos.x < 0, 'Negative coords expected for impossible size');
     });
+
+    describe('Boundary Conditions', () => {
+        test('Exact maxSide threshold: 1500px', () => {
+            const config = detectWatermarkConfig(1500, 500);
+            // Threshold is maxSide > 1500 in v1.5? Let's verify source
+            // Current heuristic usually marks >1500 as 96
+            assert.strictEqual(config.logoSize, 96, '1500px should trigger 96px logoSize');
+        });
+
+        test('Standard maxSide but non-standard minSide: 1024x500', () => {
+            const config = detectWatermarkConfig(1024, 500);
+            assert.strictEqual(config.isOfficial, undefined, 'Should not match catalog if height is too different');
+            assert.strictEqual(config.logoSize, 48, '1024 with small height should fallback to 48px logo');
+        });
+    });
 });
