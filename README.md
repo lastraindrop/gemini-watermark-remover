@@ -10,9 +10,12 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 
 ## Features
 
-- ✅ **Tier Identification Badge** - Real-time visual feedback for Catalog match status (100% confidence). (v1.5.5)
+- ✅ **Sliding Window Concurrency** - High-performance memory-efficient batch processing. (v1.5.5)
+- ✅ **Resilient Worker Fallback** - Automatic main-thread recovery if Web Workers fail. (v1.5.5)
+- ✅ **Precision-First (v1.5.5)** - Standardized testing with 78+ cases ensuring core parameter stability.
+- ✅ **Zero-Config Asset Bundler** - esbuild-driven Base64 asset inlining for zero-dependency distribution. (v1.5.5)
+- ✅ **Tier Identification Badge** - Real-time visual feedback for Catalog match status (100% confidence).
 - ✅ **Cross-Platform Parity** - Web, CLI, and Python GUI fully synchronized with v1.5.5 engine protocols.
-- ✅ **Precision-First (v1.5.5)** - Standardized testing with 52+ cases ensuring core parameter stability.
 - ✅ **100% Client-side** - No backend, no server-side processing. Your data stays in your browser.
 - ✅ **Edge-Crop Resilience** - Smart detection for watermarks partially outside image boundaries.
 - ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation.
@@ -145,9 +148,11 @@ gemini-watermark-remover/
 │   ├── i18n.js            # 国际化工具
 │   └── utils.js           # 共享工具类 (环境守护)
 ├── python/                # 带有跨平台 GUI 的 Python 集成
-├── tests/                 # Standardized test suite (52+ test cases)
+├── tests/                 # Standardized test suite (78+ test cases)
 │   ├── consistency.test.js # Core: Parameter protocol dynamic validation (Redline)
-│   ├── test_utils.js      # Robust test factory (21:9 / Noise simulation)
+│   ├── build_pipeline.test.js # Build: Asset inlining & pipeline verification
+│   ├── memory_queue.test.js # Performance: Sliding window & concurrency resilience
+│   ├── test_utils.js      # Robust test factory (21:9 / Parameter Matrix)
 │   └── ...                # Detailed unit & integration tests
 ├── build.js               # esbuild-based build pipeline
 └── package.json           # Scripts (test, build, cli, gui)

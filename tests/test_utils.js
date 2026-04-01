@@ -90,3 +90,47 @@ export function createMockAlphaMap(size) {
     }
     return alphaMap;
 }
+
+/**
+ * Generate a combinations of all parameters for exhaustive testing
+ * @returns {Array<Object>}
+ */
+export function generateParameterMatrix() {
+    const deepScans = [true, false];
+    const noiseReductions = [true, false];
+    const resolutions = [
+        { w: 1024, h: 1024 }, // Standard
+        { w: 1000, h: 1000 }, // Close Match
+        { w: 800, h: 600 }     // Non-Standard
+    ];
+    
+    const matrix = [];
+    for (const deepScan of deepScans) {
+        for (const noiseReduction of noiseReductions) {
+            for (const res of resolutions) {
+                matrix.push({ options: { deepScan, noiseReduction }, resolution: res });
+            }
+        }
+    }
+    return matrix;
+}
+
+/**
+ * Advanced mock implementation for Blob and URL for memory tracking tests
+ */
+export function setupMemoryMocks() {
+    if (typeof global.URL === 'undefined') {
+        const urls = new Set();
+        global.URL = {
+            createObjectURL: (blob) => {
+                const url = `blob:mock-${Math.random()}`;
+                urls.add(url);
+                return url;
+            },
+            revokeObjectURL: (url) => {
+                urls.delete(url);
+            }
+        };
+        global.MockMemoryTracker = urls;
+    }
+}

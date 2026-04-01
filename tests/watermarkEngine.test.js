@@ -14,7 +14,8 @@ if (typeof global.document === 'undefined') {
                     height: 0,
                     getContext: () => ({
                         drawImage: () => {},
-                        getImageData: (x, y, w, h) => createMockImageData(w, h, 'solid', 128)
+                        getImageData: (x, y, w, h) => createMockImageData(w, h, 'solid', 128),
+                        putImageData: () => {}
                     })
                 };
             }
@@ -60,6 +61,22 @@ describe('WatermarkEngine Coordination & Cache', () => {
         // but we verify the cache structure is accessible for cleanup.
         localEngine.alphaMaps = {};
         assert.strictEqual(Object.keys(localEngine.alphaMaps).length, 0);
+    });
+
+    test('Worker Fallback: Should use main thread if worker initialization fails', async () => {
+        // Force worker to fail by blocking the Worker constructor
+        const originalWorker = global.Worker;
+        global.Worker = function() { throw new Error('Worker blocked'); };
+        
+        const localEngine = await WatermarkEngine.create();
+        const img = createMockImageData(100, 100);
+        
+        // This should not throw, but fallback internally
+        const result = await localEngine.removeWatermarkFromImage(img);
+        assert.ok(result.canvas, 'Should still return a canvas via main thread fallback');
+        assert.strictEqual(localEngine._useWorker, false, 'Worker should be disabled after failure');
+        
+        global.Worker = originalWorker;
     });
 
     test('Protocol Compliance: Watermark info structure', async () => {

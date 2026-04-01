@@ -34,31 +34,29 @@
 - `noiseReduction`: (Default: `false`) 针对 JPEG 高压缩产生的“蚊状噪声”，在探测前进行快速 Box Blur 预处理。
 
 **自动化对齐与红线机制 (Enforcement)**：
-1. **Catalog Single Source**: 所有的官方 Tier 参数统一维护在 `src/core/catalog.js`。严禁在 UI 层或 Python 层硬编码这些偏移量。
-2. **Recursive Validation**: 每次修改参数协议后，**必须** 运行 `npm test`。现有的 `tests/consistency.test.js` 会校验从 512px 到 4096px 的全场景参数一致性。
-3. **Python Bridge Alignment**: `python/remover.py` 通过 CLI 标志位（如 `--no-deepScan`）动态透传至 Node 内核，确保了 Web 与桌面端在算法表现上的原子一致性。
+1. **Catalog Single Source**: 所有的官方 Tier 参数统一维护在 `src/core/catalog.js`。这是系统的**唯一事实来源 (Single Source of Truth)**。严禁在 UI 层或 Python 层硬编码这些偏移量。
+2. **Data-Driven Validation**: 每次修改参数协议后，**必须** 运行 `npm test`。现有的 `tests/consistency.test.js` 和 `tests/catalog.test.js` 会动态拉取目录条目进行全量校验，绝非硬编码比对。
+3. **Parameter Matrix**: 测试套件包含针对 `deepScan` 和 `noiseReduction` 的全参数矩阵验证，确保在任何参数组合下探测逻辑的收敛性。
 
 ---
 
 ## 💎 最佳实践与性能 (Performance)
 
-### 1. 多线程模型 (Threading)
-- 网页版不再频繁创建 Worker，而是启动时初始化单例 Worker，通过消息传递处理 `Transferable Objects` (ArrayBuffer)，避免大图克隆开销。
-- **并发协议**：实现了基于 `taskId` 的异步消息映射机制。即使 `app.js` 以高并发模式（`concurrency > 1`）向单例 Worker 发送任务，引擎也能通过 `taskId` 精确归还数据，杜绝了串行污染和竞态条件。
-- **容错处理**：Worker 层包装了 `try...catch` 边界。若运算抛错或由于 Transferable Buffer 被 Detach 导致后续操作失效，系统会自动利用预先克隆的 `Uint8ClampedArray` 镜像在主线程无损恢复处理。
-- Userscript 版由于跨域限制，默认回退至主线程同步执行。
+### 1. 多线程与并发模型 (Threading & Concurrency)
+- **Sliding Window Model (v1.5.5)**: 网页版处理大量图片时，不再使用简单的 `Promise.all` 分块，而是采用高性能**滑动窗口 (Sliding Window)** 队列。在一个 Worker 任务完成后立即填充下一个，极大提升了多核心 CPU 的利用率，并防止大内存峰值导致的 OOM。
+- **Resilient Worker Context**: 网页版不再频繁创建 Worker，而是启动时初始化单例 Worker。
+- **并发协议**：实现了基于 `taskId` 的异步消息映射机制。即使 `app.js` 以高并发模式向单例 Worker 发送任务，引擎也能通过 `taskId` 精确归还数据，杜绝了串行污染和竞态条件。
+- **任务级容错 (Fail-safe)**: 单个任务的失败不会阻塞整个队列。Worker 内部包装了 `try...catch` 边界。若运算抛错，系统会自动回退至主线程无损恢复处理。
 
 ### 2. 内存管理 (Memory Context)
-- **生命周期管控**：在 `utils.js` 中实现了图片加载即释放的策略 (`revokeObjectURL`)。对于批量处理生成的 ZIP Blob，采用 Lease-based 延时释放。
-- **Bounded Batching (v1.5)**：目录处理模式引入了有限并发队列方案，防止成千上万张图片同时压入内存导致 OOM。
+- **生命周期管控**：在 `utils.js` 中实现了图片加载即释放的策略 (`revokeObjectURL`)。对于批量处理生成的 ZIP Blob，采用按需撤销 (On-demand revocation)。
+- **Bounded Concurrency**: 滑动窗口模型天然限制了活跃 Canvas 数量，将内存占用稳定在可控区间。
 - **Canvas 重用**：主应用层维持单例对比 Canvas，仅在尺寸变化时重新分配内存。
 
 ### 3. 工程化标准 (Engineering Standards)
-- **代码规范**：集成 ESLint 和 Prettier 进行风格统一。
-- **标准化测试 (v1.5)**：使用 Node.js Native Test Runner (`npm test`)。
-- **验证范围**：覆盖了 `blendModes` 精度、`catalog` 容差、`config` 优先级、`detector` 置信度及 CLI 集成。
-- **测试工厂 (`test_utils.js`)**：支持 20MB+, 21:9 超宽屏、9:16 人像以及受控噪点注入测试。
-- **CI/CD**：引入 GitHub Actions 自动验证每一次提交，确保在 Ubuntu/Node 版本矩阵下表现一致。
+- **esbuild 资产内联**: 通过 `dataurl` loader 实现了背景掩模图片的 Base64 内联。构建后的 `dist/app.js` 是零依赖自包含的，解决了路径引用失效的顽疾。
+- **标准化测试 (node:test)**：使用 Node.js Native Test Runner (`npm test`)。
+- **全场景验证**: 总计 78+ 测试用例，覆盖了从底层数学混合到高层 CLI 流协议的全链路。
 
 ### 4. 外部接口化 (Interfacing)
 - **CLI 模式**：通过 `node src/cli.js -i <in> -o <out> --json` 实现机器可读输出（包含探测元数据）。

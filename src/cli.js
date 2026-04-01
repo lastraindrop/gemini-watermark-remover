@@ -8,6 +8,9 @@
 import { resolve, join, basename, extname } from 'node:path';
 import { readdirSync, statSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import sharp from 'sharp';
+// Limit sharp internal concurrency to prevent resource contention with our JS pool
+sharp.concurrency(1);
+
 import { calculateAlphaMap } from './core/alphaMap.js';
 import { removeWatermark } from './core/blendModes.js';
 import { detectWatermarkConfig, calculateWatermarkPosition } from './core/config.js';

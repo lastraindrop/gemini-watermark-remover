@@ -7,6 +7,7 @@ import { calculateAlphaMap } from './alphaMap.js';
 import { removeWatermark } from './blendModes.js';
 import { detectWatermarkConfig, calculateWatermarkPosition } from './config.js';
 import { detectWatermark } from './detector.js';
+
 export class WatermarkEngine {
     constructor(bgCaptures) {
         this.bgCaptures = bgCaptures;
@@ -20,32 +21,32 @@ export class WatermarkEngine {
     }
 
     static async create() {
-        const loadImg = (path) => new Promise((resolve, reject) => {
+        const loadImg = (src) => new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = path;
+            img.onerror = (e) => {
+                console.error('Failed to load image:', (src && src.substring ? src.substring(0, 50) : src) + '...', e);
+                reject(e);
+            };
+            img.src = src;
         });
 
         let bg48, bg96;
         try {
-            // v1.5.5: Absolute environment-safe lazy asset loading
-            // Prevent Node.js ESM loader from even seeing the path strings during analysis
-            const ext = 'p' + 'n' + 'g';
+            // v1.5.5: Esbuild can parse these literal imports and inline them as DataURLs.
+            // Node.js will fail at runtime if it tries to execute this, so we wrap it in a platform check.
             if (typeof window !== 'undefined' && !window.process) {
-                const path48 = `../assets/bg_48.${ext}`;
-                const path96 = `../assets/bg_96.${ext}`;
-                
-                const [p48, p96] = await Promise.all([
-                    import(path48).then(m => m.default).catch(() => null),
-                    import(path96).then(m => m.default).catch(() => null)
+                const [m48, m96] = await Promise.all([
+                    import('../assets/bg_48.png'),
+                    import('../assets/bg_96.png')
                 ]);
-
-                if (p48 && p96) {
-                    [bg48, bg96] = await Promise.all([loadImg(p48), loadImg(p96)]);
-                }
+                [bg48, bg96] = await Promise.all([
+                    loadImg(m48.default),
+                    loadImg(m96.default)
+                ]);
             }
         } catch (err) {
+            console.error('Failed to initialize WatermarkEngine assets:', err);
             bg48 = bg96 = null;
         }
 

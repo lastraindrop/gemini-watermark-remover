@@ -69,6 +69,27 @@ describe('CLI Integration Tests', () => {
         assert.strictEqual(meta.format, 'png');
     });
 
+    test('Flag Verification: --no-deepScan and --noiseReduction', () => {
+        const input = join(TMP_DIR, 'input.png');
+        const output = join(TMP_DIR, 'output_flags.png');
+        
+        // Test with flags enabled/disabled
+        const result = spawnSync('node', [
+            'src/cli.js', 
+            '-i', input, 
+            '-o', output, 
+            '--json', 
+            '--noiseReduction', 
+            '--no-deepScan'
+        ]);
+        
+        assert.strictEqual(result.status, 0);
+        const json = JSON.parse(result.stdout.toString().split('\n').filter(l => l.trim()).pop());
+        assert.strictEqual(json.status, 'success');
+        // If deepScan is off and image is solid (no pixel match), it should fallback to config-based
+        assert.strictEqual(json.detection, 'config', 'Should fallback to config when deepScan is disabled on mock image');
+    });
+
     test('Error handling: Missing arguments', () => {
         const result = spawnSync('node', ['src/cli.js', '-i', 'missing.png']);
         assert.strictEqual(result.status, 1);

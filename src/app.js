@@ -481,72 +481,90 @@ function createImageCard(item) {
 async function processQueue() {
     const concurrency = Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 2) - 1));
     const options = getEngineOptions();
-    AuditLog.log(`Batch started with concurrency: ${concurrency} [NR: ${options.noiseReduction}]`, 'info');
+    AuditLog.log(`Batch started with sliding window concurrency: ${concurrency} [NR: ${options.noiseReduction}]`, 'info');
 
-    for (let i = 0; i < imageQueue.length; i += concurrency) {
-        await Promise.all(imageQueue.slice(i, i + concurrency).map(async item => {
-            if (item.status !== 'pending') return;
+    let activeCount = 0;
+    let index = 0;
 
-            item.status = 'processing';
-            updateStatus(item.id, i18n.t('status.processing'));
-
-            try {
-                const startTime = performance.now();
-                const img = await loadImage(item.file);
-                item.originalImg = img;
-                item.originalUrl = img.src;
-                
-                const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img, options);
-                const endTime = performance.now();
-                const latency = (endTime - startTime).toFixed(0);
-                
-                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-                item.processedBlob = blob;
-
-                item.processedUrl = objectUrlManager.create(blob);
-                AuditLog.log(`Batch: ${item.name} done [${detectionMode}] in ${latency}ms`, 'success');
-                const resultImg = document.getElementById(`result-${item.id}`);
-                if (resultImg) {
-                    resultImg.src = item.processedUrl;
-                    zoom.attach(`#result-${item.id}`);
+    return new Promise((resolve) => {
+        const next = async () => {
+            if (index >= imageQueue.length && activeCount === 0) {
+                if (processedCount > 0) {
+                    downloadAllBtn.style.display = 'flex';
+                    setStatusMessage(i18n.t('status.success'), 'success');
+                    AuditLog.log('All batch tasks completed', 'success');
                 }
-
-                item.status = 'completed';
-                const watermarkInfo = engine.getWatermarkInfo(img.width, img.height);
-
-                updateStatus(item.id, `<p>${i18n.t('info.size')}: ${img.width}×${img.height}</p>
-            <p>${i18n.t('info.watermark')}: ${watermarkInfo.size}×${watermarkInfo.size}</p>
-            <p>${i18n.t('info.position')}: (${watermarkInfo.position.x},${watermarkInfo.position.y})</p>`, true);
-
-                const downloadBtn = document.getElementById(`download-${item.id}`);
-                if (downloadBtn) {
-                    downloadBtn.classList.remove('hidden');
-                    downloadBtn.onclick = () => downloadImage(item);
-                }
-
-                processedCount++;
-                updateProgress();
-
-                checkOriginal(item.file).then(({ is_google, is_original }) => {
-                    if (!is_google || !is_original) {
-                        const status = getOriginalStatus({ is_google, is_original });
-                        const statusEl = document.getElementById(`status-${item.id}`);
-                        if (statusEl) statusEl.innerHTML += `<p class="inline-block mt-1 text-xs md:text-sm text-warn">${status}</p>`;
-                    }
-                }).catch(() => {});
-            } catch (error) {
-                item.status = 'error';
-                updateStatus(item.id, i18n.t('status.failed'));
-                console.error(error);
+                resolve();
+                return;
             }
-        }));
-    }
 
-    if (processedCount > 0) {
-        downloadAllBtn.style.display = 'flex';
-        setStatusMessage(i18n.t('status.success'), 'success');
-        AuditLog.log('All batch tasks completed', 'success');
-    }
+            while (activeCount < concurrency && index < imageQueue.length) {
+                const item = imageQueue[index++];
+                if (item.status !== 'pending') continue;
+
+                activeCount++;
+                item.status = 'processing';
+                updateStatus(item.id, i18n.t('status.processing'));
+
+                (async () => {
+                    try {
+                        const startTime = performance.now();
+                        const img = await loadImage(item.file);
+                        // GC hint: we don't need to keep original image object if not needed for comparison
+                        // item.originalImg = img; 
+                        item.originalUrl = img.src;
+                        
+                        const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img, options);
+                        const endTime = performance.now();
+                        const latency = (endTime - startTime).toFixed(0);
+                        
+                        const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+                        item.processedBlob = blob;
+
+                        item.processedUrl = objectUrlManager.create(blob);
+                        AuditLog.log(`Batch: ${item.name} done [${detectionMode}] in ${latency}ms`, 'success');
+                        const resultImg = document.getElementById(`result-${item.id}`);
+                        if (resultImg) {
+                            resultImg.src = item.processedUrl;
+                            zoom.attach(`#result-${item.id}`);
+                        }
+
+                        item.status = 'completed';
+                        const watermarkInfo = engine.getWatermarkInfo(img.width, img.height);
+
+                        updateStatus(item.id, `<p>${i18n.t('info.size')}: ${img.width}×${img.height}</p>
+                            <p>${i18n.t('info.watermark')}: ${watermarkInfo.size}×${watermarkInfo.size}</p>
+                            <p>${i18n.t('info.position')}: (${watermarkInfo.position.x},${watermarkInfo.position.y})</p>`, true);
+
+                        const downloadBtn = document.getElementById(`download-${item.id}`);
+                        if (downloadBtn) {
+                            downloadBtn.classList.remove('hidden');
+                            downloadBtn.onclick = () => downloadImage(item);
+                        }
+
+                        processedCount++;
+                        updateProgress();
+
+                        checkOriginal(item.file).then(({ is_google, is_original }) => {
+                            if (!is_google || !is_original) {
+                                const status = getOriginalStatus({ is_google, is_original });
+                                const statusEl = document.getElementById(`status-${item.id}`);
+                                if (statusEl) statusEl.innerHTML += `<p class="inline-block mt-1 text-xs md:text-sm text-warn">${status}</p>`;
+                            }
+                        }).catch(() => {});
+                    } catch (error) {
+                        item.status = 'error';
+                        updateStatus(item.id, i18n.t('status.failed'));
+                        console.error(error);
+                    } finally {
+                        activeCount--;
+                        next(); // Recursive-like call to pick up next task
+                    }
+                })();
+            }
+        };
+        next();
+    });
 }
 
 function updateStatus(id, text, isHtml = false) {
@@ -680,37 +698,51 @@ async function processDirectory() {
     processedCount = 0;
     updateProgress();
     
-    // Process in bounded chunks to prevent memory explosion if directory is huge
-    for (let i = 0; i < imageQueue.length; i += concurrency) {
-        const chunk = imageQueue.slice(i, i + concurrency);
-        await Promise.all(chunk.map(async (item) => {
-            item.status = 'processing';
-            updateStatus(item.id, i18n.t('status.processing'));
-            
-            try {
-                const img = await loadImage(item.file);
-                const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img, options);
-                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-                
-                const fileHandle = await outputDirHandle.getFileHandle(`unwatermarked_${item.name.replace(/\.[^.]+$/, '')}.png`, { create: true });
-                const writable = await fileHandle.createWritable();
-                await writable.write(blob);
-                await writable.close();
+    // Process in bounded sliding window to prevent memory explosion if directory is huge
+    let activeCount = 0;
+    let index = 0;
 
-                item.status = 'completed';
-                updateStatus(item.id, `✅ Saved [${detectionMode.toUpperCase()}]`, true);
-                processedCount++;
-                updateProgress();
-                
-                // GC Hint: original image and canvas are local to this closure
-            } catch (err) {
-                item.status = 'error';
-                updateStatus(item.id, `❌ Error: ${err.message}`);
-                AuditLog.log(`Error processing ${item.name}: ${err.message}`, 'err');
+    await new Promise((resolve) => {
+        const next = async () => {
+            if (index >= imageQueue.length && activeCount === 0) {
+                resolve();
+                return;
             }
-        }));
-    }
 
+            while (activeCount < concurrency && index < imageQueue.length) {
+                const item = imageQueue[index++];
+                activeCount++;
+                item.status = 'processing';
+                updateStatus(item.id, i18n.t('status.processing'));
+
+                (async () => {
+                    try {
+                        const img = await loadImage(item.file);
+                        const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img, options);
+                        const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+                        
+                        const fileHandle = await outputDirHandle.getFileHandle(`unwatermarked_${item.name.replace(/\.[^.]+$/, '')}.png`, { create: true });
+                        const writable = await fileHandle.createWritable();
+                        await writable.write(blob);
+                        await writable.close();
+
+                        item.status = 'completed';
+                        updateStatus(item.id, `✅ Saved [${detectionMode.toUpperCase()}]`, true);
+                        processedCount++;
+                        updateProgress();
+                    } catch (err) {
+                        item.status = 'error';
+                        updateStatus(item.id, `❌ Error: ${err.message}`);
+                        AuditLog.log(`Error processing ${item.name}: ${err.message}`, 'err');
+                    } finally {
+                        activeCount--;
+                        next();
+                    }
+                })();
+            }
+        };
+        next();
+    });
 
     AuditLog.log(`Automated directory processing complete. ${processedCount}/${files.length} images saved.`, 'success');
     startDirProcessBtn.disabled = false;

@@ -2,23 +2,31 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { detectWatermarkConfig, calculateWatermarkPosition } from '../src/core/config.js';
 
+import { GEMINI_SIZE_CATALOG } from '../src/core/catalog.js';
+
 describe('Watermark Config Logic - Priority & Fallback', () => {
 
-    test('Catalog Priority: 1024x1024 should return isOfficial: true', () => {
-        const config = detectWatermarkConfig(1024, 1024);
-        assert.ok(config);
-        assert.strictEqual(config.isOfficial, true, 'Official resolutions should be marked');
-        assert.strictEqual(config.logoSize, 96);
+    test('Catalog Priority: Standards from GEMINI_SIZE_CATALOG should match', async () => {
+        for (const entry of GEMINI_SIZE_CATALOG.slice(0, 3)) {
+            const config = detectWatermarkConfig(entry.width, entry.height);
+            assert.ok(config);
+            assert.strictEqual(config.isOfficial, true, `Official resolution ${entry.width}x${entry.height} should be marked`);
+            
+            // Fix: Map tier back to the expected configuration
+            const { WATERMARK_CONFIGS } = await import('../src/core/catalog.js');
+            const expectedSize = WATERMARK_CONFIGS[entry.tier].logoSize;
+            assert.strictEqual(config.logoSize, expectedSize, `Logo size mismatch for ${entry.width}x${entry.height}`);
+        }
     });
 
-    test('Heuristic Fallback: 2000x2000 (Non-standard)', () => {
-        const config = detectWatermarkConfig(2000, 2000);
+    test('Heuristic Fallback: Large non-standard image (3000x3000)', () => {
+        const config = detectWatermarkConfig(3000, 3000);
         assert.ok(config);
         assert.strictEqual(config.logoSize, 96, 'Heuristic for >1500 should be 96');
         assert.strictEqual(config.isOfficial, undefined, 'Heuristic fallback should not be marked as official');
     });
 
-    test('Heuristic Fallback: 800x800 (Small)', () => {
+    test('Heuristic Fallback: Small non-standard image (800x800)', () => {
         const config = detectWatermarkConfig(800, 800);
         assert.strictEqual(config.logoSize, 48, 'Heuristic for <1500 should be 48');
     });

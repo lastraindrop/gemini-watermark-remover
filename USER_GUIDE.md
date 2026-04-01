@@ -42,29 +42,32 @@ node src/cli.js -i ./images -o ./processed_images
   3. **高级引擎设置**: 
      - **Deep Scan (v1.4)**: 默认开启，通过 Sobel 梯度特征增强复杂背景下的匹配精度。
      - **Noise Reduction (v1.5)**: 针对 JPEG 高压缩产生的噪声，在探测前进行快速 Box Blur 预处理。
+     - **高性能并发 (v1.5.5)**: 网页版现在采用**滑动窗口 (Sliding Window)** 队列，支持极高并发处理而不崩溃内存。
   4. **探测勋章 (Tier Badge) v1.5.5**: 
      - 当引擎精准匹配到官方分辨率（如 1k Tier）时，界面展示 **Official Tier Badge**。
      - **勋章回显**：代表该图片已通过分级混合探测系统的最高置换验证 (100% 还原)。
   5. **对比滑块/并排模式**: 支持 SLIDER 滑块实时比对或 SIDE-BY-SIDE 并排查看。
-  6. **目录自动处理 (v1.5)**: 点击“目录模式”，设置输入与输出路径，实现批量静默处理。
+  6. **目录自动处理 (v1.5)**: 点击“目录模式”，实现批量静默处理。v1.5.5 已优化内存占用。
 
 ### 2. 命令行工具 (CLI) - 进阶用法
 适合需要大规模批量处理图片的开发者。
 
 #### 使用前提
 - 安装了 [Node.js](https://nodejs.org/) v18+。
-- 在项目目录运行 `pnpm install` 安装依赖。
+- 在项目目录运行 `npm install`。
 
 #### 命令示例
 ```bash
 # 1. 常规批量处理 (处理图像或目录)
 node src/cli.js -i ./images -o ./processed
 
-# 2. 机器友好模式 (输出包含详细探测信息的 JSON)
-node src/cli.js -i input.png -o output.png --json
+# 2. 高级引擎标志位
+# --no-deepScan: 禁用深层扫描以提速
+# --noiseReduction: 启用针对 JPEG 的燥点抑制
+node src/cli.js -i input.png -o output.png --noiseReduction --no-deepScan
 
-# 3. 高性能管道模式 (Unix 风格)
-cat image.png | node src/cli.js --pipe > clean.png
+# 3. 机器友好模式 (输出包含详细探测信息的 JSON)
+node src/cli.js -i input.png -o output.png --json
 ```
 
 ---

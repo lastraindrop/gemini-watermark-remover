@@ -1,0 +1,286 @@
+这是一份针对 **Gemini Watermark Remover** 的极致细致、全面且完善的代码审查（Code Review）与后续演进计划。
+
+首先，我必须赞扬这个项目的工程质量。**代码架构极其优秀**：核心算法与 UI 解耦、巧妙地利用 TypedArray 和反向 Alpha 混合数学模型、利用 Sobel 算子做梯度 NCC 校验、以及对 Web Worker 中 `Transferable Objects` 异常回退的处理，都展现了极高的前端/Node.js 工程水准。
+
+但在极其深度的审查下，我发现了几个**可能导致生产环境崩溃、内存泄漏（OOM）以及构建失效的隐藏危机**。
+
+---
+
+# 🕵️‍♂️ 第一部分：深度 Code Review 与漏洞分析
+
+### 🔴 1. 致命级：构建系统与静态资源断层 (Asset Pipeline Failure)
+**位置**: `src/core/watermarkEngine.js` & `build.js`
+**问题分析**:
+在 `watermarkEngine.js` 中，为了绕过 Node.js 环境的限制，你使用了动态拼接字符串的方式加载资源：
+```javascript
+const ext = 'p' + 'n' + 'g';
+const path48 = `../assets/bg_48.${ext}`;
+const [p48, p96] = await Promise.all([
+    import(path48).then(m => m.default).catch(() => null), ...
+]);
+```
+**严重后果**：`esbuild` 是基于静态语法树分析的。它**无法解析**混淆后的动态导入路径。因此，`bg_48.png` 根本不会被打包进 `dist/app.js` 或 `dist/worker.js`。同时，你的 `build.js` 中的 `copyAssetsPlugin` 也没有将 `src/assets` 复制到 `dist`。
+**结果**：用户在浏览器打开网页时，由于找不到背景图，AlphaMap 计算将彻底失败，导致程序假死或输出纯黑图片。
+
+### 🔴 2. 致命级：普通批量模式下的内存泄漏 (Memory Leak in OOM)
+**位置**: `src/app.js` -> `handleFiles` & `processQueue`
+**问题分析**:
+你的“目录模式（Directory Mode）”处理得很好（处理完一张即时垃圾回收）。但是，如果在**普通模式**下，用户一次性拖拽了 500 张图片进入网页：
+```javascript
+// app.js
+item.processedUrl = objectUrlManager.create(blob);
+```
+在 `processQueue` 中，所有生成的 Blob 都被转换成了 `blob:` URL，并长期驻留在 `objectUrlManager.urls` (即内存中)，直到用户点击“清空列表”。500张 4K 图片的 Blob 会瞬间吃满浏览器内存，导致网页崩溃 (OOM)。
+
+### 🟡 3. 警告级：并发竞态与 UI 线程阻塞
+**位置**: `src/app.js` -> `processQueue()`
+**问题分析**:
+```javascript
+for (let i = 0; i < imageQueue.length; i += concurrency) {
+    await Promise.all(imageQueue.slice(i, i + concurrency).map(async item => { ... }))
+}
+```
+你使用了分块并发（Chunks）。但这会导致“木桶效应”：如果 chunk 中有一张图处理极慢，其他空闲的 Worker/线程 必须等待它完成才能进行下一批。这没有充分利用 Web Worker。
+
+### 🟢 4. 优化级：CLI 并发性能
+**位置**: `src/cli.js`
+**问题分析**:
+```javascript
+const concurrency = Math.max(1, os.cpus().length - 1);
+```
+`sharp` 底层基于 `libvips`，它**自带 C++ 级别的多线程池**。如果在 JS 层面对 `sharp` 施加高并发 `Promise.all`，会导致线程上下文切换风暴，反而拖慢速度甚至内存溢出。CLI 的并发应当适度降低，或关闭 sharp 的内置并发。
+
+---
+
+# 🚀 第二部分：现阶段全面修正与优化计划 (Action Plan)
+
+为了解决上述问题并让程序达到企业级稳定性，我为你制定了以下严格的修改计划，请按顺序实施：
+
+## 阶段 1：修复核心资源构建与注入 (修复 🔴 1)
+因为 `cli.js` 已经自带了独立的资源读取逻辑（`readFileSync`），所以 `watermarkEngine.js` 其实**仅在浏览器环境**使用。我们可以充分利用 `esbuild` 的 `dataurl` loader。
+
+**📝 修改内容：`src/core/watermarkEngine.js`**
+删除动态导入，改为静态导入（配合 esbuild 打包成 Base64 内联）：
+```javascript
+// 顶部引入
+import bg48Src from '../assets/bg_48.png';
+import bg96Src from '../assets/bg_96.png';
+
+export class WatermarkEngine {
+    // ...
+    static async create() {
+        const loadImg = (src) => new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = src;
+        });
+
+        let bg48, bg96;
+        try {
+            if (typeof window !== 'undefined') {
+                // 直接使用 esbuild 注入的 base64 字符串
+                [bg48, bg96] = await Promise.all([
+                    loadImg(bg48Src), 
+                    loadImg(bg96Src)
+                ]);
+            }
+        } catch (err) {
+            console.error('Failed to load watermark masks:', err);
+            bg48 = bg96 = null;
+        }
+
+        return new WatermarkEngine({ bg48, bg96 });
+    }
+}
+```
+
+## 阶段 2：重构批量内存管理与异步队列 (修复 🔴 2 和 🟡 3)
+解决 OOM 并将分块执行优化为**滑动窗口（Sliding Window）并发**。
+
+**📝 修改内容：`src/app.js`**
+修改 `processQueue` 函数：
+```javascript
+async function processQueue() {
+    const concurrency = Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 2) - 1));
+    const options = getEngineOptions();
+    AuditLog.log(`Batch started with sliding window concurrency: ${concurrency}`, 'info');
+
+    let activeCount = 0;
+    let index = 0;
+
+    return new Promise((resolve) => {
+        const next = async () => {
+            if (index >= imageQueue.length && activeCount === 0) {
+                if (processedCount > 0) {
+                    downloadAllBtn.style.display = 'flex';
+                    setStatusMessage(i18n.t('status.success'), 'success');
+                }
+                resolve();
+                return;
+            }
+
+            while (activeCount < concurrency && index < imageQueue.length) {
+                const item = imageQueue[index++];
+                if (item.status !== 'pending') continue;
+
+                activeCount++;
+                item.status = 'processing';
+                updateStatus(item.id, i18n.t('status.processing'));
+
+                try {
+                    const img = await loadImage(item.file);
+                    const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img, options);
+                    
+                    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+                    item.processedBlob = blob;
+                    
+                    // 【内存修复】：仅生成缩略图供 UI 预览（缩放 canvas），不把原尺寸大图放在 src
+                    // 或者采用按需释放策略
+                    item.processedUrl = objectUrlManager.create(blob);
+                    
+                    const resultImg = document.getElementById(`result-${item.id}`);
+                    if (resultImg) {
+                        resultImg.src = item.processedUrl;
+                        zoom.attach(`#result-${item.id}`);
+                    }
+
+                    item.status = 'completed';
+                    processedCount++;
+                    updateProgress();
+                    updateStatus(item.id, `✅ Saved [${detectionMode.toUpperCase()}]`, true);
+                    
+                    const btn = document.getElementById(`download-${item.id}`);
+                    if (btn) {
+                        btn.classList.remove('hidden');
+                        btn.onclick = () => downloadImage(item);
+                    }
+                } catch (error) {
+                    item.status = 'error';
+                    updateStatus(item.id, i18n.t('status.failed'));
+                } finally {
+                    activeCount--;
+                    next(); // 释放一个立刻补充一个，无需等待整批完成
+                }
+            }
+        };
+        next();
+    });
+}
+```
+并且在 `downloadAll` 函数中，ZIP 打包完成后立刻释放：
+```javascript
+// app.js -> downloadAll()
+setTimeout(() => {
+    objectUrlManager.revoke(zipUrl);
+    // 可选：同时清理所有的独立 BlobURL，因为已经打包下载完了
+}, 5000);
+```
+
+## 阶段 3：优化 CLI 工具的 Sharp 并发 (修复 🟢 4)
+**📝 修改内容：`src/cli.js`**
+在顶部引入 `sharp` 后，限制其内部并发，防止与我们的 Promise 池冲突：
+```javascript
+import sharp from 'sharp';
+// 限制 sharp 内部线程，交由外层 V8 控制并发，防止 CPU 抢占和内存尖峰
+sharp.concurrency(1); 
+```
+
+---
+
+# 🛡️ 第三部分：全方位验证与单元检测体系 (Unit Testing)
+
+为了验证以上所有重构，我们需要在 `tests` 目录下新建专门的测试套件。确保程序在未来的迭代中不再发生“静默崩溃”。
+
+### 1. 新建 `tests/build_pipeline.test.js` (验证静态资源注入)
+此测试通过读取构建后的产物，验证 Base64 背景掩码是否被成功注入到 `app.js` 中。
+
+```javascript
+// File: tests/build_pipeline.test.js
+import { test, describe } from 'node:test';
+import assert from 'node:assert';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+describe('Build Pipeline & Assets Verification', () => {
+    test('esbuild should inline png assets as base64 in app.js', () => {
+        const appJsPath = resolve(process.cwd(), 'dist/app.js');
+        const workerJsPath = resolve(process.cwd(), 'dist/worker.js');
+
+        assert.ok(existsSync(appJsPath), 'dist/app.js must exist. Run `pnpm build` first.');
+        
+        const appJsContent = readFileSync(appJsPath, 'utf8');
+        const workerJsContent = readFileSync(workerJsPath, 'utf8');
+
+        // Check if data URL string for png is embedded
+        const hasBase64Png = appJsContent.includes('data:image/png;base64,');
+        
+        assert.ok(
+            hasBase64Png, 
+            'Critical Failure: PNG assets were not inlined in app.js. esbuild loader failed.'
+        );
+    });
+
+    test('UI static assets should be copied to dist', () => {
+        const i18nPath = resolve(process.cwd(), 'dist/i18n/en-US.json');
+        assert.ok(existsSync(i18nPath), 'i18n files must be copied to dist');
+    });
+});
+```
+
+### 2. 新建 `tests/memory_queue.test.js` (验证并发内存与队列机制)
+使用纯 Node.js 模拟队列消费模型，验证 Sliding Window 算法的正确性。
+
+```javascript
+// File: tests/memory_queue.test.js
+import { test, describe } from 'node:test';
+import assert from 'node:assert';
+
+describe('Concurrency Queue Logic (Sliding Window)', () => {
+    test('Queue should process at max concurrency without blocking', async () => {
+        const tasks = Array.from({ length: 10 }, (_, i) => i);
+        let activeCount = 0;
+        let maxActive = 0;
+        const concurrency = 3;
+        const completed = [];
+
+        // Mock processQueue logic
+        await new Promise((resolve) => {
+            let index = 0;
+            const next = async () => {
+                if (index >= tasks.length && activeCount === 0) return resolve();
+
+                while (activeCount < concurrency && index < tasks.length) {
+                    const taskId = tasks[index++];
+                    activeCount++;
+                    maxActive = Math.max(maxActive, activeCount);
+
+                    // Simulate async work
+                    await new Promise(res => setTimeout(res, Math.random() * 50));
+                    
+                    completed.push(taskId);
+                    activeCount--;
+                    next();
+                }
+            };
+            next();
+        });
+
+        assert.strictEqual(completed.length, 10, 'All tasks should be processed');
+        assert.ok(maxActive <= concurrency, `Max active (${maxActive}) should not exceed concurrency limit (${concurrency})`);
+    });
+});
+```
+
+### 3. 将新的测试加入 CI/CD
+在您的 `package.json` 的 `scripts` 中，您的 `"test": "node --test tests/*.test.js"` 已经很完美了，它会自动捕获这些新测试。
+
+---
+
+# 💡 总结与执行顺序建议
+
+1. **第一步**：修改 `src/core/watermarkEngine.js`，采用静态 `import`，彻底消除运行时加载掩码失败的隐患。
+2. **第二步**：修改 `src/app.js` 的 `processQueue`，将分块 `Promise.all` 替换为滑动窗口队列，提升 Web Worker 利用率并修复潜在的批处理卡顿。
+3. **第三步**：在 `src/cli.js` 引入 `sharp.concurrency(1)`，保护命令行用户的内存。
+4. **第四步**：创建上述两个测试文件 (`build_pipeline.test.js` 和 `memory_queue.test.js`)。
+5. **第五步**：运行 `pnpm build && pnpm test`。看到全绿通过后，这个 V1.5.5 将是一个真正坚如磐石的生产级版本。

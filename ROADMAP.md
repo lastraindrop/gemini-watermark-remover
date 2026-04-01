@@ -2,12 +2,15 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.5.5 - Production Hardening)
+## 📍 当前状态 (v1.5.5 - Production Hardened)
+- [x] **High-Performance Sliding Window**: Memory-efficient concurrency model for massive batch processing. (v1.5.5)
+- [x] **Resilient Worker Fallback**: Automatic main-thread recovery if Web Workers fail or are blocked. (v1.5.5)
+- [x] **Zero-Config Asset Pipeline**: esbuild-driven Base64 asset inlining for zero-dependency distribution. (v1.5.5)
+- [x] **Data-Driven Test Suite**: 78+ validation scenarios covering all catalog tiers and parameter matrices. (v1.5.5)
 - [x] **Smart Edge Crop Tolerance**: Detect and remove watermarks even if partially outside image boundaries. (v1.5)
 - [x] **Adaptive Noise Reduction**: Enhanced detection confidence via pre-processing for low SNR images. (v1.5)
-- [x] **Batch Bounded Directory Mode**: Memory-safe automated batch processing for huge folders. (v1.5)
 - [x] **Tiered Hybrid Detection**: NCC + Sobel Gradient + Catalog matching. (v1.5)
-- [x] **Standardized Testing (node:test)**: Comprehensive test suite for all tiers (52+ tests, 100% coverage). (v1.5.5)
+- [x] **Standardized Testing (node:test)**: Comprehensive test suite for all tiers (100% coverage). (v1.5.5)
 - [x] **Parameter Protocol Enforcement**: Hardened `logoSize/marginRight` consistency via automated validation. (v1.5.5)
 - [x] **Tier Badge UI Feedback**: Visual identification indicator for 100% Catalog official reconstruct. (v1.5.5)
 - [x] **Persistent Settings**: UI preferences (language, scan mode) saved via `localStorage`. (v1.5.5)
