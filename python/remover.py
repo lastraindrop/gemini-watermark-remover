@@ -63,7 +63,8 @@ class GeminiWatermarkRemover:
             results = []
             for line in result.stdout.splitlines():
                 line = line.strip()
-                if line.startswith('{') and line.endswith('}'):
+                # Enhanced check: must be a JSON object containing the expected 'status' field
+                if '"status"' in line and line.startswith('{') and line.endswith('}'):
                     try:
                         results.append(json.loads(line))
                     except json.JSONDecodeError:

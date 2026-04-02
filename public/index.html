@@ -7,9 +7,7 @@
   <meta name="description" content="Free Gemini watermark remover tool to remove watermarks from Gemini images. — safe, private, and 100% browser-based.">
   <meta name="keywords" content="Gemini watermark remover, remove Gemini watermark, Gemini AI image editor, Google AI watermark remover, Gemini watermark fix, watermark cleaner tool, Gemini watermark eraser, free AI watermark remover" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg class='h-10 w-10 text-indigo-500' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3l-1.9 5.8-5.8 1.9 5.8 1.9 1.9 5.8 1.9-5.8 5.8-1.9-5.8-1.9z'/%3E%3C/svg%3E">
-
-  
-  
+  <link rel="stylesheet" href="index.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     // Global Error Boundary
@@ -56,157 +54,11 @@
     }
   </script>
   <style>
-    body { 
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      overflow-x: hidden;
-    }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .animate-fade-up {
-      animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-
-    .glass-card {
-      background: rgba(255, 255, 255, 0.7);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-    }
-
-    ::-webkit-scrollbar { width: 10px; }
-    ::-webkit-scrollbar-track { background: #f1f1f1; }
-    ::-webkit-scrollbar-thumb { background: #10B981; border-radius: 4px; }
-
-    .step-arrow::after {
-      content: '';
-      position: absolute;
-      right: -10px;
-      top: 50%;
-      transform: translateY(-50%);
-      border-top: 15px solid transparent;
-      border-bottom: 15px solid transparent;
-      border-left: 15px solid #F3F4F6;
-      z-index: 10;
-    }
-    @media (min-width: 768px) {
-      .step-item:not(:last-child)::after {
-        content: '';
-        position: absolute;
-        right: -24px;
-        top: 0;
-        bottom: 0;
-        width: 24px;
-        background-color: inherit;
-        clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
-        z-index: 20;
-      }
-      .step-item:not(:first-child) {
-        clip-path: polygon(0% 0%, 200% 0%, 100% 100%, 0% 100%, 24px 50%);
-      }
-    }
-    body.loading { opacity: 0; }
-    body { transition: opacity 0s; }
-
-    .medium-zoom-overlay,
-    .medium-zoom-image--opened {
-      z-index: 999;
-    }
-    .medium-zoom-overlay {
-      backdrop-filter: blur(4px);
-    }
-
-    /* Comparison Slider Styles */
-    .comparison-slider {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      cursor: col-resize;
-      user-select: none;
-    }
-    .comparison-slider img {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-    .comparison-slider .resize {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 50%;
-      height: 100%;
-      overflow: hidden;
-      z-index: 2;
-      border-right: 2px solid white;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
-    }
-    .comparison-slider .handle {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 44px;
-      height: 44px;
-      background: white;
-      border-radius: 50%;
-      z-index: 3;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-      pointer-events: none;
-      border: 3px solid #10B981;
-      transition: transform 0.2s ease;
-    }
-    .comparison-slider:active .handle {
-      transform: translate(-50%, -50%) scale(1.15);
-    }
-    .comparison-slider .handle::before,
-    .comparison-slider .handle::after {
-      content: '';
-      border: 5px solid transparent;
-    }
-    .comparison-slider .handle::before {
-      border-right-color: #10B981;
-      margin-right: 4px;
-    }
-    .comparison-slider .handle::after {
-      border-left-color: #10B981;
-      margin-left: 4px;
-    }
-
-    /* Scanning Animation */
-    @keyframes scan {
-      0% { top: 0%; opacity: 0; }
-      10% { opacity: 1; }
-      90% { opacity: 1; }
-      100% { top: 100%; opacity: 0; }
-    }
-    .scan-line {
-      position: absolute;
-      left: 0;
-      width: 100%;
-      height: 4px;
-      background: linear-gradient(to bottom, transparent, rgba(16, 185, 129, 0.8), transparent);
-      box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
-      z-index: 10;
-      display: none;
-    }
-    .scan-active .scan-line {
-      display: block;
-      animation: scan 2s linear infinite;
-    }
+    /* Critical UI styles that must not flash or delay */
     .flex-center { display: flex; align-items: center; justify-content: center; }
     .btn-gradient { background: linear-gradient(135deg, #10B981, #059669); }
     .btn-gradient:hover { background: linear-gradient(135deg, #059669, #047857); }
-  </style>
+  </style>e>
 </head>
 <body class="bg-white text-gray-800 antialiased selection:bg-primary selection:text-white flex flex-col min-h-screen loading">
 
@@ -460,11 +312,15 @@
     </section>
 
     <section id="multiPreview" class="max-w-7xl mx-auto px-4 pb-24 scroll-mt-24" style="display: none;">
-      <div class="mb-6 flex justify-between items-center">
-        <h3 class="text-xl font-bold text-gray-900 flex items-center gap-3">
-          <span class="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span>
-          <span id="progressText">处理进度: 0/0</span>
-        </h3>
+        <div class="flex-1">
+          <h3 class="text-xl font-bold text-gray-900 flex items-center gap-3 mb-2">
+            <span class="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span>
+            <span id="progressText">处理进度: 0/0</span>
+          </h3>
+          <div class="w-full bg-gray-100 rounded-full h-2.5 mb-4 overflow-hidden shadow-inner">
+            <div id="batchProgressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-500 w-0"></div>
+          </div>
+        </div>
         <div class="flex gap-2">
           <button id="clearAllBtn" class="py-2.5 px-6 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl font-medium transition-all" data-i18n="btn.clearAll">
             清空列表
@@ -557,10 +413,19 @@
     </div>
   </div>
 
-  <div id="loadingOverlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center">
-    <div class="flex flex-col items-center">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-      <p class="text-gray-600 font-medium" data-i18n="loading.text">正在处理...</p>
+  <div id="loadingOverlay" class="fixed inset-0 bg-white/95 backdrop-blur-md z-[60] hidden flex items-center justify-center transition-all duration-500">
+    <div class="flex flex-col items-center max-w-xs text-center p-8 glass-card rounded-3xl shadow-2xl border border-emerald-100">
+      <div class="relative mb-6">
+        <div class="animate-spin rounded-full h-16 w-16 border-4 border-gray-100 border-t-emerald-500 shadow-inner"></div>
+        <div class="absolute inset-0 flex items-center justify-center">
+            <svg class="w-6 h-6 text-emerald-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        </div>
+      </div>
+      <p id="loadingMainText" class="text-gray-900 font-black text-lg mb-2" data-i18n="loading.text">正在全速处理</p>
+      <p id="loadingSubText" class="text-gray-400 text-xs font-medium mb-6 px-4">AI 正在精准切除水印边缘...</p>
+      <button id="retryBtn" class="hidden px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-red-200 transition-all active:scale-95" onclick="window.location.reload()">
+        初始化失败，点击重试
+      </button>
     </div>
   </div>
 

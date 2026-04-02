@@ -14,9 +14,13 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
 
     let searchData = imageData;
     if (noiseReduction) {
+        // Reuse blur buffer to avoid massive allocations (67MB+ for 4K)
+        if (!detectWatermark._blurBuffer || detectWatermark._blurBuffer.length !== imageData.data.length) {
+            detectWatermark._blurBuffer = new Uint8ClampedArray(imageData.data.length);
+        }
         searchData = {
             ...imageData,
-            data: fastBoxBlur(imageData.data, width, height)
+            data: fastBoxBlur(imageData.data, width, height, detectWatermark._blurBuffer)
         };
     }
 
@@ -121,7 +125,16 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                     
                     // Deep Scan Enhancement (v1.4): Sobel Gradient Matching
                     if (deepScan && confidence > 0.3) {
-                        const gradientConf = calculateGradientCorrelation(searchData, fx, fy, size, alphaMap);
+                        // Reuse shared buffers for gradient calculation to reduce GC pressure
+                        if (!detectWatermark._sharedGradientsI) {
+                            detectWatermark._sharedGradientsI = new Float32Array(96 * 96);
+                            detectWatermark._sharedGradientsA = new Float32Array(96 * 96);
+                        }
+                        const gradientConf = calculateGradientCorrelation(
+                            searchData, fx, fy, size, alphaMap, 
+                            detectWatermark._sharedGradientsI, 
+                            detectWatermark._sharedGradientsA
+                        );
                         // v1.5: Only refine if gradient info exists to avoid confidence collapse on solid backgrounds
                         if (gradientConf > 0) {
                             confidence = confidence * 0.6 + gradientConf * 0.4;
@@ -238,11 +251,18 @@ function calculateCorrelation(imageData, x, y, size, alphaMap, fullPrecision = f
 /**
  * Sobel Gradient NCC (v1.4)
  * v1.5: Added out-of-bounds safety
+ * v1.6: Memory pooling: receives pre-allocated Float32Array for gradients
  */
-function calculateGradientCorrelation(imageData, x, y, size, alphaMap) {
+function calculateGradientCorrelation(imageData, x, y, size, alphaMap, gradientsI, gradientsA) {
     const { data, width: imgWidth, height: imgHeight } = imageData;
-    const gradientsI = new Float32Array(size * size);
-    const gradientsA = new Float32Array(size * size);
+    
+    // Fallback if buffers not provided (e.g. legacy calls)
+    if (!gradientsI) gradientsI = new Float32Array(size * size);
+    if (!gradientsA) gradientsA = new Float32Array(size * size);
+    
+    // Clear reuse buffers
+    gradientsI.fill(0);
+    gradientsA.fill(0);
 
     // 1. Precompute gradients for image and alpha map
     const getB = (r, c) => {
@@ -297,9 +317,16 @@ function calculateGradientCorrelation(imageData, x, y, size, alphaMap) {
 
 /**
  * Fast 3x3 Box Blur for noise reduction in detection
+ * v1.6: Support pre-allocated output buffer to reduce GC pressure
  */
-function fastBoxBlur(data, width, height) {
-    const output = new Uint8ClampedArray(data);
+function fastBoxBlur(data, width, height, outputBuffer = null) {
+    const output = outputBuffer || new Uint8ClampedArray(data.length);
+    // If outputBuffer is reused, we don't necessarily want to copy EVERYTHING unless needed.
+    // However, the blur only writes to middle pixels. For safety, we copy edges or the whole thing first.
+    if (output !== data) {
+        output.set(data);
+    }
+
     for (let y = 1; y < height - 1; y++) {
         for (let x = 1; x < width - 1; x++) {
             const idx = (y * width + x) << 2;

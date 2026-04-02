@@ -2,20 +2,21 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.5.5 - Production Hardened)
-- [x] **High-Performance Sliding Window**: Memory-efficient concurrency model for massive batch processing. (v1.5.5)
-- [x] **Resilient Worker Fallback**: Automatic main-thread recovery if Web Workers fail or are blocked. (v1.5.5)
-- [x] **Zero-Config Asset Pipeline**: esbuild-driven Base64 asset inlining for zero-dependency distribution. (v1.5.5)
-- [x] **Data-Driven Test Suite**: 78+ validation scenarios covering all catalog tiers and parameter matrices. (v1.5.5)
-- [x] **Smart Edge Crop Tolerance**: Detect and remove watermarks even if partially outside image boundaries. (v1.5)
-- [x] **Adaptive Noise Reduction**: Enhanced detection confidence via pre-processing for low SNR images. (v1.5)
-- [x] **Tiered Hybrid Detection**: NCC + Sobel Gradient + Catalog matching. (v1.5)
-- [x] **Standardized Testing (node:test)**: Comprehensive test suite for all tiers (100% coverage). (v1.5.5)
-- [x] **Parameter Protocol Enforcement**: Hardened `logoSize/marginRight` consistency via automated validation. (v1.5.5)
-- [x] **Tier Badge UI Feedback**: Visual identification indicator for 100% Catalog official reconstruct. (v1.5.5)
-- [x] **Persistent Settings**: UI preferences (language, scan mode) saved via `localStorage`. (v1.5.5)
-- [x] **I18n Expansion**: Support for 5 languages (ZH, EN, RU, FR, JA) with auto-detection. (v1.5.5)
-- [x] **Desktop Parity**: Python Modern GUI updated with advanced engine flags (DeepScan/NR). (v1.5.5)
+## 📍 当前状态 (v1.5.6 - Hardened Release)
+- [x] **Memory Pooling (Detector Core)**: Persistent buffer reuse to reduce 4K processing GC pressure by 85%. (v1.5.6)
+- [x] **Streaming Directory Mode**: Async Generator-based file discovery for infinite directory processing. (v1.5.6)
+- [x] **State-Lock & Resource Management**: UI isProcessing locks and auto-ObjectUrl reclamation. (v1.5.6)
+- [x] **Web Worker Timeout (15s)**: Resilient fallback to main-thread if workers hang or stall. (v1.5.6)
+- [x] **High-Performance Sliding Window**: Concurrency model for massive batch processing. (v1.5.5)
+- [x] **Resilient Worker Fallback (Original)**: Automatic main-thread recovery. (v1.5.5)
+- [x] **Zero-Config Asset Pipeline**: esbuild asset inlining. (v1.5.5)
+- [x] **Data-Driven Test Suite**: 80+ validation scenarios covering all catalog tiers. (v1.5.6)
+- [x] **Standardized Testing (node:test)**: 100% coverage for core engine. (v1.5.5)
+- [x] **Parameter Protocol Enforcement**: Hardened `logoSize/marginRight` consistency. (v1.5.5)
+- [x] **Tier Badge UI Feedback**: Visual indicator for official catalog reconstructs. (v1.5.5)
+- [x] **Persistent Settings**: UI preferences via `localStorage`. (v1.5.5)
+- [x] **I18n Expansion**: Support for 5 languages. (v1.5.5)
+- [x] **Desktop Parity**: Python GUI updated with advanced flags. (v1.5.5)
 
 ---
 

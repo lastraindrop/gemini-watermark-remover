@@ -48,14 +48,39 @@ export function setStatusMessage(message, type = 'info') {
     el.className = `mt-6 text-sm min-h-[1.25rem] ${type === 'err' ? 'text-err font-bold' : (type === 'success' ? 'text-success font-bold' : 'text-gray-500')}`;
 }
 
-export function showLoading(text) {
+export function showLoading(text, subText = '') {
     const el = getLoadingOverlayEl();
     if (!el) return;
+    
     el.classList.remove('hidden');
-    if (text) {
-        const textEl = el.querySelector('[data-i18n="loading.text"]');
-        if (textEl) textEl.textContent = text;
+    const mainTextEl = el.querySelector('#loadingMainText');
+    const subTextEl = el.querySelector('#loadingSubText');
+    const retryBtn = el.querySelector('#retryBtn');
+    const spinner = el.querySelector('.animate-spin');
+
+    if (mainTextEl) mainTextEl.textContent = text || i18n.t('loading.text');
+    if (subTextEl) subTextEl.textContent = subText || 'AI 正在精准切除水印边缘...';
+    if (retryBtn) retryBtn.classList.add('hidden');
+    if (spinner) spinner.classList.remove('hidden');
+}
+
+export function showLoadingFail(text) {
+    const el = getLoadingOverlayEl();
+    if (!el) return;
+    
+    el.classList.remove('hidden');
+    const mainTextEl = el.querySelector('#loadingMainText');
+    const subTextEl = el.querySelector('#loadingSubText');
+    const retryBtn = el.querySelector('#retryBtn');
+    const spinner = el.querySelector('.animate-spin');
+
+    if (mainTextEl) mainTextEl.textContent = 'Critical Error';
+    if (subTextEl) {
+        subTextEl.textContent = text;
+        subTextEl.classList.replace('text-gray-400', 'text-red-500');
     }
+    if (retryBtn) retryBtn.classList.remove('hidden');
+    if (spinner) spinner.classList.add('hidden');
 }
 
 export function hideLoading() {

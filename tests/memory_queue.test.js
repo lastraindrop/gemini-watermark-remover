@@ -73,4 +73,49 @@ describe('Concurrency Queue Logic (Sliding Window)', () => {
         assert.strictEqual(results.success.length + results.fail.length, 10, 'All tasks (success or fail) should be accounted for');
         assert.ok(results.fail.length > 0, 'Should have recorded failures');
     });
+
+    test('Streaming Discovery should respect concurrency', async () => {
+        let discovered = 0;
+        let processed = 0;
+        let activeCount = 0;
+        let maxActive = 0;
+        const total = 10;
+        const concurrency = 2;
+
+        async function* discover() {
+            for (let i = 0; i < total; i++) {
+                discovered++;
+                yield i;
+            }
+        }
+
+        const iterator = discover();
+        let isDone = false;
+
+        await new Promise((resolve) => {
+            const next = async () => {
+                while (activeCount < concurrency && !isDone) {
+                    const { done } = await iterator.next();
+                    if (done) {
+                        isDone = true;
+                        if (activeCount === 0) resolve();
+                        return;
+                    }
+                    activeCount++;
+                    maxActive = Math.max(maxActive, activeCount);
+                    (async () => {
+                        await new Promise(res => setTimeout(res, 20));
+                        processed++;
+                        activeCount--;
+                        next();
+                    })();
+                }
+                if (isDone && activeCount === 0) resolve();
+            };
+            next();
+        });
+
+        assert.strictEqual(processed, total, 'All found files should be processed');
+        assert.ok(maxActive <= concurrency, 'Should respect concurrency');
+    });
 });

@@ -217,13 +217,13 @@ async function main() {
         const concurrency = Math.max(1, os.cpus().length - 1);
         if (!params.json) console.log(`🚀 Processing ${files.length} files (concurrency: ${concurrency})\n`);
 
-        const pool = [];
+        const pool = new Set();
         for (const file of files) {
             const p = processFile(file).then(() => {
-                pool.splice(pool.indexOf(p), 1);
+                pool.delete(p);
             });
-            pool.push(p);
-            if (pool.length >= concurrency) await Promise.race(pool);
+            pool.add(p);
+            if (pool.size >= concurrency) await Promise.race(pool);
         }
         await Promise.all(pool);
     } else {

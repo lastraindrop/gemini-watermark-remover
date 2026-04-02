@@ -9,8 +9,10 @@ let engine = null;
 let imageQueue = [];
 let processedCount = 0;
 let zoom = null;
+let isProcessing = false;
 
 // dom elements references
+const batchProgressBar = document.getElementById('batchProgressBar');
 const uploadArea = document.getElementById('uploadArea');
 const fileInput = document.getElementById('fileInput');
 const directoryModeBtn = document.getElementById('directoryModeBtn');
@@ -150,8 +152,8 @@ async function init() {
             background: 'rgba(255, 255, 255, .6)',
         })
     } catch (error) {
-        hideLoading();
         AuditLog.log(`Fatal Initialization Error: ${error.message}`, 'err');
+        showLoadingFail(error.message);
         engineStatus.textContent = 'ERROR';
         engineStatus.className = 'text-err font-bold';
         console.error('initialize error:', error);
@@ -315,15 +317,26 @@ function setupSlider() {
 }
 
 function reset() {
+    if (isProcessing) {
+        AuditLog.log('Cannot reset while processing. Please wait.', 'warn');
+        return;
+    }
     singlePreview.style.display = 'none';
     multiPreview.style.display = 'none';
     comparisonSlider.classList.add('hidden');
     processedImage.classList.remove('hidden');
+    processedSection.style.display = 'none';
+    
+    // Comprehensive Cleanup
     objectUrlManager.clear();
+    if (zoom) zoom.detach();
+    
     imageQueue = [];
     processedCount = 0;
     fileInput.value = '';
     setStatusMessage('');
+    if (batchProgressBar) batchProgressBar.style.width = '0%';
+    AuditLog.log('Workspace reset. Resources cleared.', 'info');
 }
 
 function handleFileSelect(e) {
@@ -331,6 +344,10 @@ function handleFileSelect(e) {
 }
 
 function handleFiles(files) {
+    if (isProcessing) {
+        AuditLog.log('Processing already in progress...', 'warn');
+        return;
+    }
     const validFiles = files.filter(file => {
         if (!file.type.match('image/(jpeg|png|webp)')) return false;
         if (file.size > 20 * 1024 * 1024) return false;
@@ -361,6 +378,7 @@ function handleFiles(files) {
     if (validFiles.length === 1) {
         singlePreview.style.display = 'block';
         multiPreview.style.display = 'none';
+        isProcessing = true;
         processSingle(imageQueue[0]);
     } else {
         singlePreview.style.display = 'none';
@@ -371,6 +389,7 @@ function handleFiles(files) {
         setStatusMessage(i18n.t('status.processing'), 'process');
         multiPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
         imageQueue.forEach(item => createImageCard(item));
+        isProcessing = true;
         processQueue();
     }
 }
@@ -451,27 +470,45 @@ async function processSingle(item) {
 
         processedSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
+        AuditLog.log(`Process Error: ${error.message}`, 'err');
         console.error(error);
+    } finally {
+        isProcessing = false;
+        hideLoading();
     }
 }
 
 function createImageCard(item) {
     const card = document.createElement('div');
     card.id = `card-${item.id}`;
-    card.className = 'bg-white md:h-[140px] rounded-xl shadow-card border border-gray-100 overflow-hidden';
+    card.className = 'gwr-image-card bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden group hover:shadow-premium transition-all duration-300';
     card.innerHTML = `
-        <div class="flex flex-wrap h-full">
-            <div class="w-full md:w-auto h-full flex border-b border-gray-100">
-                <div class="w-24 md:w-48 flex-shrink-0 bg-gray-50 p-2 flex items-center justify-center">
-                    <img id="result-${item.id}" class="max-w-full max-h-24 md:max-h-full rounded" data-zoomable />
-                </div>
-                <div class="flex-1 p-4 flex flex-col min-w-0">
-                    <h4 class="font-semibold text-sm text-gray-900 mb-2 truncate">${item.name}</h4>
-                    <div class="text-xs text-gray-500" id="status-${item.id}">${i18n.t('status.pending')}</div>
+        <div class="flex flex-col md:flex-row h-full">
+            <div class="relative w-full md:w-48 h-32 md:h-36 bg-gray-50 flex items-center justify-center overflow-hidden border-b md:border-b-0 md:border-r border-gray-50">
+                <div class="scan-line"></div>
+                <img id="result-${item.id}" class="max-w-full max-h-full object-contain transition-transform duration-500 group-hover:scale-105" data-zoomable />
+                <div id="loader-${item.id}" class="absolute inset-0 flex items-center justify-center bg-gray-50/80">
+                    <div class="animate-pulse flex space-x-2">
+                        <div class="h-2 w-2 bg-emerald-400 rounded-full"></div>
+                        <div class="h-2 w-2 bg-emerald-400 rounded-full"></div>
+                        <div class="h-2 w-2 bg-emerald-400 rounded-full"></div>
+                    </div>
                 </div>
             </div>
-            <div class="w-full md:w-auto ml-auto flex-shrink-0 p-2 md:p-4 flex items-center justify-center">
-                <button id="download-${item.id}" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-xs md:text-sm hidden">${i18n.t('btn.download')}</button>
+            <div class="flex-1 p-4 flex flex-col justify-between min-w-0">
+                <div>
+                    <div class="flex justify-between items-start mb-1">
+                        <h4 class="font-bold text-gray-900 truncate pr-4 text-sm">${item.name}</h4>
+                        <span id="tier-${item.id}" class="hidden flex-shrink-0 px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] rounded font-black tracking-widest uppercase">OFFICIAL</span>
+                    </div>
+                    <div class="text-[11px] text-gray-400 font-medium space-y-0.5" id="status-${item.id}">${i18n.t('status.pending')}</div>
+                </div>
+                <div class="flex items-center justify-between mt-3">
+                    <div id="meta-${item.id}" class="text-[10px] text-emerald-600 font-mono font-bold"></div>
+                    <button id="download-${item.id}" class="px-4 py-1.5 bg-gray-900 hover:bg-black text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 hidden">
+                        ${i18n.t('btn.download')}
+                    </button>
+                </div>
             </div>
         </div>
     `;
@@ -489,6 +526,7 @@ async function processQueue() {
     return new Promise((resolve) => {
         const next = async () => {
             if (index >= imageQueue.length && activeCount === 0) {
+                isProcessing = false;
                 if (processedCount > 0) {
                     downloadAllBtn.style.display = 'flex';
                     setStatusMessage(i18n.t('status.success'), 'success');
@@ -510,11 +548,16 @@ async function processQueue() {
                     try {
                         const startTime = performance.now();
                         const img = await loadImage(item.file);
-                        // GC hint: we don't need to keep original image object if not needed for comparison
-                        // item.originalImg = img; 
-                        item.originalUrl = img.src;
                         
-                        const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img, options);
+                        const container = document.querySelector(`#card-${item.id} .relative`);
+                        if (container) container.classList.add('scan-active');
+                        
+                        const { canvas, detectionMode, config } = await engine.removeWatermarkFromImage(img, options);
+                        if (container) container.classList.remove('scan-active');
+                        
+                        const loader = document.getElementById(`loader-${item.id}`);
+                        if (loader) loader.classList.add('hidden');
+
                         const endTime = performance.now();
                         const latency = (endTime - startTime).toFixed(0);
                         
@@ -523,6 +566,11 @@ async function processQueue() {
 
                         item.processedUrl = objectUrlManager.create(blob);
                         AuditLog.log(`Batch: ${item.name} done [${detectionMode}] in ${latency}ms`, 'success');
+                        
+                        if (config && config.isOfficial) {
+                            const tier = document.getElementById(`tier-${item.id}`);
+                            if (tier) tier.classList.remove('hidden');
+                        }
                         const resultImg = document.getElementById(`result-${item.id}`);
                         if (resultImg) {
                             resultImg.src = item.processedUrl;
@@ -579,7 +627,17 @@ function updateStatus(id, text, isHtml = false) {
 }
 
 function updateProgress() {
-    progressText.textContent = `${i18n.t('progress.text')}: ${processedCount}/${imageQueue.length}`;
+    const total = imageQueue.length;
+    progressText.textContent = `${i18n.t('progress.text')}: ${processedCount}/${total}`;
+    if (batchProgressBar && total > 0) {
+        const percentage = (processedCount / total) * 100;
+        batchProgressBar.style.width = `${percentage}%`;
+        if (percentage >= 100) {
+            batchProgressBar.classList.replace('bg-blue-600', 'bg-emerald-500');
+        } else {
+            batchProgressBar.classList.replace('bg-emerald-500', 'bg-blue-600');
+        }
+    }
 }
 
 function updateDynamicTexts() {
@@ -656,64 +714,64 @@ async function selectDirectory(type) {
 }
 
 async function processDirectory() {
-    if (!inputDirHandle || !outputDirHandle) return;
+    if (!inputDirHandle || !outputDirHandle || isProcessing) return;
     
+    isProcessing = true;
     startDirProcessBtn.disabled = true;
     startDirProcessBtn.textContent = i18n.t('status.processing');
     AuditLog.log('Starting automated directory processing...', 'process');
     
-    const files = [];
-    for await (const entry of inputDirHandle.values()) {
-        if (entry.kind === 'file' && /\.(jpe?g|png|webp)$/i.test(entry.name)) {
-            files.push(await entry.getFile());
+    async function* getFileGenerator(dirHandle) {
+        for await (const entry of dirHandle.values()) {
+            if (entry.kind === 'file' && /\.(jpe?g|png|webp)$/i.test(entry.name)) {
+                yield await entry.getFile();
+            }
         }
     }
 
-    if (files.length === 0) {
-        AuditLog.log('No valid images found in input directory.', 'warn');
-        startDirProcessBtn.disabled = false;
-        startDirProcessBtn.textContent = i18n.t('btn.startProcess');
-        return;
-    }
-
-    AuditLog.log(`Found ${files.length} images. Starting batch...`, 'info');
+    const fileIterator = getFileGenerator(inputDirHandle);
     
     singlePreview.style.display = 'none';
     multiPreview.style.display = 'block';
     imageList.innerHTML = '';
-    imageQueue = files.map((file, index) => ({
-        id: Date.now() + index,
-        file,
-        name: file.name,
-        status: 'pending'
-    }));
+    objectUrlManager.clear();
+    imageQueue = [];
     processedCount = 0;
     updateProgress();
-    imageQueue.forEach(item => createImageCard(item));
 
     const concurrency = Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 2) - 1));
     const options = getEngineOptions();
-    AuditLog.log(`Automated directory processing started (Batch size: ${concurrency}, NR: ${options.noiseReduction})`, 'process');
+    AuditLog.log(`Streaming directory processing started (Window: ${concurrency}, NR: ${options.noiseReduction})`, 'process');
     
-    processedCount = 0;
-    updateProgress();
-    
-    // Process in bounded sliding window to prevent memory explosion if directory is huge
     let activeCount = 0;
-    let index = 0;
+    let isDone = false;
 
     await new Promise((resolve) => {
         const next = async () => {
-            if (index >= imageQueue.length && activeCount === 0) {
+            if (isDone && activeCount === 0) {
                 resolve();
                 return;
             }
 
-            while (activeCount < concurrency && index < imageQueue.length) {
-                const item = imageQueue[index++];
+            while (activeCount < concurrency && !isDone) {
+                const { value: file, done } = await fileIterator.next();
+                if (done) {
+                    isDone = true;
+                    if (activeCount === 0) resolve();
+                    return;
+                }
+
                 activeCount++;
-                item.status = 'processing';
+                const item = {
+                    id: Date.now() + Math.random(),
+                    file,
+                    name: file.name,
+                    status: 'processing'
+                };
+                imageQueue.push(item);
+                createImageCard(item);
                 updateStatus(item.id, i18n.t('status.processing'));
+                updateProgress();
 
                 (async () => {
                     try {
@@ -721,12 +779,14 @@ async function processDirectory() {
                         const { canvas, detectionMode } = await engine.removeWatermarkFromImage(img, options);
                         const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
                         
-                        const fileHandle = await outputDirHandle.getFileHandle(`unwatermarked_${item.name.replace(/\.[^.]+$/, '')}.png`, { create: true });
+                        const filename = `unwatermarked_${item.name.replace(/\.[^.]+$/, '')}.png`;
+                        const fileHandle = await outputDirHandle.getFileHandle(filename, { create: true });
                         const writable = await fileHandle.createWritable();
                         await writable.write(blob);
                         await writable.close();
 
                         item.status = 'completed';
+                        item.processedBlob = blob;
                         updateStatus(item.id, `✅ Saved [${detectionMode.toUpperCase()}]`, true);
                         processedCount++;
                         updateProgress();
@@ -744,7 +804,9 @@ async function processDirectory() {
         next();
     });
 
-    AuditLog.log(`Automated directory processing complete. ${processedCount}/${files.length} images saved.`, 'success');
+    AuditLog.log(`Directory processing complete. ${processedCount} images saved.`, 'success');
+    if (processedCount > 0) downloadAllBtn.style.display = 'flex';
+    isProcessing = false;
     startDirProcessBtn.disabled = false;
     startDirProcessBtn.textContent = i18n.t('status.success');
     setStatusMessage(i18n.t('status.success'), 'success');

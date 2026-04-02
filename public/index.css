@@ -1,0 +1,177 @@
+/* Gemini Watermark Remover - Core CSS */
+
+:root {
+  --primary: #10B981;
+  --primary-hover: #059669;
+  --gemini-blue: #4F46E5;
+  --gemini-green: #10B981;
+  --dark: #0F172A;
+  --success: #10B981;
+  --warn: #F59E0B;
+  --err: #EF4444;
+  --info: #3B82F6;
+}
+
+/* Base resets & common styles */
+body { 
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  transition: opacity 0.5s ease;
+}
+
+body.loading { opacity: 0; }
+
+/* Components */
+.glass-card {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.shadow-premium {
+  box-shadow: 0 20px 50px -12px rgba(16, 185, 129, 0.15);
+}
+
+/* Comparison Slider */
+.comparison-slider {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: col-resize;
+  user-select: none;
+}
+
+.comparison-slider img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.comparison-slider .resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 2;
+  border-right: 2px solid white;
+  box-shadow: 0 0 15px rgba(0,0,0,0.15);
+}
+
+.comparison-slider .handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  background: white;
+  border-radius: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  pointer-events: none;
+  border: 3px solid var(--primary);
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.comparison-slider:active .handle {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.comparison-slider .handle::before,
+.comparison-slider .handle::after {
+  content: '';
+  border: 5px solid transparent;
+}
+
+.comparison-slider .handle::before {
+  border-right-color: var(--primary);
+  margin-right: 4px;
+}
+
+.comparison-slider .handle::after {
+  border-left-color: var(--primary);
+  margin-left: 4px;
+}
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scan {
+  0% { top: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.scan-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(to bottom, transparent, rgba(16, 185, 129, 0.8), transparent);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 1);
+  z-index: 10;
+  display: none;
+}
+
+.scan-active .scan-line {
+  display: block;
+  animation: scan 1.5s ease-in-out infinite;
+}
+
+/* Custom Checkbox / Toggle */
+.gwr-toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #f8fafc; }
+::-webkit-scrollbar-thumb { 
+  background: #cbd5e1; 
+  border-radius: 4px;
+  border: 2px solid #f8fafc;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+/* Card transitions */
+.gwr-image-card {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gwr-image-card:hover {
+  transform: translateY(-4px) scale(1.01);
+}
+
+/* Processing Overlay */
+#loadingOverlay {
+  transition: all 0.3s ease;
+}
+
+.pulse-primary {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .5; transform: scale(1.05); }
+}

@@ -160,7 +160,16 @@ export class WatermarkEngine {
             const fallbackData = new Uint8ClampedArray(imageData.data);
             try {
                 const processedImageData = await new Promise((resolve, reject) => {
-                    this._workerHandlers.set(taskId, { resolve, reject });
+                    const timeout = (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ? 500 : 15000;
+                    const timeoutId = setTimeout(() => {
+                        this._workerHandlers.delete(taskId);
+                        reject(new Error(`Worker timeout exceeded (${timeout}ms)`));
+                    }, timeout);
+
+                    this._workerHandlers.set(taskId, { 
+                        resolve: (data) => { clearTimeout(timeoutId); resolve(data); },
+                        reject: (err) => { clearTimeout(timeoutId); reject(err); } 
+                    });
                     worker.postMessage({ imageData, alphaMap, position, taskId }, [imageData.data.buffer]);
                 });
                 ctx.putImageData(processedImageData, 0, 0);

@@ -1,6 +1,11 @@
-/**
+ /**
  * Official Gemini resolution catalog and their watermark configurations.
  * Based on GargantuaX/gemini-watermark-remover data.
+ *
+ * [IMPORTANT] SINGLE SOURCE OF TRUTH:
+ * All core offsets (logoSize, marginRight, marginBottom) MUST be maintained here.
+ * Any modification to these constants will trigger a cascade effect across
+ * tests, CLI, and UI. Run `npm test` after any changes to ensure consistency.
  */
 
 export const WATERMARK_CONFIGS = {

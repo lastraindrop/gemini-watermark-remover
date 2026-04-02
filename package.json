@@ -9,6 +9,15 @@
   },
   "license": "MIT",
   "type": "module",
+  "files": [
+    "src",
+    "dist",
+    "public",
+    "python",
+    "LICENSE",
+    "README.md",
+    "README_zh.md"
+  ],
   "bin": {
     "gemini-watermark-remover": "./src/cli.js"
   },
@@ -16,7 +25,7 @@
     "dev": "node build.js",
     "build": "npx -y cross-env NODE_ENV=production node build.js",
     "serve": "npx serve dist",
-    "test": "node --test tests/*.test.js",
+    "test": "npx -y cross-env NODE_ENV=test node --test tests/*.test.js",
     "cli": "node src/cli.js",
     "gui": "python python/gui.py",
     "lint": "eslint src",
