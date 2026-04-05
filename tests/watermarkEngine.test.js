@@ -1,11 +1,11 @@
-import { test, describe, before } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert';
 import { WatermarkEngine } from '../src/core/watermarkEngine.js';
 import { createMockImageData } from './test_utils.js';
 
 // Mock DOM environment for Node.js testing
 if (typeof global.document === 'undefined') {
-    global.window = {};
+    global.window = { process: process };
     global.document = {
         createElement: (tag) => {
             if (tag === 'canvas') {
@@ -35,6 +35,10 @@ describe('WatermarkEngine Coordination & Cache', () => {
         engine = new WatermarkEngine(mockBg);
     });
 
+    after(() => {
+        if (engine) engine.destroy();
+    });
+
     test('AlphaMap Caching: Multiple calls should return same instance', async () => {
         const map1 = await engine.getAlphaMap(48);
         const map2 = await engine.getAlphaMap(48);
@@ -52,14 +56,10 @@ describe('WatermarkEngine Coordination & Cache', () => {
         assert.strictEqual(map96.length, 96 * 96);
     });
 
-    test('Engine Destruction: Should clear caches', () => {
+    test('Engine Destruction: Should clear caches and workers', () => {
         const localEngine = new WatermarkEngine(mockBg);
         localEngine.alphaMaps[48] = new Float32Array(10);
-        
-        // Define a simple destroy if not present or just check cleanup logic
-        // As per current source, it doesn't have a formal destroy() yet, 
-        // but we verify the cache structure is accessible for cleanup.
-        localEngine.alphaMaps = {};
+        localEngine.destroy();
         assert.strictEqual(Object.keys(localEngine.alphaMaps).length, 0);
     });
 
@@ -76,13 +76,12 @@ describe('WatermarkEngine Coordination & Cache', () => {
         assert.ok(result.canvas, 'Should still return a canvas via main thread fallback');
         assert.strictEqual(localEngine._useWorker, false, 'Worker should be disabled after failure');
         
+        localEngine.destroy();
         global.Worker = originalWorker;
     });
 
     test('Protocol Compliance: Watermark info structure', async () => {
         const image = { width: 1024, height: 1024 };
-        // Testing a scenario where we manually trigger the result handler logic
-        // or verify the engine properties used for detection.
         assert.ok(engine.bgCaptures.bg48, 'Should have bg48 capture');
         assert.ok(engine.bgCaptures.bg96, 'Should have bg96 capture');
     });

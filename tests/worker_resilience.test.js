@@ -55,13 +55,21 @@ describe('Worker Resilience (Timeout Fallback)', () => {
 
         const img = { width: 100, height: 100 };
         
+        // Silence expected warn logging
+        const origWarn = console.warn;
+        console.warn = () => {};
+
         // This should timeout (500ms in test environment) and then use fallback
         const start = Date.now();
         const result = await engine.removeWatermarkFromImage(img);
         const duration = Date.now() - start;
 
+        // Restore warn
+        console.warn = origWarn;
+
         assert.ok(duration >= 500, `Should have waited for timeout (duration: ${duration}ms)`);
         assert.ok(result.canvas, 'Should return result via fallback');
         assert.strictEqual(result.detectionMode, 'heuristic', 'Fallback should work');
+        engine.destroy();
     });
 });

@@ -40,7 +40,7 @@ const fetchBlob = (url) => new Promise((resolve, reject) => {
 const replaceWithNormalSize = (src) => {
   // use normal size image to fit watermark
   return src.replace(/=s\d+(?=[-?#]|$)/, '=s0');
-}
+};
 
 async function processImage(imgElement) {
   if (!engine || processingQueue.has(imgElement)) return;

@@ -36,7 +36,7 @@
 **自动化对齐与红线机制 (Enforcement)**：
 1. **Catalog Single Source**: 所有的官方 Tier 参数统一维护在 `src/core/catalog.js`。这是系统的**唯一事实来源 (Single Source of Truth)**。严禁在 UI 层或 Python 层硬编码这些偏移量。
 2. **Data-Driven Validation**: 每次修改参数协议后，**必须** 运行 `npm test`。现有的 `tests/consistency.test.js` 和 `tests/catalog.test.js` 会动态拉取目录条目进行全量校验，绝非硬编码比对。
-3. **Parameter Matrix**: 测试套件包含针对 `deepScan` 和 `noiseReduction` 的全参数矩阵验证，确保在任何参数组合下探测逻辑的收敛性。
+3. **Exhaustive Parameter Matrix (v1.6.0)**: 测试套件 `tests/detector.test.js` 现已升级为动态矩阵模式。它会自动遍历所有分辨率与 `deepScan/noiseReduction` 的排列组合。任何新的引擎参数都应在 `tests/test_utils.js` 的 `generateParameterMatrix` 中注册，以实现回归测试的零成本扩张。
 
 ---
 
@@ -59,7 +59,7 @@
 
 ### 4. 外部接口化 (Interfacing)
 - **CLI 模式**：通过 `node src/cli.js -i <in> -o <out> --json` 实现机器可读输出（包含探测元数据）。
-- **Python Bridge**：提供带有完整类型提示的抽象类，方便 AI 工作流集成。
+- **Python Bridge**：提供 `remover.py` 作为中间桥接，`ModernGUI` 实现了 `prefs.json` 路径持久化，确保用户工作流的连贯性。
 
 ---
 
@@ -68,7 +68,7 @@
 ### 第一阶段：架构优化与标准化 (COMPLETED ✅ v1.1 - v1.5.5)
 - [x] **v1.1-1.2**: 核心算法解耦、Web Worker 单例化、Node.js CLI 工具链。
 - [x] **v1.5**: 分级混合探测 (NCC/Sobel)、官方目录数据库 (`catalog.js`)、切边容错支持。
-- [x] **v1.5.5**: 设置持久化、一键剪贴板复制、五国语言支持 (ZH, EN, RU, FR, JA)。
+- [x] **v1.6.0 (Hardened)**: 超大批量处理内存优化、全局剪贴板粘贴 (Ctrl+V)、自动下载工作流、穷尽式测试矩阵、GUI 路径记忆。
 
 ### 第二阶段：检测与增强 (Short-term 🚀)
 - [ ] **多模型特征提取**：研究 DALL-E 3 和 Midjourney 的水印特征并集成。

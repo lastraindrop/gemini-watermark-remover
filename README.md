@@ -10,21 +10,25 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 
 ## Features
 
+- ✅ **Clipboard Paste (v1.6.0)** - Global `Ctrl+V` support for instant processing without saving files.
+- ✅ **Auto-Download Workflow (v1.6.0)** - Toggleable automatic download upon processing completion.
+- ✅ **Desktop Path Persistence (v1.6.0)** - Remembers last used input/output directories in Python GUI.
+- ✅ **Exhaustive Testing Matrix (v1.6.0)** - 89+ test cases covering all parameter permutations (NCC/DeepScan/NR).
 - ✅ **Sliding Window Concurrency** - High-performance memory-efficient batch processing. (v1.5.5)
 - ✅ **Resilient Worker Fallback** - Automatic main-thread recovery if Web Workers fail. (v1.5.5)
-- ✅ **Precision-First (v1.5.5)** - Standardized testing with 78+ cases ensuring core parameter stability.
+- ✅ **Precision-First (v1.6.0)** - Guaranteed parameter alignment via dynamic matrix validation.
 - ✅ **Zero-Config Asset Bundler** - esbuild-driven Base64 asset inlining for zero-dependency distribution. (v1.5.5)
 - ✅ **Tier Identification Badge** - Real-time visual feedback for Catalog match status (100% confidence).
-- ✅ **Cross-Platform Parity** - Web, CLI, and Python GUI fully synchronized with v1.5.5 engine protocols.
+- ✅ **Cross-Platform Parity** - Web, CLI, and Python GUI fully synchronized with engine protocols.
 - ✅ **100% Client-side** - No backend, no server-side processing. Your data stays in your browser.
 - ✅ **Edge-Crop Resilience** - Smart detection for watermarks partially outside image boundaries.
 - ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation.
 - ✅ **Multi-Language (5 Languages)** - Fully translated UI for **ZH, EN, JA, RU, FR**.
-- [x] **Production Hardened (v1.5.6)** - Stability enhancements for 4K processing and massive batch tasks.
+- [x] **Production Hardened (v1.6.0)** - Stability enhancements for 4K processing and massive batch tasks.
 
-## 🛡️ Production Hardened (v1.5.6)
+## 🛡️ Production Hardened (v1.6.0)
 
-To ensure absolute stability when processing thousands of images or ultra-high resolution (4K/8K), the v1.5.6 release incorporates several hardening technologies:
+To ensure absolute stability when processing thousands of images or ultra-high resolution (4K/8K), the v1.6.0 release incorporates several hardening technologies:
 
 1. **Memory Buffering & Pooling**: Persistent reuse of Float32Array and Uint8ClampedArray buffers within the `Detector` core. This reduces GC pressure for 4K processing by **85%**.
 2. **Streaming Directory Mode**: Utilizing **Async Generators** for high-volume local directory processing. The streaming architecture ensures no OOM even with tens of thousands of files.
@@ -158,11 +162,11 @@ gemini-watermark-remover/
 │   ├── i18n.js            # 国际化工具
 │   └── utils.js           # 共享工具类 (环境守护)
 ├── python/                # 带有跨平台 GUI 的 Python 集成
-├── tests/                 # Standardized test suite (78+ test cases)
+├── tests/                 # Standardized test suite (89+ test cases)
 │   ├── consistency.test.js # Core: Parameter protocol dynamic validation (Redline)
 │   ├── build_pipeline.test.js # Build: Asset inlining & pipeline verification
 │   ├── memory_queue.test.js # Performance: Sliding window & concurrency resilience
-│   ├── test_utils.js      # Robust test factory (21:9 / Parameter Matrix)
+│   ├── test_utils.js      # Robust test factory (Exhaustive Parameter Matrix)
 │   └── ...                # Detailed unit & integration tests
 ├── build.js               # esbuild-based build pipeline
 └── package.json           # Scripts (test, build, cli, gui)

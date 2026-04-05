@@ -7,6 +7,7 @@
 
 import { resolve, join, basename, extname } from 'node:path';
 import { readdirSync, statSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
+import { performance } from 'node:perf_hooks';
 import sharp from 'sharp';
 // Limit sharp internal concurrency to prevent resource contention with our JS pool
 sharp.concurrency(1);

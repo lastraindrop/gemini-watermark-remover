@@ -6,6 +6,7 @@
 import { calculateAlphaMap } from './alphaMap.js';
 import { removeWatermark } from './blendModes.js';
 import { detectWatermarkConfig, calculateWatermarkPosition } from './config.js';
+import { getCatalogConfig } from './catalog.js';
 import { detectWatermark } from './detector.js';
 
 export class WatermarkEngine {

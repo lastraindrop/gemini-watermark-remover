@@ -32,3 +32,7 @@ test_sample/
 python/__pycache__/
 *.py[cod] 
 .test_results.txt
+
+# other
+.github
+code_review.txt

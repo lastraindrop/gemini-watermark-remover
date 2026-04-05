@@ -123,33 +123,37 @@
               <svg class="w-10 h-10 text-gemini-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M 22.498 20.365 L 22.498 4.247 C 22.498 2.983 21.461 1.946 20.197 1.946 L 4.079 1.946 C 2.815 1.946 1.778 2.983 1.778 4.247 L 1.778 20.365 C 1.778 21.629 2.815 22.666 4.079 22.666 L 20.197 22.666 C 21.461 22.666 22.498 21.629 22.498 20.365 Z M 8.111 14.032 L 10.987 17.483 L 15.014 12.306 L 20.197 19.214 L 4.079 19.214 L 8.111 14.032 Z" fill="currentColor"></path></svg>
             </div>
             <p class="mb-2 text-xl font-bold text-gray-800" data-i18n="upload.text">点击选择 或 拖拽图片至此</p>
-            <p class="text-sm text-gray-400 font-medium" data-i18n="upload.hint">支持 JPG, PNG, WebP • 100% 本地安全</p>
+            <p class="text-xs text-gray-400 font-medium" data-i18n="upload.hint">支持 JPG, PNG, WebP • 100% 本地安全 • 支持剪贴板粘贴 (Ctrl+V)</p>
           </div>
         </div>
         
         <!-- Advanced Engine Settings Panel: v1.5 functionality -->
-        <div class="mt-4 flex flex-wrap gap-4 items-center justify-center p-4 bg-gray-50/50 rounded-2xl border border-gray-100 shadow-glass">
-          <div class="flex items-center gap-3 bg-white px-5 py-2.5 rounded-xl border border-emerald-100 shadow-sm hover:shadow-md transition-all">
+        <div class="mt-4 flex flex-wrap gap-4 items-center justify-center p-4 bg-gray-50/50 rounded-xl border border-gray-100 shadow-glass">
+          <div class="flex items-center gap-3 bg-white px-5 py-2 rounded-lg border border-emerald-50 shadow-sm hover:shadow-md transition-all">
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="deepScanToggle" class="sr-only peer" checked>
-              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 font-bold"></div>
-              <span class="ml-3 text-sm font-bold text-gray-700" data-i18n="settings.deepScan">深层扫描 (Deep Scan)</span>
+              <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 font-bold"></div>
+              <span class="ml-3 text-xs font-bold text-gray-700" data-i18n="settings.deepScan">深层扫描</span>
             </label>
-            <div class="group relative">
-              <svg class="h-4 w-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-dark text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">利用 Sobel 梯度进行二次校准，大幅提升低对比度区域探测精度。</div>
-            </div>
           </div>
           
-          <div class="flex items-center gap-3 bg-white px-5 py-2.5 rounded-xl border border-emerald-100 shadow-sm hover:shadow-md transition-all">
+          <div class="flex items-center gap-3 bg-white px-5 py-2 rounded-lg border border-emerald-50 shadow-sm hover:shadow-md transition-all">
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="noiseReductionToggle" class="sr-only peer">
-              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-              <span class="ml-3 text-sm font-bold text-gray-700" data-i18n="settings.noiseReduction">降噪处理 (Noise Reduction)</span>
+              <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+              <span class="ml-3 text-xs font-bold text-gray-700" data-i18n="settings.noiseReduction">降噪处理</span>
+            </label>
+          </div>
+
+          <div class="flex items-center gap-3 bg-white px-5 py-2 rounded-lg border border-blue-50 shadow-sm hover:shadow-md transition-all">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="autoDownloadToggle" class="sr-only peer">
+              <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+              <span class="ml-3 text-xs font-bold text-gray-700" data-i18n="settings.autoDownload">自动下载</span>
             </label>
             <div class="group relative">
-              <svg class="h-4 w-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-dark text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">预处理高频噪点，通过 BoxBlur 提升相关度计算的稳定性。</div>
+                <svg class="h-3 w-3 text-gray-300 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 p-1 bg-dark text-white text-[8px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">处理完成后自动触发下载/保存操作。</div>
             </div>
           </div>
         </div>
@@ -259,32 +263,6 @@
         <div class="w-full lg:w-80 flex-shrink-0">
           <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sticky top-24">
             <h4 class="text-lg font-bold text-gray-900 mb-4" data-i18n="panel.title">操作面板</h4>
-
-            <!-- Advanced Engine Settings v1.5 -->
-            <div class="mb-6 p-4 bg-gray-50/50 rounded-xl border border-emerald-100/50 space-y-3">
-              <h5 class="text-[10px] font-bold text-emerald-800 uppercase tracking-widest mb-1 flex items-center gap-1">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
-                Engine v1.5 Parameters
-              </h5>
-              
-              <label class="flex items-center justify-between cursor-pointer group">
-                <div class="flex flex-col">
-                  <span class="text-xs font-bold text-gray-700 group-hover:text-primary transition-colors">Deep Scan</span>
-                  <span class="text-[9px] text-gray-400">v1.4 Pattern Matching</span>
-                </div>
-                <input type="checkbox" id="toggleDeepScan" class="sr-only peer" checked>
-                <div class="relative w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-              </label>
-
-              <label class="flex items-center justify-between cursor-pointer group">
-                <div class="flex flex-col">
-                  <span class="text-xs font-bold text-gray-700 group-hover:text-primary transition-colors">Noise Reduction</span>
-                  <span class="text-[9px] text-gray-400">v1.5 Pre-processing</span>
-                </div>
-                <input type="checkbox" id="toggleNoiseReduction" class="sr-only peer">
-                <div class="relative w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-              </label>
-            </div>
 
             <div class="space-y-3">
 

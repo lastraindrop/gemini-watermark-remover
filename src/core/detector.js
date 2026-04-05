@@ -1,4 +1,3 @@
-import { detectWatermarkConfig } from './config.js';
 import { getCatalogConfig } from './catalog.js';
 
 /**

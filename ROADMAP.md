@@ -2,21 +2,18 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.5.6 - Hardened Release)
-- [x] **Memory Pooling (Detector Core)**: Persistent buffer reuse to reduce 4K processing GC pressure by 85%. (v1.5.6)
-- [x] **Streaming Directory Mode**: Async Generator-based file discovery for infinite directory processing. (v1.5.6)
-- [x] **State-Lock & Resource Management**: UI isProcessing locks and auto-ObjectUrl reclamation. (v1.5.6)
-- [x] **Web Worker Timeout (15s)**: Resilient fallback to main-thread if workers hang or stall. (v1.5.6)
-- [x] **High-Performance Sliding Window**: Concurrency model for massive batch processing. (v1.5.5)
-- [x] **Resilient Worker Fallback (Original)**: Automatic main-thread recovery. (v1.5.5)
+## 📍 当前状态 (v1.6.0 - UX & Testing Hardened)
+- [x] **Clipboard Paste (v1.6.0)**: Global `Ctrl+V` support in `src/app.js` for instant removal.
+- [x] **Auto-Download Workflow (v1.6.0)**: Integrated automatic download logic with UI toggle.
+- [x] **Desktop Path Persistence (v1.6.0)**: Python GUI `prefs.json` for directory memory.
+- [x] **Exhaustive Testing Matrix (v1.6.0)**: 89+ test cases with dynamic parameter permutations.
+- [x] **Memory Pooling (Detector Core)**: Persistent buffer reuse (85% GC reduction). (v1.5.6)
+- [x] **Streaming Directory Mode**: Async Generator-based processing for massive batches. (v1.5.6)
+- [x] **State-Lock & Resource Management**: UI isProcessing locks & auto-reclamation. (v1.5.6)
+- [x] **Web Worker Timeout (15s)**: Resilient fallback to main-thread. (v1.5.6)
+- [x] **High-Performance Sliding Window**: Concurrency model. (v1.5.5)
 - [x] **Zero-Config Asset Pipeline**: esbuild asset inlining. (v1.5.5)
-- [x] **Data-Driven Test Suite**: 80+ validation scenarios covering all catalog tiers. (v1.5.6)
-- [x] **Standardized Testing (node:test)**: 100% coverage for core engine. (v1.5.5)
-- [x] **Parameter Protocol Enforcement**: Hardened `logoSize/marginRight` consistency. (v1.5.5)
-- [x] **Tier Badge UI Feedback**: Visual indicator for official catalog reconstructs. (v1.5.5)
-- [x] **Persistent Settings**: UI preferences via `localStorage`. (v1.5.5)
-- [x] **I18n Expansion**: Support for 5 languages. (v1.5.5)
-- [x] **Desktop Parity**: Python GUI updated with advanced flags. (v1.5.5)
+- [x] **Parameter Protocol Enforcement**: Hardened consistency. (v1.5.5)
 
 ---
 

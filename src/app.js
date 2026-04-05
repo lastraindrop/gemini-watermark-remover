@@ -1,6 +1,6 @@
 import { WatermarkEngine } from './core/watermarkEngine.js';
 import i18n from './i18n.js';
-import { loadImage, checkOriginal, getOriginalStatus, setStatusMessage, showLoading, hideLoading } from './utils.js';
+import { loadImage, checkOriginal, getOriginalStatus, setStatusMessage, showLoading, showLoadingFail, hideLoading } from './utils.js';
 import JSZip from 'jszip';
 import mediumZoom from 'medium-zoom';
 
@@ -38,7 +38,6 @@ const downloadBtn = document.getElementById('downloadBtn');
 const clearAllBtn = document.getElementById('clearAllBtn');
 const resetBtn = document.getElementById('resetBtn');
 const processedImage = document.getElementById('processedImage');
-const viewModeBtn = document.getElementById('viewModeBtn');
 const comparisonSlider = document.getElementById('comparisonSlider');
 const sliderOriginal = document.getElementById('sliderOriginal');
 const sliderProcessed = document.getElementById('sliderProcessed');
@@ -57,8 +56,6 @@ const sideOriginal = document.getElementById('sideOriginal');
 const sideProcessed = document.getElementById('sideProcessed');
 const modeSliderBtn = document.getElementById('modeSliderBtn');
 const modeSideBtn = document.getElementById('modeSideBtn');
-const deepScanToggle = document.getElementById('deepScanToggle');
-const noiseReductionToggle = document.getElementById('noiseReductionToggle');
 const tierBadge = document.getElementById('tierBadge');
 
 /**
@@ -150,7 +147,7 @@ async function init() {
             margin: 24,
             scrollOffset: 0,
             background: 'rgba(255, 255, 255, .6)',
-        })
+        });
     } catch (error) {
         AuditLog.log(`Fatal Initialization Error: ${error.message}`, 'err');
         showLoadingFail(error.message);
@@ -178,9 +175,6 @@ function setupLanguageSelector() {
     });
 }
 
-/**
- * setup event listeners
- */
 function setupEventListeners() {
     uploadArea.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', handleFileSelect);
@@ -207,12 +201,32 @@ function setupEventListeners() {
     // Settings change listeners
     document.getElementById('deepScanToggle')?.addEventListener('change', saveSettings);
     document.getElementById('noiseReductionToggle')?.addEventListener('change', saveSettings);
+    document.getElementById('autoDownloadToggle')?.addEventListener('change', saveSettings);
 
     // Updated Mode Toggles
     modeSliderBtn.addEventListener('click', () => switchViewMode('slider'));
     modeSideBtn.addEventListener('click', () => switchViewMode('side'));
     
+    document.addEventListener('paste', handlePaste);
     setupSlider();
+}
+
+/**
+ * Handle clipboard paste (v1.6)
+ */
+function handlePaste(e) {
+    if (!e.clipboardData || !e.clipboardData.items) return;
+    
+    const items = Array.from(e.clipboardData.items);
+    const files = items
+        .filter(item => item.type.indexOf('image') !== -1)
+        .map(item => item.getAsFile())
+        .filter(f => f !== null);
+    
+    if (files.length > 0) {
+        AuditLog.log(`Captured ${files.length} image(s) from clipboard.`, 'info');
+        handleFiles(files);
+    }
 }
 
 /**
@@ -221,7 +235,8 @@ function setupEventListeners() {
 function getEngineOptions() {
     return {
         deepScan: document.getElementById('deepScanToggle')?.checked ?? true,
-        noiseReduction: document.getElementById('noiseReductionToggle')?.checked ?? false
+        noiseReduction: document.getElementById('noiseReductionToggle')?.checked ?? false,
+        autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false
     };
 }
 
@@ -252,6 +267,7 @@ function saveSettings() {
     const settings = {
         deepScan: document.getElementById('deepScanToggle')?.checked ?? true,
         noiseReduction: document.getElementById('noiseReductionToggle')?.checked ?? false,
+        autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false,
         locale: i18n.locale
     };
     localStorage.setItem('gwr_settings', JSON.stringify(settings));
@@ -271,6 +287,10 @@ async function loadSettings() {
         if (settings.noiseReduction !== undefined) {
             const el = document.getElementById('noiseReductionToggle');
             if (el) el.checked = settings.noiseReduction;
+        }
+        if (settings.autoDownload !== undefined) {
+            const el = document.getElementById('autoDownloadToggle');
+            if (el) el.checked = settings.autoDownload;
         }
         if (settings.locale && settings.locale !== i18n.locale) {
             await i18n.switchLocale(settings.locale);
@@ -469,6 +489,11 @@ async function processSingle(item) {
         zoom.attach('[data-zoomable]');
 
         processedSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        if (getEngineOptions().autoDownload) {
+            AuditLog.log('Auto-download triggered.', 'info');
+            downloadImage(item);
+        }
     } catch (error) {
         AuditLog.log(`Process Error: ${error.message}`, 'err');
         console.error(error);
@@ -531,6 +556,10 @@ async function processQueue() {
                     downloadAllBtn.style.display = 'flex';
                     setStatusMessage(i18n.t('status.success'), 'success');
                     AuditLog.log('All batch tasks completed', 'success');
+                    if (getEngineOptions().autoDownload) {
+                        AuditLog.log('Auto-download triggered.', 'info');
+                        downloadAll();
+                    }
                 }
                 resolve();
                 return;

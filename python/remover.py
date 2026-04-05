@@ -15,14 +15,15 @@ class GeminiWatermarkRemover:
         if project_path:
             self.project_path = os.path.abspath(project_path)
         else:
-            # Try to find current working directory or package location
-            self.project_path = os.getcwd()
+            # v1.6 Improvement: Use script's base directory instead of plain getcwd()
+            self.project_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-        # 2. Resolve CLI Path (Environment Variable > Specified Path > Local Search)
+        # 2. Resolve CLI Path
         env_path = os.environ.get("GWR_CLI_PATH")
         if env_path:
             self.cli_path = os.path.abspath(env_path)
         else:
+            # Check local src/cli.js relative to project_path
             local_cli = os.path.join(self.project_path, "src", "cli.js")
             if os.path.exists(local_cli):
                 self.cli_path = local_cli

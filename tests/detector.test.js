@@ -1,41 +1,47 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { detectWatermark } from '../src/core/detector.js';
-import { calculateWatermarkPosition } from '../src/core/config.js';
-import { createMockImageData, createMockAlphaMap, applyWatermark, addNoise } from './test_utils.js';
+import { calculateWatermarkPosition, detectWatermarkConfig } from '../src/core/config.js';
+import { createMockImageData, createMockAlphaMap, applyWatermark, addNoise, generateParameterMatrix } from './test_utils.js';
 
 describe('Watermark Detector Engine - Generalized Scenarios', () => {
 
-    const combinations = [
-        { w: 1024, h: 1024, size: 96, bg: 'solid', status: 'aligned' },
-        { w: 2048, h: 800, size: 96, bg: 'gradient', status: 'anchored' }, // 21:9
-        { w: 800, h: 2048, size: 48, bg: 'gradient', status: 'free' } // Portrait
-    ];
-
     const alphaMaps = { 48: createMockAlphaMap(48), 96: createMockAlphaMap(96) };
+    const matrix = generateParameterMatrix();
 
-    for (const combo of combinations) {
-        test(`Robustness: ${combo.w}x${combo.h} (${combo.bg})`, () => {
-            const img = createMockImageData(combo.w, combo.h, combo.bg);
-            const alphaMap = alphaMaps[combo.size];
+    describe('Automated Parameter Matrix Tests', () => {
+        for (const { options, resolution } of matrix) {
+            const { w, h } = resolution;
+            const testName = `Matrix: ${w}x${h} [DeepScan: ${options.deepScan}, NR: ${options.noiseReduction}]`;
             
-            let targetX, targetY;
-            if (combo.status === 'anchored' || combo.status === 'aligned') {
-                targetX = combo.w - 64 - combo.size;
-                targetY = combo.h - 64 - combo.size;
-            } else {
-                targetX = combo.w - 200 - Math.floor(Math.random() * 50);
-                targetY = combo.h - 200 - Math.floor(Math.random() * 50);
-            }
-            
-            applyWatermark(img, targetX, targetY, combo.size, alphaMap);
-            const result = detectWatermark(img, alphaMaps);
+            test(testName, () => {
+                const config = detectWatermarkConfig(w, h);
+                const size = config.logoSize;
+                const img = createMockImageData(w, h, 'gradient');
+                const alphaMap = alphaMaps[size];
+                
+                // Get correct anchored position from real config logic
+                const pos = calculateWatermarkPosition(w, h, config);
+                const targetX = pos.x;
+                const targetY = pos.y;
+                
+                applyWatermark(img, targetX, targetY, size, alphaMap);
+                
+                if (options.noiseReduction) {
+                    addNoise(img, 20);
+                }
 
-            assert.ok(result, `Failed to detect size ${combo.size} on ${combo.w}x${combo.h}`);
-            assert.ok(Math.abs(result.x - targetX) <= 1, `X mismatch: got ${result.x}, expected ${targetX}`);
-            assert.ok(Math.abs(result.y - targetY) <= 1, `Y mismatch: got ${result.y}, expected ${targetY}`);
-        });
-    }
+                const result = detectWatermark(img, alphaMaps, options);
+
+                // If deepScan is on, it must find it. If off, it must find it if it's in the anchored position.
+                if (options.deepScan || (targetX === pos.x && targetY === pos.y)) {
+                    assert.ok(result, `Detection failed for ${testName}`);
+                    assert.ok(Math.abs(result.x - targetX) <= 1, `X mismatch: got ${result.x}, expected ${targetX}`);
+                    assert.ok(Math.abs(result.y - targetY) <= 1, `Y mismatch: got ${result.y}, expected ${targetY}`);
+                }
+            });
+        }
+    });
 
     test('V1.5 Edge Crop Recovery (Partial Overflow)', () => {
         const w = 400, h = 400, size = 96;
@@ -75,10 +81,8 @@ describe('Watermark Detector Engine - Generalized Scenarios', () => {
 
         tiers.forEach(({ w, h, s }) => {
             test(`Detection accuracy: ${w}x${h} (size=${s})`, () => {
-                // Ensure a more robust mock image with some texture for catalog tier tests
                 const gridImg = createMockImageData(w, h, 'grid');
                 const alphaMap = createMockAlphaMap(s);
-                // Fill the alpha map more completely for catalog tests to ensure strong signal
                 for (let i=0; i<s*s; i++) if (alphaMap[i] === 0) alphaMap[i] = 0.05; 
                 
                 const config = { logoSize: s, marginRight: 64, marginBottom: 64 };

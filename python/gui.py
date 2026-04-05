@@ -11,49 +11,84 @@ from remover import GeminiWatermarkRemover
 class ModernGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Gemini Watermark Remover (Desktop) v1.5")
-        self.root.geometry("900x650")
-        self.root.configure(bg="#0f172a") # Dark Slate
-        
-        # Colors & Styles
-        self.colors = {
+        self.root.title("Gemini Watermark Remover (Desktop) v1.6")
+        self.root.geometry("960x700")
+
+        # Centralized Theme & Configuration (v1.6)
+        self.THEME = {
             "bg": "#0f172a",
             "card": "#1e293b",
             "primary": "#10B981", # Emerald
             "text": "#f8fafc",
             "accent": "#4f46e5", # Indigo
             "warn": "#f59e0b",
-            "err": "#ef4444"
+            "err": "#ef4444",
+            "font_main": ("Inter", 10),
+            "font_bold": ("Inter", 11, "bold"),
+            "font_header": ("Inter", 24, "bold")
         }
-        
+
+        self.root.configure(bg=self.THEME["bg"])
+
+        # Determine project root relative to this CLI file
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         try:
-            self.remover = GeminiWatermarkRemover(os.path.abspath("./"))
+            self.remover = GeminiWatermarkRemover(base_dir)
         except Exception as e:
-            self.log(f"Initialization Failed: {str(e)}", "err")
             self.remover = None
+            self.root.after(100, lambda: self.log(f"Backend Initialization Failed: {str(e)}", "err"))
         
-        self.input_paths = None  # Robust path storage
+        self.input_paths = None
         self.deep_scan_var = tk.BooleanVar(value=True)
         self.noise_reduction_var = tk.BooleanVar(value=False)
 
         self._build_ui()
-        self.log("Desktop Interface initialized. Ready for processing.", "success")
+        self._load_prefs()
+        self.log("Desktop Environment v1.6 Initialized.", "success")
+
+    def _get_prefs_path(self):
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "prefs.json")
+
+    def _load_prefs(self):
+        path = self._get_prefs_path()
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    prefs = json.load(f)
+                    if "input" in prefs and prefs["input"]:
+                        self.input_entry.insert(0, prefs["input"])
+                        self.input_paths = prefs["input"]
+                    if "output" in prefs and prefs["output"]:
+                        self.output_entry.insert(0, prefs["output"])
+            except Exception as e:
+                print(f"Failed to load prefs: {e}")
+
+    def _save_prefs(self):
+        try:
+            prefs = {
+                "input": self.input_entry.get(),
+                "output": self.output_entry.get()
+            }
+            with open(self._get_prefs_path(), 'w') as f:
+                json.dump(prefs, f)
+        except Exception as e:
+            print(f"Failed to save prefs: {e}")
 
     def _build_ui(self):
-        # Header
-        header = tk.Frame(self.root, bg=self.colors["bg"], height=80)
+        # Header Area
+        header = tk.Frame(self.root, bg=self.THEME["bg"], height=80)
         header.pack(fill="x", padx=30, pady=20)
         
         title_label = tk.Label(header, text="Gemini Watermark Remover", 
-                               font=("Inter", 24, "bold"), fg=self.colors["text"], bg=self.colors["bg"])
+                               font=self.THEME["font_header"], fg=self.THEME["text"], bg=self.THEME["bg"])
         title_label.pack(side="left")
         
-        status_dot = tk.Canvas(header, width=10, height=10, bg=self.colors["bg"], highlightthickness=0)
-        status_dot.create_oval(2, 2, 8, 8, fill=self.colors["primary"])
+        status_dot = tk.Canvas(header, width=10, height=10, bg=self.THEME["bg"], highlightthickness=0)
+        status_dot.create_oval(2, 2, 8, 8, fill=self.THEME["primary"])
         status_dot.pack(side="left", padx=10)
         
-        # Main Content
-        content = tk.Frame(self.root, bg=self.colors["bg"])
+        # Content
+        content = tk.Frame(self.root, bg=self.THEME["bg"])
         content.pack(fill="both", expand=True, padx=30)
         
         # Input/Output Cards
@@ -61,40 +96,40 @@ class ModernGUI:
         self._create_path_section(content, "Output Destination", "Where to save processed images", "output")
         
         # Options Bar
-        options_bar = tk.Frame(content, bg=self.colors["bg"])
+        options_bar = tk.Frame(content, bg=self.THEME["bg"])
         options_bar.pack(fill="x", pady=10)
         
         tk.Checkbutton(options_bar, text="Deep Scan (Highly Recommended)", variable=self.deep_scan_var,
-                       bg=self.colors["bg"], fg=self.colors["text"], selectcolor=self.colors["card"],
-                       activebackground=self.colors["bg"], activeforeground=self.colors["primary"],
-                       font=("Inter", 10), borderwidth=0, highlightthickness=0).pack(side="left", padx=(0, 20))
+                       bg=self.THEME["bg"], fg=self.THEME["text"], selectcolor=self.THEME["card"],
+                       activebackground=self.THEME["bg"], activeforeground=self.THEME["primary"],
+                       font=self.THEME["font_main"], borderwidth=0, highlightthickness=0).pack(side="left", padx=(0, 20))
         
         tk.Checkbutton(options_bar, text="Enforce Noise Reduction (Stable)", variable=self.noise_reduction_var,
-                       bg=self.colors["bg"], fg=self.colors["text"], selectcolor=self.colors["card"],
-                       activebackground=self.colors["bg"], activeforeground=self.colors["primary"],
-                       font=("Inter", 10), borderwidth=0, highlightthickness=0).pack(side="left")
+                       bg=self.THEME["bg"], fg=self.THEME["text"], selectcolor=self.THEME["card"],
+                       activebackground=self.THEME["bg"], activeforeground=self.THEME["primary"],
+                       font=self.THEME["font_main"], borderwidth=0, highlightthickness=0).pack(side="left")
 
         # Action Bar
         action_bar = tk.Frame(content, bg=self.colors["bg"])
         action_bar.pack(fill="x", pady=15)
         
         self.process_btn = tk.Button(action_bar, text="START PROCESSING", command=self.start_task,
-                                     bg=self.colors["primary"], fg="white", font=("Inter", 12, "bold"),
+                                     bg=self.THEME["primary"], fg="white", font=self.THEME["font_bold"],
                                      padx=30, pady=10, relief="flat", cursor="hand2", activebackground="#059669")
         self.process_btn.pack(side="right")
         
         # Progress Bar
         style = ttk.Style()
         style.theme_use('default')
-        style.configure("Emerald.Horizontal.TProgressbar", thickness=10, troughcolor=self.colors["card"], 
-                        background=self.colors["primary"], borderwidth=0)
+        style.configure("Emerald.Horizontal.TProgressbar", thickness=10, troughcolor=self.THEME["card"], 
+                        background=self.THEME["primary"], borderwidth=0)
         
         self.progress = ttk.Progressbar(content, style="Emerald.Horizontal.TProgressbar", 
                                         orient="horizontal", mode="determinate")
         self.progress.pack(fill="x", pady=10)
         
         # Audit Log Console
-        log_frame = tk.LabelFrame(content, text="AUDIT CONSOLE", bg=self.colors["bg"], fg="#64748b",
+        log_frame = tk.LabelFrame(content, text="AUDIT CONSOLE", bg=self.THEME["bg"], fg="#64748b",
                                   font=("Courier New", 10, "bold"), labelanchor="nw", borderwidth=1, relief="flat")
         log_frame.pack(fill="both", expand=True, pady=10)
         
@@ -103,23 +138,23 @@ class ModernGUI:
         self.console.pack(fill="both", expand=True)
 
     def _create_path_section(self, parent, title, subtitle, mode):
-        frame = tk.Frame(parent, bg=self.colors["card"], padx=20, pady=15)
+        frame = tk.Frame(parent, bg=self.THEME["card"], padx=20, pady=15)
         frame.pack(fill="x", pady=5)
         
-        lbl_frame = tk.Frame(frame, bg=self.colors["card"])
+        lbl_frame = tk.Frame(frame, bg=self.THEME["card"])
         lbl_frame.pack(side="left")
         
-        tk.Label(lbl_frame, text=title, font=("Inter", 12, "bold"), fg=self.colors["text"], bg=self.colors["card"]).pack(anchor="w")
-        tk.Label(lbl_frame, text=subtitle, font=("Inter", 9), fg="#94a3b8", bg=self.colors["card"]).pack(anchor="w")
+        tk.Label(lbl_frame, text=title, font=self.THEME["font_bold"], fg=self.THEME["text"], bg=self.THEME["card"]).pack(anchor="w")
+        tk.Label(lbl_frame, text=subtitle, font=self.THEME["font_main"], fg="#94a3b8", bg=self.THEME["card"]).pack(anchor="w")
         
-        path_entry = tk.Entry(frame, bg="#0f172a", fg=self.colors["text"], borderwidth=0, font=("Inter", 10))
+        path_entry = tk.Entry(frame, bg="#0f172a", fg=self.THEME["text"], borderwidth=0, font=self.THEME["font_main"])
         path_entry.pack(side="left", fill="x", expand=True, padx=20)
         
-        btn_frame = tk.Frame(frame, bg=self.colors["card"])
+        btn_frame = tk.Frame(frame, bg=self.THEME["card"])
         btn_frame.pack(side="right")
         
         tk.Button(btn_frame, text="BROWSE", command=lambda m=mode: self.browse_path(m), 
-                  bg=self.colors["accent"], fg="white", font=("Inter", 9, "bold"), 
+                  bg=self.THEME["accent"], fg="white", font=self.THEME["font_main"], 
                   relief="flat", padx=10).pack()
         
         if mode == "input": self.input_entry = path_entry
@@ -130,11 +165,11 @@ class ModernGUI:
             self.root.after(0, lambda: self.log(msg, level))
             return
         timestamp = datetime.now().strftime("%H:%M:%S")
-        color = self.colors["text"]
-        if level == "success": color = self.colors["primary"]
-        if level == "warn": color = self.colors["warn"]
-        if level == "err": color = self.colors["err"]
-        if level == "process": color = self.colors["accent"]
+        color = self.THEME["text"]
+        if level == "success": color = self.THEME["primary"]
+        if level == "warn": color = self.THEME["warn"]
+        if level == "err": color = self.THEME["err"]
+        if level == "process": color = self.THEME["accent"]
         
         self.console.tag_config(level, foreground=color)
         self.console.insert(tk.END, f"[{timestamp}] [{level.upper()}] {msg}\n", level)
@@ -159,17 +194,19 @@ class ModernGUI:
             entry.insert(0, display_path)
 
     def start_task(self):
-        src = self.input_entry.get()
-        dest = self.output_entry.get()
+        input_p = self.input_entry.get()
+        output_p = self.output_entry.get()
         
-        if not src or not dest:
-            self.log("Please specify both input and output paths.", "warn")
+        if not input_p or not output_p:
+            messagebox.showwarning("Missing Paths", "Please select both input and output paths.")
             return
+
+        self._save_prefs()
             
         self.process_btn.config(state="disabled", text="PROCESSING...")
         self.progress["value"] = 0
         
-        thread = threading.Thread(target=self.run_process, args=(src, dest))
+        thread = threading.Thread(target=self.run_process, args=(input_p, output_p))
         thread.daemon = True
         thread.start()
 

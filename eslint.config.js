@@ -21,6 +21,11 @@ export default [
         fetch: "readonly",
         MessageChannel: "readonly",
         Image: "readonly",
+        MutationObserver: "readonly",
+        Request: "readonly",
+        Response: "readonly",
+        ClipboardItem: "readonly",
+        File: "readonly",
         // Node
         process: "readonly",
         console: "readonly",
@@ -28,10 +33,13 @@ export default [
         clearTimeout: "readonly",
         setInterval: "readonly",
         clearInterval: "readonly",
+        performance: "readonly",
+        Buffer: "readonly",
         // Userscript
         GM_xmlhttpRequest: "readonly",
         GM_info: "readonly",
-        unsafeWindow: "readonly"
+        unsafeWindow: "readonly",
+        self: "readonly"
       }
     },
     rules: {

@@ -11,7 +11,7 @@ export function loadImage(input) {
                 URL.revokeObjectURL(img.src);
             }
         };
-        img.onerror = (e) => reject(new Error('Failed to load image'));
+        img.onerror = (_e) => reject(new Error('Failed to load image'));
         if (input instanceof File || input instanceof Blob) {
             img.src = URL.createObjectURL(input);
         } else {
@@ -26,7 +26,7 @@ export async function checkOriginal(file) {
         return {
             is_google: exif?.Credit === 'Made with Google AI',
             is_original: ['ImageWidth', 'ImageHeight'].every(key => exif?.[key])
-        }
+        };
     } catch {
         return { is_google: false, is_original: false };
     }
