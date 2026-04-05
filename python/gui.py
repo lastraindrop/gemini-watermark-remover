@@ -110,7 +110,7 @@ class ModernGUI:
                        font=self.THEME["font_main"], borderwidth=0, highlightthickness=0).pack(side="left")
 
         # Action Bar
-        action_bar = tk.Frame(content, bg=self.colors["bg"])
+        action_bar = tk.Frame(content, bg=self.THEME["bg"])
         action_bar.pack(fill="x", pady=15)
         
         self.process_btn = tk.Button(action_bar, text="START PROCESSING", command=self.start_task,

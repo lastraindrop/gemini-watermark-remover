@@ -8,14 +8,7 @@ tmp*/
 .history
 
 # build
-dist/
-
-# misc
-.DS_Store
-.history
-
-# build
-dist/
+# (merged into dependencies)
 
 # debug
 npm-debug.log*

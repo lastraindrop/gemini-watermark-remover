@@ -20,13 +20,15 @@ export function detectWatermarkConfig(imageWidth, imageHeight) {
         return {
             logoSize: 96,
             marginRight: 64,
-            marginBottom: 64
+            marginBottom: 64,
+            isOfficial: false
         };
     } else {
         return {
             logoSize: 48,
             marginRight: 32,
-            marginBottom: 32
+            marginBottom: 32,
+            isOfficial: false
         };
     }
 }

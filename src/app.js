@@ -523,7 +523,7 @@ function createImageCard(item) {
             <div class="flex-1 p-4 flex flex-col justify-between min-w-0">
                 <div>
                     <div class="flex justify-between items-start mb-1">
-                        <h4 class="font-bold text-gray-900 truncate pr-4 text-sm">${item.name}</h4>
+                        <h4 class="font-bold text-gray-900 truncate pr-4 text-sm">${escapeHtml(item.name)}</h4>
                         <span id="tier-${item.id}" class="hidden flex-shrink-0 px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] rounded font-black tracking-widest uppercase">OFFICIAL</span>
                     </div>
                     <div class="text-[11px] text-gray-400 font-medium space-y-0.5" id="status-${item.id}">${i18n.t('status.pending')}</div>

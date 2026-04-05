@@ -7,6 +7,8 @@
 - [x] **Auto-Download Workflow (v1.6.0)**: Integrated automatic download logic with UI toggle.
 - [x] **Desktop Path Persistence (v1.6.0)**: Python GUI `prefs.json` for directory memory.
 - [x] **Exhaustive Testing Matrix (v1.6.0)**: 89+ test cases with dynamic parameter permutations.
+- [x] **Production Hardening (v1.6.0)**: Fixed Python GUI crashes, memory leaks, and XSS vulnerabilities.
+- [x] **Official Tier Badge (v1.6.0)**: Restored precise catalog matching for official resolutions.
 - [x] **Memory Pooling (Detector Core)**: Persistent buffer reuse (85% GC reduction). (v1.5.6)
 - [x] **Streaming Directory Mode**: Async Generator-based processing for massive batches. (v1.5.6)
 - [x] **State-Lock & Resource Management**: UI isProcessing locks & auto-reclamation. (v1.5.6)
@@ -18,9 +20,9 @@
 ---
 
 ### ⚡ 核心能力外溢
-- **v1.6: Sub-pixel Alignment (亚像素级对齐)**：针对非整数坐标的高分辨率输出，实现像素插值还原，消除缩放图像的极细微锯齿。
-- **v1.6: Parametric Autonomy (动态参数校准)**：基于探测置信度的动态偏移校准方案，实现 `±3px` 的智能对齐微调。
-- **v1.6: Delta View (差异可视化)**：在 UI 增加差异层预览，证明对非水印区域的“零干扰”还原精度。
+- **v1.6: Sub-pixel Alignment (亚像素级对齐)**：针对非整数坐标的高分辨率输出，实现像素插值还原，消除缩放图像的极细微锯齿。(Work-in-progress)
+- **v1.6: Parametric Autonomy (动态参数校准)**：基于探测置信度的动态偏移校准方案，实现 `±3px` 的智能对齐微调。(Planned)
+- **v1.6: Security & Memory Audit**: 彻底审计全链路内存分配与 XSS 风险。(Completed)
 - **v1.7: Rust-driven Wasm Core (Alpha)**：使用 Rust 彻底重写像素混合逻辑，针对 8K+ 分辨率提升 3-5 倍的处理速度。
 - **v1.7: Image Genesis 3 Sync**: 加入最新 Google 生成模型的视觉标记指纹库。
 

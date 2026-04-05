@@ -59,7 +59,12 @@ async function processImage(imgElement) {
 
     URL.revokeObjectURL(normalSizeBlobUrl);
 
-    imgElement.src = URL.createObjectURL(processedBlob);
+    if (imgElement.dataset.watermarkBlobUrl) {
+      URL.revokeObjectURL(imgElement.dataset.watermarkBlobUrl);
+    }
+    const processedUrl = URL.createObjectURL(processedBlob);
+    imgElement.src = processedUrl;
+    imgElement.dataset.watermarkBlobUrl = processedUrl;
     imgElement.dataset.watermarkProcessed = 'true';
 
     console.log('[Gemini Watermark Remover] Processed image');

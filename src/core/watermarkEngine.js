@@ -185,7 +185,7 @@ export class WatermarkEngine {
             ctx.putImageData(imageData, 0, 0);
         }
 
-        const config = pixelDetect ? getCatalogConfig(pixelDetect.size) : detectWatermarkConfig(canvas.width, canvas.height);
+        const config = pixelDetect ? getCatalogConfig(canvas.width, canvas.height) : detectWatermarkConfig(canvas.width, canvas.height);
         return { 
             canvas, 
             detectionMode: pixelDetect ? pixelDetect.mode : 'heuristic',

@@ -56,5 +56,6 @@
   "original.not_original": "⚠️ This image may not be original size. Lossless processing unavailable.",
   "original.pass": "✅ This image made with Gemini. Lossless processing supported.",
   "settings.deepScan": "Deep Scan",
-  "settings.noiseReduction": "Noise Reduction"
+  "settings.noiseReduction": "Noise Reduction",
+  "loading.subtext": "AI Precision Edge Removal..."
 }

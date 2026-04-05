@@ -1,62 +1,713 @@
-# Gemini Watermark Remover Code Review & Action Plan
+================================================================================
+  GEMINI WATERMARK REMOVER - COMPREHENSIVE CODE REVIEW REPORT
+  Date: 2026-04-05
+  Version Reviewed: v1.5.5 (package.json) / v1.6.0 (docs claim)
+  Reviewer: Automated Full-Audit Code Review
+================================================================================
 
-## 1. 深度分析与审查摘要 (Deep Analysis & Review Summary)
-在对 `gemini-watermark-remover` 项目的 `src`, `tests`, `python` 以及各类配置文件进行全方位深度审查与执行测试后，可以得出现阶段工作的主要结论：
-目前整个流水线架构设计良好且现代化（支持Web环境、Node.js CLI与Python封装），并且已经包含了较为健全的测试结构。然而，在边缘边界测试覆盖率、环境变数全局配置以及个别文件的依赖引入中，暴露出了一些可能导致生产环境崩溃的关键隐患。
+TABLE OF CONTENTS
+  1. Executive Summary
+  2. Test & Lint Baseline Status
+  3. Critical Bugs (Must Fix)
+  4. High Severity Issues
+  5. Medium Severity Issues
+  6. Low Severity Issues / Code Quality
+  7. Architecture & Design Observations
+  8. Test Coverage Gaps
+  9. Remediation Plan (Ordered by Priority)
+  10. Proposed Unit Test Additions (Detailed)
 
-### 发现的核心问题清单 (Identified Issues)
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
 
-1. **[CRITICAL] 致命的未引入函数导致潜在崩溃 (`src/core/watermarkEngine.js`)**
-   - **位置**: `src/core/watermarkEngine.js` 第187行 (`const config = pixelDetect ? getCatalogConfig(pixelDetect.size) : detectWatermarkConfig(canvas.width, canvas.height);`)
-   - **分析**: 在使用像素检测逻辑匹配成功后(`pixelDetect`为Truthy)，将会调用 `getCatalogConfig` 函数。然而，在文件顶部的 import 声明中，并没有从 `./config.js` 导入 `getCatalogConfig`。这会导致当图像水印被成功且精准像素级别检测到时，程序直接抛出 `ReferenceError: getCatalogConfig is not defined` 导致引擎崩溃。目前的测试集并未有效覆盖到这一分支，因此隐藏深邃。
+The Gemini Watermark Remover is a well-structured, modular JavaScript application
+for removing watermarks from Gemini AI-generated images using reverse alpha blending.
+The project includes a web application, CLI tool, Python GUI bridge, and a
+Tampermonkey userscript.
 
-2. **[MAJOR] ESLint 环境配置不完善导致代码规范失真 (`eslint.config.js`)**
-   - **位置**: `eslint.config.js` 全局变量区。
-   - **分析**: 执行 `npm run lint` 后产生 28 个报错，主要涉及 `performance`, `Buffer`, `File`, `MutationObserver`, `Request`, `Response`, `self` 未定义。在目前 Flat Config (ESLint 9) 规范下，需要彻底补充不同终端（Node与Browser）支持的 globals，以保证 lint 工具能精准预警实质性错误，而不是被系统自带API刷屏。
+OVERALL ASSESSMENT: GOOD with notable issues requiring attention.
 
-3. **[MODERATE] 测试用例对核心代码生命周期的管理不严谨 (`tests/*.test.js`)**
-   - **分析**: 测试执行 `node --test tests/*.test.js` 能够覆盖全部测试场景并给出通过，但由于测试并没有在结束后优雅销毁(Destroy)创建出来的实例（例如 `watermarkEngine` 中的 `setTimeout`或`worker`），导致进程的退出代码无法顺利被判断(Exit code could not be determined)。需在每个测试套件的 `after()` / `afterEach()` 钩子中增加 `.destroy()` 的调用。
+- Total source files analyzed: 18 (JS), 2 (Python), 5 (JSON i18n), 3 (HTML/CSS)
+- Total test files: 13 (89 tests)
+- Test pass rate: 100% (89/89 passing)
+- ESLint: PASS (0 errors, 0 warnings)
+- Critical bugs found: 2
+- High severity issues: 5
+- Medium severity issues: 8
+- Low severity / quality issues: 12
 
-4. **[MODERATE] CLI性能 API 隐患 (`src/cli.js`)**
-   - **位置**: `src/cli.js` 第184, 190行调用的 `performance.now()`。
-   - **分析**: 尽管新版Node已经将 `performance` 置于Global中，但为保证严谨性以及兼容低版本Node，最佳实践应为从 `node:perf_hooks` 模块显式导入 `performance`。
+================================================================================
+2. TEST & LINT BASELINE STATUS
+================================================================================
 
----
+  Tests:  89 PASS / 0 FAIL / 0 SKIP
+  Duration: ~42s (CLI integration tests dominate at ~31s)
+  ESLint: 0 errors across all src/ files
+  Build:  dist/ present with inlined assets (verified by build_pipeline tests)
 
-## 2. 细致且全方位的阶段计划 (Comprehensive Phase Plan)
+================================================================================
+3. CRITICAL BUGS (MUST FIX)
+================================================================================
 
-基于上述审查，在此提出后续需完整落实的 4 阶段修复与功能固化打磨计划，顺序必须严格执行：
+[BUG-C1] Python GUI Runtime Crash - self.colors Reference
+  File:   python/gui.py:113
+  Issue:  Line 113 uses `self.colors["bg"]` but the class only defines
+          `self.THEME`. There is no `self.colors` attribute anywhere in the
+          class. This will cause an `AttributeError` at runtime when the GUI
+          builds the action bar frame.
+  Fix:    Change `self.colors["bg"]` to `self.THEME["bg"]`
+  Impact: COMPLETE GUI BREAKAGE - application will crash on startup.
 
-### Phase 1: 核心崩溃隐患修复 (Core Vulnerability Patching)
-1. **修改 `src/core/watermarkEngine.js`**
-   - **操作**: 将第8行的 import 语句补充引入 `getCatalogConfig`。
-   - **修改前**: `import { detectWatermarkConfig, calculateWatermarkPosition } from './config.js';`
-   - **修改后**: `import { detectWatermarkConfig, calculateWatermarkPosition, getCatalogConfig } from './config.js';`
+[BUG-C2] HTML Syntax Error - Stray Characters
+  File:   public/index.html:61
+  Issue:  Line 61 contains `</style>e>` - the characters `e>` are stray
+          text that will be rendered visibly in the browser (appearing as "e>"
+          at the top of the page body).
+  Fix:    Change `</style>e>` to `</style>`
+  Impact: Visual artifact on the web page; unprofessional appearance.
 
-### Phase 2: ESLint 工程化环境修复 (Linting Defect Resolution)
-1. **修改 `eslint.config.js`**
-   - **操作**: 将报错的各种 Web 及 Node 全局变量，合并进入 Flat Config。
-   - **具体内容**: 增加 `performance: "readonly"`, `Buffer: "readonly"`, `self: "readonly"`, `MutationObserver: "readonly"`, `Request: "readonly"`, `Response: "readonly"`, `File: "readonly"`, `ClipboardItem: "readonly"`。
-   - **预期**: 修改完成后，`npm run lint` 的执行结果必须是 0 Errors。
+================================================================================
+4. HIGH SEVERITY ISSUES
+================================================================================
 
-2. **修改 `src/cli.js`**
-   - **操作**: 显式导入 performance API，以适配 Node 环境。
-   - **建议修改**: 在 import 区增加 `import { performance } from 'node:perf_hooks';`。
+[HIGH-1] i18n Key Inconsistency - Missing Translation Keys
+  Files:  src/i18n/ja-JP.json, src/i18n/ru-RU.json, src/i18n/fr-FR.json
+  Issue:  zh-CN.json and en-US.json have 59 keys each, but ja-JP.json,
+          ru-RU.json, and fr-FR.json only have 57 keys. The missing keys are:
+            - settings.deepScan
+            - settings.noiseReduction
+          These are used in the settings panel toggle labels. When the UI
+          language is Japanese, Russian, or French, the toggle labels will
+          fall back to showing the raw key names ("settings.deepScan") instead
+          of translated text.
+  Fix:    Add the two missing keys to ja-JP.json, ru-RU.json, and fr-FR.json.
+  Impact: Broken UI text for 3 of 5 supported languages.
 
-### Phase 3: 全方位单元检测设置 (Exhaustive Unit Test Configuration)
-单元测试是此系统稳定性的兜底防御线。目前的测试覆盖存在盲点，必须实施针对性打击：
-1. **构建 mock 测试覆盖 `pixelDetect` 成功分支 (`tests/watermarkEngine.test.js`)**
-   - **分析**: 需要在 `watermarkEngine.test.js` 中撰写一个专门模拟 `detectWatermark` 返回存在的测试例。通过 mocking `detector.js` 或者传入一个完美匹配的像素数据，强制代码执行到 `getCatalogConfig(pixelDetect.size)`，验证程序是否会在此时崩溃，从而彻底阻断 Phase 1 问题在未来回归。
-   
-2. **强制增加销毁钩子 (Teardown Enforcements)**
-   - **操作**: 在各个涉及到 `WatermarkEngine.create()` 的测试文件中（如 `worker_resilience.test.js`, `pipeline.test.js`, `watermarkEngine.test.js`），使用 `after` 或 `afterEach` 函数强行执行 `engine.destroy()`，确保 JS 的 Event Loop 可以清空并释放，达到真正干净的进程退出。
+[HIGH-2] Version Inconsistency Across Project
+  Files:  package.json, DEVELOPER_GUIDE.md, README.md, ROADMAP.md
+  Issue:  package.json declares version "1.5.5", but the documentation and
+          feature descriptions extensively reference v1.6.0 features (clipboard
+          paste, auto-download, exhaustive testing matrix, memory pooling).
+          The ROADMAP.md header says "v1.6.0 - UX & Testing Hardened" with all
+          items checked. This creates confusion about what version the code
+          actually is.
+  Fix:    Either bump package.json to "1.6.0" or update docs to reflect 1.5.5.
+  Impact: User/installer confusion; npm package version mismatch.
 
-### Phase 4: 文档与 CI 对齐 (Document & CI Synchronization)
-1. **验证执行流**
-   - 顺序执行 `npm run lint` 以及 `npm run test`，确保不仅所有测试 100% 通过，且命令能够自然结束(Clean exit)并返回 exit code 0。
-2. 将此审查文件及其发现总结入 `ROADMAP.md` 和提交记录。
+[HIGH-3] CLI Safety - Unsafe mkdirSync Before Validating Input
+  File:   src/cli.js:109
+  Issue:  The line `if (!existsSync(outputPath) && !params.input.match(...))`
+          creates the output directory based on whether the INPUT matches an
+          image extension. This logic is inverted/fragile - it should be
+          checking the output path characteristics, not the input path, for
+          deciding whether to create a directory.
+  Fix:    Refactor to check output path characteristics explicitly, or validate
+          input existence before creating output directories.
+  Impact: May create unexpected directories if input path has no extension.
 
----
+[HIGH-4] watermarkEngine.js - getCatalogConfig Called with Wrong Argument
+  File:   src/core/watermarkEngine.js:155
+  Issue:  After pixel detection succeeds, the code calls:
+            `getCatalogConfig(pixelDetect.size)`
+          But getCatalogConfig expects (width, height) of the image, not a
+          single size number. This will never return a valid catalog match,
+          meaning the returned `config` object is always null for pixel-
+          detected results, even for official resolutions. The tier badge
+          in the UI will never display for pixel-detected images.
+  Fix:    Change to: `getCatalogConfig(canvas.width, canvas.height)`
+  Impact: Tier badge never shows for pixel-detected images (most cases).
 
-*报告生成时间：近期全面深度审计评估。*
-*状态：等待方案审核。*
+[HIGH-5] Userscript Memory Leak - Blob URLs Not Revoked
+  File:   src/userscript/index.js:62
+  Issue:  After processing, the code creates a new blob URL:
+            `imgElement.src = URL.createObjectURL(processedBlob)`
+          But this URL is never revoked. On pages with many Gemini images
+          (long conversations), each processed image leaks a blob URL.
+  Fix:    Store the URL and revoke it when the element is removed from the DOM
+          (via MutationObserver) or before replacing it.
+  Impact: Gradual memory leak in long Gemini chat sessions.
+
+================================================================================
+5. MEDIUM SEVERITY ISSUES
+================================================================================
+
+[MED-1] XSS Potential in AuditLog
+  File:   src/app.js (AuditLog object, updateStatus function)
+  Issue:  While the AuditLog.log() function properly escapes HTML via
+          escapeHtml(), the updateStatus() function at line ~380 and the
+          createImageCard() innerHTML assignments use unescaped user-controlled
+          data (file names). A malicious filename like
+          `<img src=x onerror=alert(1)>.png` could execute JavaScript.
+  Fix:    Sanitize item.name through escapeHtml() before inserting into
+          innerHTML in createImageCard().
+  Impact: Potential XSS if a user processes files with malicious names.
+
+[MED-2] No Input Validation in CLI for --input Value
+  File:   src/cli.js:99
+  Issue:  The `-i` parameter accepts any string without validating the file
+          or directory exists before proceeding. Error messages only appear
+          deep in the processing loop.
+  Fix:    Add early validation after parsing args: check existsSync(inputPath)
+          and provide a clear error message before starting processing.
+
+[MED-3] Detector Module-Level State (Mutable Global)
+  File:   src/core/detector.js
+  Issue:  The functions `detectWatermark._blurBuffer` and
+          `detectWatermark._sharedGradientsI/A` are stored as properties on
+          the function object itself. While this serves as a memory pooling
+          optimization, it creates hidden mutable state that:
+          a) Makes unit testing non-deterministic if tests run in parallel
+          b) Cannot be reset between test runs
+  Fix:    Consider encapsulating in a Detector class instance, or at minimum
+          document this as intentional module-level pooling.
+
+[MED-4] catalog.test.js References Non-Existent Property
+  File:   tests/catalog.test.js:10
+  Issue:  The test template string uses `entry.name` but GEMINI_SIZE_CATALOG
+          entries do not have a `name` property. They only have width, height,
+          and tier. This produces "undefined" in test names (though tests
+          still pass).
+  Fix:    Change `entry.name` to `entry.tier` in the test name template.
+
+[MED-5] blendModes.js - Unused Variable alphaRowOffset
+  File:   src/core/blendModes.js (in removeWatermark function)
+  Issue:  The variable `alphaRowOffset` is computed at line ~28 but never used
+          in the loop body (the correct offset is calculated inline).
+  Fix:    Remove the unused `const alphaRowOffset = row * width;` line.
+
+[MED-6] .gitignore Has Duplicate Entries
+  File:   .gitignore
+  Issue:  Contains duplicate entries:
+          - `dist/` appears 3 times (lines 3, 11, 18)
+          - `.DS_Store` appears 2 times (lines 5, 14)
+          - `.history` appears 2 times (lines 8, 15)
+  Fix:    Consolidate to single entries.
+
+[MED-7] Package Manager Inconsistency
+  Files:  package.json, package-lock.json, pnpm-lock.yaml
+  Issue:  package.json declares `"packageManager": "pnpm@10.11.0"`, but the
+          repository also contains a package-lock.json (npm lockfile). Having
+          both lockfiles can cause dependency resolution conflicts and team
+          confusion about which package manager to use.
+  Fix:    Remove package-lock.json and rely solely on pnpm-lock.yaml, or
+          vice versa. Add the other to .gitignore.
+
+[MED-8] pnpm-lock.yaml Missing sharp and eslint Dependencies
+  File:   pnpm-lock.yaml
+  Issue:  The pnpm lockfile does not list `sharp` or `eslint` dependencies
+          that are present in package.json. This means `pnpm install` may
+          produce a different dependency tree than `npm install`.
+  Fix:    Regenerate pnpm-lock.yaml with `pnpm install` to include all deps.
+
+================================================================================
+6. LOW SEVERITY ISSUES / CODE QUALITY
+================================================================================
+
+[LOW-1]  app.js - Massive Function Scope (~500 lines in single init flow)
+          Consider splitting processQueue(), processDirectory(), etc. into
+          separate modules (e.g., src/batchProcessor.js).
+
+[LOW-2]  app.js - Magic Numbers
+          20 * 1024 * 1024 (20MB file limit) should be a named constant.
+          Concurrency formula `Math.min(4, Math.max(1, ...))` repeated twice.
+
+[LOW-3]  cli.js - No --version Flag
+          The CLI tool lacks a --version or -v flag despite having version
+          info in package.json.
+
+[LOW-4]  cli.js - Race Condition in Pool Pattern
+          Lines 141-144: The Set-based pool pattern `pool.delete(p)` inside
+          the `.then()` could theoretically miss completions. Using
+          `Promise.allSettled` would be cleaner.
+
+[LOW-5]  worker.js - No Error Type Discrimination
+          The worker sends only `err.message` back. Adding an error type or
+          stack trace would improve debugging in production.
+
+[LOW-6]  watermarkEngine.js - Timeout Magic Number
+          Worker timeout (15000ms / 500ms for test) is hardcoded inline.
+          Should be a named constant or configurable option.
+
+[LOW-7]  i18n.js - Synchronous localStorage in init()
+          The locale detection reads localStorage synchronously during module
+          initialization. While this works, it couples the module to the
+          browser environment at import time.
+
+[LOW-8]  detector.js - Complex Function (346 lines)
+          detectWatermark() is very long with deeply nested loops. Consider
+          extracting Phase 1 (anchored), Phase 2 (global search), and
+          Phase 3 (ranking) into separate named functions.
+
+[LOW-9]  config.js - Missing isOfficial in Heuristic Fallback
+          The heuristic fallback in detectWatermarkConfig() does not set
+          `isOfficial: false` explicitly. It relies on the property being
+          undefined, which works but is inconsistent with the explicit
+          `isOfficial: true` from catalog matches.
+
+[LOW-10] No JSDoc @param Types for Core Functions
+          While most functions have JSDoc comments, parameter types are
+          informal strings rather than proper TypeScript-style annotations.
+
+[LOW-11] utils.js - Hardcoded Chinese Text
+          Line in showLoading(): `'AI 正在精准切除水印边缘...'` is hardcoded
+          in Chinese rather than using i18n. This text will always appear in
+          Chinese regardless of the selected language.
+
+[LOW-12] tests/detector.test.js - Inconsistent Alpha Map Strategy
+          The "Full Catalog Tier Verification" tests create their own alpha
+          maps with `createMockAlphaMap(s)` and then modify them with
+          `alphaMap[i] = 0.05`, while other tests use the module-level
+          `alphaMaps` constant. This inconsistency could mask real issues.
+
+================================================================================
+7. ARCHITECTURE & DESIGN OBSERVATIONS
+================================================================================
+
+POSITIVE:
+  + Clean separation of concerns: core/ (algorithm), app.js (UI), cli.js (CLI)
+  + Proper use of Web Workers with fallback resilience
+  + Good use of async generators for streaming directory processing
+  + Memory pooling in detector (blur buffer, gradient buffers)
+  + Comprehensive test suite with parameter matrix coverage
+  + Consistent coding style (verified by ESLint + Prettier)
+  + Single source of truth for catalog data (catalog.js)
+  + Worker timeout mechanism with graceful degradation
+
+AREAS FOR IMPROVEMENT:
+  - app.js is a "god module" at ~500 lines handling all UI state, batch
+    processing, directory mode, settings, clipboard, etc. This should be
+    decomposed.
+  - The detector module uses function-level state mutation for memory pooling.
+    A class-based approach would be more testable.
+  - No TypeScript or JSDoc type enforcement. Consider adding .d.ts files or
+    migrating to TypeScript for the core algorithm modules.
+  - The userscript directly imports from ../core/ which creates a tight coupling.
+    Consider a shared "engine facade" that both the web app and userscript use.
+
+================================================================================
+8. TEST COVERAGE GAPS
+================================================================================
+
+GAP-1: No tests for src/i18n.js (locale switching, template variables)
+GAP-2: No tests for src/utils.js (loadImage, checkOriginal, showLoading)
+GAP-3: No tests for Python bridge (python/remover.py)
+GAP-4: No tests for the userscript (src/userscript/index.js)
+GAP-5: No tests for edge cases in calculateWatermarkPosition (overflow)
+GAP-6: No performance regression tests (e.g., 4K image timing constraints)
+GAP-7: No test for the blendModes.js ALPHA_THRESHOLD constant behavior
+GAP-8: No test verifying isOfficial flag correctness in watermarkEngine
+GAP-9: No test for cli.js --pipe mode error handling (invalid stdin)
+GAP-10: No test for concurrent worker task isolation (multiple postMessage)
+
+================================================================================
+9. REMEDIATION PLAN (ORDERED BY PRIORITY)
+================================================================================
+
+PHASE 1: CRITICAL BUG FIXES (Immediate - Day 1)
+-----------------------------------------------
+
+  Step 1.1: Fix Python GUI crash
+    File:   python/gui.py:113
+    Change: `self.colors["bg"]` -> `self.THEME["bg"]`
+    Verify: Run `python python/gui.py` to confirm no crash
+
+  Step 1.2: Fix HTML stray characters
+    File:   public/index.html:61
+    Change: `</style>e>` -> `</style>`
+    Verify: Open index.html in browser, confirm no "e>" text visible
+
+PHASE 2: HIGH SEVERITY FIXES (Day 1-2)
+---------------------------------------
+
+  Step 2.1: Fix i18n missing keys
+    Files:  src/i18n/ja-JP.json, src/i18n/ru-RU.json, src/i18n/fr-FR.json
+    Action: Add these two keys to each file:
+      ja-JP.json:
+        "settings.deepScan": "ディープスキャン (Deep Scan)"
+        "settings.noiseReduction": "ノイズリダクション (Noise Reduction)"
+      ru-RU.json:
+        "settings.deepScan": "Глубокое сканирование (Deep Scan)"
+        "settings.noiseReduction": "Шумоподавление (Noise Reduction)"
+      fr-FR.json:
+        "settings.deepScan": "Analyse approfondie (Deep Scan)"
+        "settings.noiseReduction": "Réduction du bruit (Noise Reduction)"
+    Verify: Switch language to JA/RU/FR in browser, check toggle labels
+
+  Step 2.2: Fix getCatalogConfig wrong argument
+    File:   src/core/watermarkEngine.js:155
+    Change: `getCatalogConfig(pixelDetect.size)` ->
+            `getCatalogConfig(canvas.width, canvas.height)`
+    Verify: Process a 1024x1024 image and confirm tier badge appears
+
+  Step 2.3: Fix version consistency
+    File:   package.json
+    Action: Bump version to "1.6.0" to match documentation claims
+    Verify: `node -e "console.log(require('./package.json').version)"`
+
+  Step 2.4: Fix CLI output directory logic
+    File:   src/cli.js:109
+    Action: Refactor the mkdirSync logic to properly validate:
+      1. Check if inputPath exists first
+      2. If outputPath doesn't exist, check if input is a directory
+      3. Create output dir only when input is a directory or when intended
+    Verify: Test with various input/output combinations
+
+  Step 2.5: Fix userscript blob URL leak
+    File:   src/userscript/index.js:62
+    Action: Track created URLs and revoke on DOM node removal or replacement
+    Verify: Process 10+ images in a Gemini chat, check memory usage
+
+PHASE 3: MEDIUM SEVERITY FIXES (Day 2-3)
+-----------------------------------------
+
+  Step 3.1: Fix XSS in image card rendering
+    File:   src/app.js (createImageCard function)
+    Action: Use escapeHtml(item.name) in the innerHTML template
+    Verify: Try uploading a file named `<img src=x onerror=alert(1)>.png`
+
+  Step 3.2: Fix CLI input validation
+    File:   src/cli.js
+    Action: Add early existsSync check for inputPath with clear error message
+    Verify: Run `node src/cli.js -i nonexistent.png -o out.png --json`
+
+  Step 3.3: Fix catalog test name reference
+    File:   tests/catalog.test.js:10
+    Change: `entry.name` -> `entry.tier`
+    Verify: Run tests, check test names no longer show "undefined"
+
+  Step 3.4: Remove unused variable
+    File:   src/core/blendModes.js
+    Action: Remove `const alphaRowOffset = row * width;` line
+    Verify: ESLint should still pass
+
+  Step 3.5: Consolidate .gitignore
+    File:   .gitignore
+    Action: Remove duplicate entries for dist/, .DS_Store, .history
+    Verify: `git status` shows clean state
+
+  Step 3.6: Resolve package manager inconsistency
+    Action: Delete package-lock.json, regenerate pnpm-lock.yaml
+    Verify: `pnpm install` and `pnpm test` both succeed
+
+  Step 3.7: Fix hardcoded Chinese text in utils.js
+    File:   src/utils.js
+    Change: `'AI 正在精准切除水印边缘...'` -> `i18n.t('loading.subtext')`
+    Add:    Add `"loading.subtext"` key to all i18n JSON files
+    Verify: Switch language, confirm sub-text changes
+
+PHASE 4: TEST COVERAGE EXPANSION (Day 3-5)
+-------------------------------------------
+  (See Section 10 for detailed test plans)
+
+PHASE 5: CODE QUALITY IMPROVEMENTS (Week 2)
+--------------------------------------------
+
+  Step 5.1: Decompose app.js into modules
+    - src/ui/batchProcessor.js (processQueue, createImageCard, updateProgress)
+    - src/ui/directoryMode.js (setupDirectoryMode, processDirectory)
+    - src/ui/settings.js (saveSettings, loadSettings, getEngineOptions)
+    - src/ui/clipboard.js (handlePaste, copyImageToClipboard)
+    - src/ui/auditLog.js (AuditLog, escapeHtml, objectUrlManager)
+
+  Step 5.2: Extract detector phases into named functions
+    File: src/core/detector.js
+    - extractPhase1_AnchoredCheck()
+    - extractPhase2_GlobalSearch()
+    - extractPhase3_GlobalRanking()
+
+  Step 5.3: Add CLI --version flag
+    File: src/cli.js
+    Action: Read version from package.json and display on --version/-v
+
+================================================================================
+10. PROPOSED UNIT TEST ADDITIONS (DETAILED)
+================================================================================
+
+This section describes specific new test files and test cases to close the
+coverage gaps identified in Section 8. Each test includes the target file,
+test description, and expected assertions.
+
+-------------------------------------------------------
+10.1 NEW FILE: tests/i18n.test.js
+-------------------------------------------------------
+Purpose: Verify internationalization engine behavior
+
+Test Cases:
+  TC-I18N-01: "Locale detection falls back to en-US for unknown languages"
+    Setup: Mock navigator.language to 'de-DE'
+    Assert: i18n.locale === 'en-US'
+
+  TC-I18N-02: "Template variable {{year}} is replaced correctly"
+    Setup: Call i18n.t('footer.copyright')
+    Assert: Result contains current year (2026), does NOT contain '{{year}}'
+
+  TC-I18N-03: "Missing key returns the key itself as fallback"
+    Setup: Call i18n.t('nonexistent.key')
+    Assert: Result === 'nonexistent.key'
+
+  TC-I18N-04: "All locales have the same set of keys"
+    Setup: Load all 5 locale files
+    Assert: Object.keys() of each locale produce identical sets
+    Priority: HIGH - This would have caught [HIGH-1]
+
+  TC-I18N-05: "switchLocale updates locale property and localStorage"
+    Setup: Call i18n.switchLocale('ja-JP')
+    Assert: i18n.locale === 'ja-JP', localStorage has 'ja-JP'
+
+-------------------------------------------------------
+10.2 NEW FILE: tests/utils.test.js
+-------------------------------------------------------
+Purpose: Verify utility functions (note: limited to Node-compatible functions)
+
+Test Cases:
+  TC-UTIL-01: "checkOriginal returns false for non-image data"
+    Setup: Create a minimal buffer that is not a valid image
+    Assert: result.is_google === false && result.is_original === false
+
+  TC-UTIL-02: "checkOriginal identifies Gemini EXIF Credit tag"
+    Setup: This test may need to be skipped or use a mock image with
+           embedded EXIF data. Consider creating a minimal PNG with
+           Credit='Made with Google AI' using sharp metadata.
+    Assert: result.is_google === true
+
+  TC-UTIL-03: "getOriginalStatus returns correct i18n messages"
+    Setup: Call with {is_google: false, is_original: false}
+    Assert: Non-empty string returned
+
+-------------------------------------------------------
+10.3 NEW FILE: tests/position.test.js
+-------------------------------------------------------
+Purpose: Verify watermark position calculation edge cases
+
+Test Cases:
+  TC-POS-01: "Position for exact catalog resolution 512x512"
+    Setup: config = detectWatermarkConfig(512, 512)
+    Action: calculateWatermarkPosition(512, 512, config)
+    Assert: x === 512-32-48 = 432, y === 432, width === 48, height === 48
+
+  TC-POS-02: "Position for exact catalog resolution 1024x1024"
+    Assert: x === 1024-64-96 = 864, y === 864, width === 96, height === 96
+
+  TC-POS-03: "Position for 4096x4096 (4k tier)"
+    Assert: x === 4096-64-96 = 3936, y === 3936
+
+  TC-POS-04: "Position overflow protection for image smaller than logo"
+    Setup: config = {logoSize: 96, marginRight: 64, marginBottom: 64}
+    Action: calculateWatermarkPosition(50, 50, config)
+    Assert: x < 0 AND y < 0 (negative coordinates expected and handled)
+
+  TC-POS-05: "Position for 21:9 ultrawide catalog entries"
+    Setup: width=1584, height=672
+    Assert: Position is within image bounds
+
+  TC-POS-06: "Position for landscape orientation"
+    Setup: width=1376, height=768 (16:9 1k tier)
+    Assert: x and y are non-negative, within bounds
+
+  TC-POS-07: "Position for portrait orientation"
+    Setup: width=768, height=1376 (9:16 1k tier)
+    Assert: x and y are non-negative, within bounds
+
+-------------------------------------------------------
+10.4 NEW FILE: tests/blendmodes_threshold.test.js
+-------------------------------------------------------
+Purpose: Verify alpha threshold behavior in blendModes.js
+
+Test Cases:
+  TC-THRESH-01: "Pixels below ALPHA_THRESHOLD are skipped"
+    Setup: Create alphaMap with values just below 0.002
+    Action: removeWatermark()
+    Assert: Image data unchanged for sub-threshold pixels
+
+  TC-THRESH-02: "Pixels at exactly ALPHA_THRESHOLD boundary"
+    Setup: alphaMap value = 0.002 exactly
+    Assert: Pixel IS processed (threshold is strictly less-than)
+
+  TC-THRESH-03: "MAX_ALPHA clamping prevents division by near-zero"
+    Setup: alphaMap value = 0.999
+    Action: removeWatermark()
+    Assert: No Infinity or NaN in output pixels
+
+  TC-THRESH-04: "Logo value of 255.0 produces correct results"
+    Setup: Known alpha (0.3), known watermarked pixel value
+    Assert: Reconstructed pixel within tolerance of expected original
+
+-------------------------------------------------------
+10.5 NEW FILE: tests/engine_protocol.test.js
+-------------------------------------------------------
+Purpose: Verify WatermarkEngine returns protocol-compliant results
+
+Test Cases:
+  TC-PROTO-01: "removeWatermarkFromImage returns {canvas, detectionMode, config}"
+    Setup: Mock DOM, create engine with mock backgrounds
+    Action: engine.removeWatermarkFromImage(mockImage)
+    Assert: result has canvas, detectionMode (string), config (object or null)
+
+  TC-PROTO-02: "config.isOfficial is true for catalog resolutions"
+    Setup: Use 1024x1024 image
+    Assert: result.config.isOfficial === true (after fixing [HIGH-4])
+
+  TC-PROTO-03: "config.isOfficial is undefined for non-catalog resolutions"
+    Setup: Use 999x999 image
+    Assert: result.config.isOfficial === undefined
+
+  TC-PROTO-04: "getWatermarkInfo returns correct structure"
+    Setup: engine.getWatermarkInfo(2048, 2048)
+    Assert: result.size === 96, result.position has x/y/width/height,
+            result.config has logoSize/marginRight/marginBottom
+
+-------------------------------------------------------
+10.6 ADDITIONS TO: tests/detector.test.js
+-------------------------------------------------------
+
+  TC-DET-ADDITIONAL-01: "Detector state reset between calls"
+    Setup: Call detectWatermark twice with different images
+    Assert: Results are independent (no state leakage from _blurBuffer)
+
+  TC-DET-ADDITIONAL-02: "Detector with null alphaMap for one size"
+    Setup: alphaMaps = { 48: validMap, 96: null }
+    Assert: Should still work with size 48, not crash on size 96
+
+  TC-DET-ADDITIONAL-03: "Very large image (8192x8192) does not OOM"
+    Setup: Create 8192x8192 mock image
+    Assert: Processing completes within 30 seconds without memory error
+
+-------------------------------------------------------
+10.7 ADDITIONS TO: tests/cli.integration.test.js
+-------------------------------------------------------
+
+  TC-CLI-ADDITIONAL-01: "Pipe mode with invalid (non-image) stdin"
+    Setup: Pipe random bytes to stdin
+    Assert: Exit code !== 0, error message in stderr or JSON
+
+  TC-CLI-ADDITIONAL-02: "--version flag displays version"
+    Setup: spawnSync('node', ['src/cli.js', '--version'])
+    Assert: stdout contains "1.6.0" (or current version)
+
+  TC-CLI-ADDITIONAL-03: "Output to existing file overwrites"
+    Setup: Create output file first, then run CLI
+    Assert: Output file is overwritten with new content
+
+  TC-CLI-ADDITIONAL-04: "Non-image files in batch directory are skipped"
+    Setup: Create batch dir with .txt and .pdf files mixed with images
+    Assert: Only .png/.jpg/.webp files are processed, others ignored
+
+-------------------------------------------------------
+10.8 NEW FILE: tests/catalog_exhaustive.test.js
+-------------------------------------------------------
+Purpose: Exhaustive catalog consistency validation
+
+Test Cases:
+  TC-CAT-EX-01: "All catalog entries have unique width+height combinations"
+    Assert: No duplicate {width, height} pairs in GEMINI_SIZE_CATALOG
+
+  TC-CAT-EX-02: "All tiers referenced in catalog exist in WATERMARK_CONFIGS"
+    Assert: Every entry.tier has a corresponding WATERMARK_CONFIGS key
+
+  TC-CAT-EX-03: "Catalog entries are sorted by tier (0.5k, 1k, 2k, 4k)"
+    Assert: Entries appear in ascending tier order
+
+  TC-CAT-EX-04: "All aspect ratios are represented in each tier"
+    Tiers should have: 1:1, 9:16, 16:9, 2:3, 3:2, 21:9
+    (0.5k and 4k have all 6; verify 1k has at least 6, 2k has at least 5)
+
+  TC-CAT-EX-05: "Watermark configs have consistent margin==logoSize/1.5 ratio"
+    For 48px: margin 32 (ratio 0.667)
+    For 96px: margin 64 (ratio 0.667)
+    Assert: All configs follow this ratio pattern
+
+-------------------------------------------------------
+10.9 NEW FILE: tests/concurrency_stress.test.js
+-------------------------------------------------------
+Purpose: Stress test the sliding window concurrency pattern
+
+Test Cases:
+  TC-STRESS-01: "100 tasks with concurrency=4 complete without loss"
+    Setup: Create 100 mock tasks
+    Assert: All 100 complete, max concurrent <= 4
+
+  TC-STRESS-02: "All-failing batch still resolves"
+    Setup: 20 tasks that all throw errors
+    Assert: Promise resolves, all failures recorded
+
+  TC-STRESS-03: "Mixed fast/slow tasks maintain ordering guarantees"
+    Setup: Alternate fast (1ms) and slow (50ms) tasks
+    Assert: All complete, none lost, concurrency respected
+
+  TC-STRESS-04: "Empty task list resolves immediately"
+    Setup: tasks = []
+    Assert: Resolves in < 10ms
+
+-------------------------------------------------------
+10.10 NEW FILE: tests/xss_prevention.test.js
+-------------------------------------------------------
+Purpose: Verify HTML injection prevention
+
+Test Cases:
+  TC-XSS-01: "escapeHtml handles script tags"
+    Setup: escapeHtml('<script>alert(1)</script>')
+    Assert: Result does not contain '<' or '>' unescaped
+
+  TC-XSS-02: "escapeHtml handles event handlers"
+    Setup: escapeHtml('" onmouseover="alert(1)"')
+    Assert: Result does not contain unescaped quotes
+
+  TC-XSS-03: "Filename with HTML entities is safe"
+    Setup: Create mock file named '<img src=x onerror=alert(1)>.png'
+    Assert: When rendered in innerHTML via createImageCard, no script execution
+
+================================================================================
+APPENDIX A: ISSUE SUMMARY TABLE
+================================================================================
+
+  ID      | Severity | File                    | Line  | Summary
+  --------|----------|-------------------------|-------|---------------------------
+  BUG-C1  | CRITICAL | python/gui.py           | 113   | self.colors -> self.THEME
+  BUG-C2  | CRITICAL | public/index.html       | 61    | Stray "e>" characters
+  HIGH-1  | HIGH     | src/i18n/*.json (3)      | -     | Missing i18n keys
+  HIGH-2  | HIGH     | package.json            | 4     | Version 1.5.5 vs 1.6.0
+  HIGH-3  | HIGH     | src/cli.js              | 109   | Unsafe mkdir logic
+  HIGH-4  | HIGH     | src/core/watermarkEngine | 155  | Wrong getCatalogConfig arg
+  HIGH-5  | HIGH     | src/userscript/index.js | 62    | Blob URL memory leak
+  MED-1   | MEDIUM   | src/app.js              | ~380  | XSS in filename rendering
+  MED-2   | MEDIUM   | src/cli.js              | 99    | No input validation
+  MED-3   | MEDIUM   | src/core/detector.js    | -     | Module-level mutable state
+  MED-4   | MEDIUM   | tests/catalog.test.js   | 10    | entry.name -> entry.tier
+  MED-5   | MEDIUM   | src/core/blendModes.js  | ~28   | Unused variable
+  MED-6   | MEDIUM   | .gitignore              | -     | Duplicate entries
+  MED-7   | MEDIUM   | package-lock.json       | -     | Dual lockfile conflict
+  MED-8   | MEDIUM   | pnpm-lock.yaml          | -     | Missing deps in lockfile
+  LOW-1   | LOW      | src/app.js              | -     | God module (500+ lines)
+  LOW-2   | LOW      | src/app.js              | -     | Magic numbers
+  LOW-3   | LOW      | src/cli.js              | -     | No --version flag
+  LOW-4   | LOW      | src/cli.js              | 141   | Pool pattern race risk
+  LOW-5   | LOW      | src/core/worker.js      | -     | Minimal error info
+  LOW-6   | LOW      | src/core/watermarkEngine| -     | Hardcoded timeout
+  LOW-7   | LOW      | src/i18n.js             | -     | Sync localStorage
+  LOW-8   | LOW      | src/core/detector.js    | -     | 346-line function
+  LOW-9   | LOW      | src/core/config.js      | -     | Missing isOfficial:false
+  LOW-10  | LOW      | src/core/*.js           | -     | No formal type annotations
+  LOW-11  | LOW      | src/utils.js            | -     | Hardcoded Chinese text
+  LOW-12  | LOW      | tests/detector.test.js  | -     | Inconsistent alpha map
+
+================================================================================
+APPENDIX B: TEST EXECUTION RESULTS
+================================================================================
+
+  Date:       2026-04-05
+  Node.js:    v20+ (esbuild requires >=18)
+  Test Runner: node --test (native)
+  Results:
+    tests: 89 | pass: 89 | fail: 0 | skip: 0 | duration: 42.5s
+  ESLint:
+    src/: 0 errors, 0 warnings
+
+  Slowest test suites:
+    1. CLI Integration Tests         ~31s  (sharp cold start + batch I/O)
+    2. Detector Engine (matrix)       ~41s  (NCC search is CPU-intensive)
+    3. Pipeline Integration            ~4s
+
+================================================================================
+END OF CODE REVIEW REPORT
+================================================================================

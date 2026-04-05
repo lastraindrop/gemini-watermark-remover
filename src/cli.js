@@ -120,6 +120,12 @@ async function main() {
         if (args[i] === '-o' || args[i] === '--output') params.output = args[++i];
     }
 
+    if (args.includes('--version') || args.includes('-v')) {
+        const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
+        console.log(`Gemini Watermark Remover CLI v${pkg.version}`);
+        process.exit(0);
+    }
+
     const engine = new CLIEngine();
 
     if (params.pipe) {
@@ -131,6 +137,8 @@ async function main() {
                 process.stdin.on('end', () => resolve(Buffer.concat(chunks)));
                 process.stdin.on('error', reject);
             });
+
+            if (inputBuffer.length === 0) throw new Error('Empty stdin buffer');
 
             const { buffer } = await engine._processBuffer(inputBuffer, { 
                 deepScan: params.deepScan, 
@@ -154,7 +162,7 @@ async function main() {
         if (params.json) {
             console.log(JSON.stringify({ status: 'error', message: 'Missing input/output' }));
         } else {
-            console.log('Usage: node src/cli.js -i <input> -o <output> [--json] [--pipe] [--noiseReduction] [--no-deepScan]');
+            console.log('Usage: node src/cli.js -i <input> -o <output> [--json] [--pipe] [--noiseReduction] [--no-deepScan] [-v|--version]');
         }
         process.exit(1);
     }
@@ -162,7 +170,18 @@ async function main() {
     const inputPath = resolve(params.input);
     const outputPath = resolve(params.output);
 
-    if (!existsSync(outputPath) && !params.input.match(/\.(jpg|jpeg|png|webp)$/i)) {
+    if (!existsSync(inputPath)) {
+        const msg = `Input path does not exist: ${params.input}`;
+        if (params.json) {
+            console.log(JSON.stringify({ status: 'error', message: msg }));
+        } else {
+            console.error(`❌ Error: ${msg}`);
+        }
+        process.exit(1);
+    }
+
+    const isInputDir = statSync(inputPath).isDirectory();
+    if (isInputDir && !existsSync(outputPath)) {
         mkdirSync(outputPath, { recursive: true });
     }
 

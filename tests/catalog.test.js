@@ -6,7 +6,7 @@ import { GEMINI_SIZE_CATALOG } from '../src/core/catalog.js';
 describe('Official Size Catalog Matching', () => {
     // Data-driven testing for all catalog entries
     for (const entry of GEMINI_SIZE_CATALOG) {
-        test(`Catalog entry match: ${entry.width}x${entry.height} (${entry.name})`, () => {
+        test(`Catalog entry match: ${entry.width}x${entry.height} (${entry.tier})`, () => {
             const config = getCatalogConfig(entry.width, entry.height);
             assert.ok(config, `Entry ${entry.width}x${entry.height} should exist in catalog`);
             assert.strictEqual(config.isOfficial, true);

@@ -59,7 +59,7 @@ export function showLoading(text, subText = '') {
     const spinner = el.querySelector('.animate-spin');
 
     if (mainTextEl) mainTextEl.textContent = text || i18n.t('loading.text');
-    if (subTextEl) subTextEl.textContent = subText || 'AI 正在精准切除水印边缘...';
+    if (subTextEl) subTextEl.textContent = subText || i18n.t('loading.subtext');
     if (retryBtn) retryBtn.classList.add('hidden');
     if (spinner) spinner.classList.remove('hidden');
 }

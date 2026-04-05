@@ -54,5 +54,8 @@
   "info.removed": "ウォーターマークを除去しました",
   "original.not_gemini": "⚠️ Gemini で生成された画像ではない可能性があります。無劣化処理は利用できません。",
   "original.not_original": "⚠️ 画像サイズが変更されています。無劣化処理は利用できません。",
-  "original.pass": "✅ Gemini で生成された画像です。無劣化処理に対応しています。"
+  "original.pass": "✅ Gemini で生成された画像です。無劣化処理に対応しています。",
+  "settings.deepScan": "ディープスキャン (Deep Scan)",
+  "settings.noiseReduction": "ノイズリダクション (Noise Reduction)",
+  "loading.subtext": "AIが水印の縁を精密に除去中..."
 }

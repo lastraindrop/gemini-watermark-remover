@@ -54,5 +54,8 @@
   "info.removed": "Filigrane supprimé",
   "original.not_gemini": "⚠️ Cette image n'a peut-être pas été faite avec Gemini. Traitement sans perte indisponible.",
   "original.not_original": "⚠️ La taille de l'image a été modifiée. Traitement sans perte indisponible.",
-  "original.pass": "✅ Image faite avec Gemini. Traitement sans perte pris en charge."
+  "original.pass": "✅ Image faite avec Gemini. Traitement sans perte pris en charge.",
+  "settings.deepScan": "Analyse approfondie (Deep Scan)",
+  "settings.noiseReduction": "Réduction du bruit (Noise Reduction)",
+  "loading.subtext": "L'IA retire précisément les bords du filigrane..."
 }

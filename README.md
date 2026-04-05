@@ -18,13 +18,13 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 - ✅ **Resilient Worker Fallback** - Automatic main-thread recovery if Web Workers fail. (v1.5.5)
 - ✅ **Precision-First (v1.6.0)** - Guaranteed parameter alignment via dynamic matrix validation.
 - ✅ **Zero-Config Asset Bundler** - esbuild-driven Base64 asset inlining for zero-dependency distribution. (v1.5.5)
-- ✅ **Tier Identification Badge** - Real-time visual feedback for Catalog match status (100% confidence).
-- ✅ **Cross-Platform Parity** - Web, CLI, and Python GUI fully synchronized with engine protocols.
+- ✅ **Tier Identification Badge** - Real-time visual feedback for Catalog match status (100% confidence). (Fixed in v1.6.0)
+- ✅ **Cross-Platform Parity** - Web, CLI, and Python GUI fully synchronized with engine protocols. (Fixed v1.6.0 compatibility)
 - ✅ **100% Client-side** - No backend, no server-side processing. Your data stays in your browser.
 - ✅ **Edge-Crop Resilience** - Smart detection for watermarks partially outside image boundaries.
 - ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation.
-- ✅ **Multi-Language (5 Languages)** - Fully translated UI for **ZH, EN, JA, RU, FR**.
-- [x] **Production Hardened (v1.6.0)** - Stability enhancements for 4K processing and massive batch tasks.
+- ✅ **Multi-Language (5 Languages)** - Fully translated UI for **ZH, EN, JA, RU, FR**. (v1.6.0 Completed)
+- [x] **Production Hardened (v1.6.0)** - Critical stability fixes for Python GUI, memory leaks, and XSS.
 
 ## 🛡️ Production Hardened (v1.6.0)
 

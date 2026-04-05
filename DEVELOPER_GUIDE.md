@@ -36,7 +36,7 @@
 **自动化对齐与红线机制 (Enforcement)**：
 1. **Catalog Single Source**: 所有的官方 Tier 参数统一维护在 `src/core/catalog.js`。这是系统的**唯一事实来源 (Single Source of Truth)**。严禁在 UI 层或 Python 层硬编码这些偏移量。
 2. **Data-Driven Validation**: 每次修改参数协议后，**必须** 运行 `npm test`。现有的 `tests/consistency.test.js` 和 `tests/catalog.test.js` 会动态拉取目录条目进行全量校验，绝非硬编码比对。
-3. **Exhaustive Parameter Matrix (v1.6.0)**: 测试套件 `tests/detector.test.js` 现已升级为动态矩阵模式。它会自动遍历所有分辨率与 `deepScan/noiseReduction` 的排列组合。任何新的引擎参数都应在 `tests/test_utils.js` 的 `generateParameterMatrix` 中注册，以实现回归测试的零成本扩张。
+3. **Exhaustive Parameter Matrix (v1.6.0)**: 测试套件 `tests/detector.test.js` 现已升级为动态矩阵模式。它会自动遍历所有分辨率与 `deepScan/noiseReduction` 的排列组合。目前已覆盖 89+ 组核心用例，确保了在任何版本迭代下参数对齐的红线不被逾越。任何新的引擎参数都应在 `tests/test_utils.js` 的 `generateParameterMatrix` 中注册。
 
 ---
 
@@ -55,7 +55,7 @@
 ### 3. 工程化标准 (Engineering Standards)
 - **esbuild 资产内联**: 通过 `dataurl` loader 实现了背景掩模图片的 Base64 内联。构建后的 `dist/app.js` 是零依赖自包含的，解决了路径引用失效的顽疾。
 - **标准化测试 (node:test)**：使用 Node.js Native Test Runner (`npm test`)。
-- **全场景验证**: 总计 78+ 测试用例，覆盖了从底层数学混合到高层 CLI 流协议的全链路。
+- **全场景验证 (v1.6.0 Hardened)**: 总计 89+ 测试用例，覆盖了从底层数学混合到高层 CLI 流协议的全链路。修复了先前版本中目录探测结果无法正确透传至 UI 的 Tier 识别逻辑 Bug。
 
 ### 4. 外部接口化 (Interfacing)
 - **CLI 模式**：通过 `node src/cli.js -i <in> -o <out> --json` 实现机器可读输出（包含探测元数据）。

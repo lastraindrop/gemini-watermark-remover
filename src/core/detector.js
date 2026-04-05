@@ -1,3 +1,15 @@
+/**
+ * Watermark detection engine (Precision & Speed Optimized)
+ * 
+ * Architectural Note: This module uses function-level state mutation (detectWatermark._blurBuffer, etc.)
+ * as a memory pooling optimization to prevent multiple 60MB+ allocations during 4K image processing.
+ * 
+ * Phases:
+ * 1. Catalog & Anchor Check (Ultra-Fast)
+ * 2. Heuristic Global Search (Exhaustive)
+ * 3. Confidence Ranking & Post-processing
+ */
+
 import { getCatalogConfig } from './catalog.js';
 
 /**
