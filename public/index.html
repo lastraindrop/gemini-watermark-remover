@@ -15,7 +15,17 @@
     window.onerror = function(msg, url, lineNo, columnNo, error) {
       const errorDiv = document.createElement('div');
       errorDiv.className = 'fixed top-0 left-0 w-full bg-red-600 text-white p-4 z-[9999] font-mono text-xs overflow-auto max-h-48 shadow-2xl';
-      errorDiv.innerHTML = `<strong>[RUNTIME ERROR]</strong> ${msg}<br><small>${url} : ${lineNo}:${columnNo}</small>`;
+      
+      const strong = document.createElement('strong');
+      strong.textContent = '[RUNTIME ERROR] ';
+      errorDiv.appendChild(strong);
+      errorDiv.appendChild(document.createTextNode(msg));
+      errorDiv.appendChild(document.createElement('br'));
+      
+      const small = document.createElement('small');
+      small.textContent = `${url} : ${lineNo}:${columnNo}`;
+      errorDiv.appendChild(small);
+      
       document.body.appendChild(errorDiv);
       return false;
     };
@@ -23,7 +33,12 @@
       console.error('Unhandled rejection:', event.reason);
       const errorDiv = document.createElement('div');
       errorDiv.className = 'fixed top-0 left-0 w-full bg-orange-600 text-white p-4 z-[9999] font-mono text-xs shadow-2xl';
-      errorDiv.innerHTML = `<strong>[PROMISE REJECTION]</strong> ${event.reason?.message || event.reason}`;
+      
+      const strong = document.createElement('strong');
+      strong.textContent = '[PROMISE REJECTION] ';
+      errorDiv.appendChild(strong);
+      errorDiv.appendChild(document.createTextNode(event.reason?.message || event.reason));
+      
       document.body.appendChild(errorDiv);
     };
   </script>

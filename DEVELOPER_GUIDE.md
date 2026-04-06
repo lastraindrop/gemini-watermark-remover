@@ -38,7 +38,18 @@
 **自动化对齐与红线机制 (Enforcement)**：
 1. **Catalog Single Source**: 所有的官方 Tier 参数统一维护在 `src/core/catalog.js`。这是系统的**唯一事实来源 (Single Source of Truth)**。严禁在 UI 层或 Python 层硬编码这些偏移量。
 2. **Data-Driven Validation**: 每次修改参数协议后，**必须** 运行 `npm test`。现有的 `tests/consistency.test.js` 和 `tests/catalog.test.js` 会动态拉取目录条目进行全量校验，绝非硬编码比对。
-3. **Exhaustive Parameter Matrix (v1.6.0)**: 测试套件 `tests/detector.test.js` 现已升级为动态矩阵模式。它会自动遍历所有分辨率与 `deepScan/noiseReduction` 的排列组合。目前已覆盖 89+ 组核心用例，确保了在任何版本迭代下参数对齐的红线不被逾越。任何新的引擎参数都应在 `tests/test_utils.js` 的 `generateParameterMatrix` 中注册。
+3. **Exhaustive Parameter Matrix (v1.6.0)**: 测试套件 `tests/detector.test.js` 现已升级为动态矩阵模式。它会自动遍历所有分辨率与 `deepScan/noiseReduction` 的排列组合。目前已覆盖 130+ 组核心用例，确保了在任何版本迭代下参数对齐的红线不被逾越。任何新的引擎参数都应在 `tests/test_utils.js` 的 `generateParameterMatrix` 中注册。
+
+### 🧪 测试开发规约 (Testing Principles)
+为避免出现历史版本中的参数硬编码与环境隔离失效问题，未来所有新提交的模块与测试必须严格遵守以下三大纪律：
+
+1. **架构适应性 (Architectural Alignment)**:
+   测试文件必须与代码架构 1:1 映射（例如：`core_math` 验证底层算子，`detector` 验证调度策略，`watermarkEngine` 验证 Worker 生命周期与异常降级）。禁止跨层调用引发隐式副作用。
+2. **非硬编码与唯一事实来源 (DRY & Single Source of Truth)**:
+   绝不允许在测试中断言硬编码的分辨率、偏移量或边距（如 `assert(pos.x === 928)`）。所有期望值必须通过调用 `catalog.js` 与 `config.js` 动态计算得出。统一使用 `tests/test_utils.js` 作为“测试工厂”生成 Mock 图像和 Alpha 贴图，彻底消除冗余代码。
+3. **全场景完备性与沙箱隔离 (Completeness & Isolation)**:
+   - **自动化矩阵**：每新增一种分辨率规格或功能标志位（如 `noiseReduction`），必须被自动纳入参数矩阵进行全量验证，确保没有组合遗漏。
+   - **沙箱级清理**：所有修改全局对象（如 `global.window`、`Worker` 模拟）或操作内部持久化缓冲区（如 `detectWatermark._blurBuffer`）的测试，必须通过严格的 `before/after` 钩子进行环境清理，确保并发测试执行时的绝对纯净与无状态。
 
 ---
 

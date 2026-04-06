@@ -3,26 +3,37 @@ import assert from 'node:assert';
 import { WatermarkEngine } from '../src/core/watermarkEngine.js';
 import { createMockImageData } from './test_utils.js';
 
-// Mock DOM environment for Node.js testing
-if (typeof global.document === 'undefined') {
-    global.window = { process: process };
-    global.document = {
-        createElement: (tag) => {
-            if (tag === 'canvas') {
-                return {
-                    width: 0,
-                    height: 0,
-                    getContext: () => ({
-                        drawImage: () => {},
-                        getImageData: (x, y, w, h) => createMockImageData(w, h, 'solid', 128),
-                        putImageData: () => {}
-                    })
-                };
+const savedGlobals = {};
+
+before(() => {
+    if (typeof global.document === 'undefined') {
+        savedGlobals.window = global.window;
+        savedGlobals.document = global.document;
+
+        global.window = { process: process };
+        global.document = {
+            createElement: (tag) => {
+                if (tag === 'canvas') {
+                    return {
+                        width: 0,
+                        height: 0,
+                        getContext: () => ({
+                            drawImage: () => {},
+                            getImageData: (x, y, w, h) => createMockImageData(w, h, 'solid', 128),
+                            putImageData: () => {}
+                        })
+                    };
+                }
+                return {};
             }
-            return {};
-        }
-    };
-}
+        };
+    }
+});
+
+after(() => {
+    if (savedGlobals.window) global.window = savedGlobals.window;
+    if (savedGlobals.document) global.document = savedGlobals.document;
+});
 
 describe('WatermarkEngine Coordination & Cache', () => {
     let engine;

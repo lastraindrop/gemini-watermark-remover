@@ -6,12 +6,12 @@ import { createMockImageData } from './test_utils.js';
 
 describe('Security & Input Validation', () => {
 
-  test('removeWatermark handles NaN alpha gracefully', () => {
-    const alphaMap = new Float32Array(1).fill(NaN);
+  test('removeWatermark with NaN alpha preserves original pixel', () => {
     const img = createMockImageData(10, 10, 'solid', 128);
-    assert.doesNotThrow(() => {
-      removeWatermark(img, alphaMap, { x: 0, y: 0, width: 1, height: 1 });
-    });
+    const originalValue = img.data[0];
+    const alphaMap = new Float32Array(10 * 10).fill(NaN);
+    removeWatermark(img, alphaMap, { x: 0, y: 0, width: 10, height: 10 });
+    assert.strictEqual(img.data[0], originalValue, 'NaN alpha should not modify pixel');
   });
 
   test('removeWatermark handles Infinity alpha gracefully', () => {

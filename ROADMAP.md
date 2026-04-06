@@ -36,6 +36,12 @@
 ### 🧠 智能特征库扩展 (Universal Support)
 - **通用水印插件系统**：支持 DALL-E 3、Midjourney 等不同模型的水印建模。
 
+### 🧪 测试与工程化基础设施 (Test & Infrastructure Hardening)
+- **CI 专属穷尽矩阵 (Environment-Aware Matrix)**：解除本地测试矩阵的限速，在 CI/CD 流水线中强制执行所有超大分辨率与降噪组合的笛卡尔积穷尽测试。
+- **CLI 流式内存泄漏监控 (Memory Leak Automation)**：在 Node.js 集成测试中引入 `process.memoryUsage()` 快照比对，验证大批量目录处理时的堆栈健康度。
+- **真实浏览器集成测试 (Browser Automation)**：引入 Playwright 或 Puppeteer，对 Web Worker 线程调度、DOM 状态锁和 PWA 缓存进行端到端的真实环境验证。
+- **极端色彩空间边界测试 (Color Profile Edge Cases)**：扩充核心数学层测试用例，涵盖带预乘 Alpha 通道的原图、纯色极简图以及 HDR 高色域溢出模拟，彻底消除底层逆向混合算法在非标准图像上的计算盲区。
+
 ### 🎬 视频水印协议 (Video Roadmap)
 - **时域一致性处理**：实现视频帧间坐标缓存，支持 MP4/MOV 格式的水印无损去除。
 - **亮度通道优化**：针对视频压缩特性优化 YUV 处理流，确保在低码率下依然精准。

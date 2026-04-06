@@ -1,4 +1,5 @@
 import i18n, { supportedLanguages } from './i18n.js';
+import { WatermarkEngine } from './core/watermarkEngine.js';
 import { loadImage, checkOriginal, getOriginalStatus, setStatusMessage, showLoading, showLoadingFail, hideLoading } from './utils.js';
 import JSZip from 'jszip';
 import mediumZoom from 'medium-zoom';
@@ -61,7 +62,15 @@ const auditConsole = document.getElementById('auditConsole');
 /**
  * AuditLog Utility
  */
-const escapeHtml = (str) => str.toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const escapeHtml = (str) =>
+  str
+    .toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
 
 const AuditLog = {
     log(message, type = 'info') {
@@ -275,6 +284,7 @@ function updateSliderPos(percent) {
  * Handle clipboard paste (v1.6)
  */
 function handlePaste(e) {
+    if (isProcessing) return;
     if (!e.clipboardData || !e.clipboardData.items) return;
     
     const items = Array.from(e.clipboardData.items);
@@ -517,7 +527,7 @@ async function processSingle(item) {
 
         // Update Tier Badge
         if (config && config.isOfficial) {
-            tierBadge.textContent = `${config.logoSize}px ${config.name || 'Official'} Tier`;
+            tierBadge.textContent = `${config.tier.toUpperCase()} Tier (${config.logoSize}px)`;
             tierBadge.classList.remove('hidden');
         } else {
             tierBadge.classList.add('hidden');
@@ -590,36 +600,86 @@ function createImageCard(item) {
     const card = document.createElement('div');
     card.id = `card-${item.id}`;
     card.className = 'gwr-image-card bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden group hover:shadow-premium transition-all duration-300';
-    card.innerHTML = `
-        <div class="flex flex-col md:flex-row h-full">
-            <div class="relative w-full md:w-48 h-32 md:h-36 bg-gray-50 flex items-center justify-center overflow-hidden border-b md:border-b-0 md:border-r border-gray-50">
-                <div class="scan-line"></div>
-                <img id="result-${item.id}" class="max-w-full max-h-full object-contain transition-transform duration-500 group-hover:scale-105" data-zoomable />
-                <div id="loader-${item.id}" class="absolute inset-0 flex items-center justify-center bg-gray-50/80">
-                    <div class="animate-pulse flex space-x-2">
-                        <div class="h-2 w-2 bg-emerald-400 rounded-full"></div>
-                        <div class="h-2 w-2 bg-emerald-400 rounded-full"></div>
-                        <div class="h-2 w-2 bg-emerald-400 rounded-full"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="flex-1 p-4 flex flex-col justify-between min-w-0">
-                <div>
-                    <div class="flex justify-between items-start mb-1">
-                        <h4 class="font-bold text-gray-900 truncate pr-4 text-sm">${escapeHtml(item.name)}</h4>
-                        <span id="tier-${item.id}" class="hidden flex-shrink-0 px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] rounded font-black tracking-widest uppercase">OFFICIAL</span>
-                    </div>
-                    <div class="text-[11px] text-gray-400 font-medium space-y-0.5" id="status-${item.id}">${i18n.t('status.pending')}</div>
-                </div>
-                <div class="flex items-center justify-between mt-3">
-                    <div id="meta-${item.id}" class="text-[10px] text-emerald-600 font-mono font-bold"></div>
-                    <button id="download-${item.id}" class="px-4 py-1.5 bg-gray-900 hover:bg-black text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 hidden">
-                        ${i18n.t('btn.download')}
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
+
+    const mainWrapper = document.createElement('div');
+    mainWrapper.className = 'flex flex-col md:flex-row h-full';
+
+    // Left preview area
+    const previewArea = document.createElement('div');
+    previewArea.className = 'relative w-full md:w-48 h-32 md:h-36 bg-gray-50 flex items-center justify-center overflow-hidden border-b md:border-b-0 md:border-r border-gray-50';
+    
+    const scanLine = document.createElement('div');
+    scanLine.className = 'scan-line';
+    previewArea.appendChild(scanLine);
+
+    const resultImg = document.createElement('img');
+    resultImg.id = `result-${item.id}`;
+    resultImg.className = 'max-w-full max-h-full object-contain transition-transform duration-500 group-hover:scale-105';
+    resultImg.setAttribute('data-zoomable', '');
+    previewArea.appendChild(resultImg);
+
+    const loader = document.createElement('div');
+    loader.id = `loader-${item.id}`;
+    loader.className = 'absolute inset-0 flex items-center justify-center bg-gray-50/80';
+    const loaderPulse = document.createElement('div');
+    loaderPulse.className = 'animate-pulse flex space-x-2';
+    for (let i = 0; i < 3; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'h-2 w-2 bg-emerald-400 rounded-full';
+        loaderPulse.appendChild(dot);
+    }
+    loader.appendChild(loaderPulse);
+    previewArea.appendChild(loader);
+
+    mainWrapper.appendChild(previewArea);
+
+    // Right info area
+    const infoArea = document.createElement('div');
+    infoArea.className = 'flex-1 p-4 flex flex-col justify-between min-w-0';
+
+    const infoTop = document.createElement('div');
+    const titleRow = document.createElement('div');
+    titleRow.className = 'flex justify-between items-start mb-1';
+    
+    const title = document.createElement('h4');
+    title.className = 'font-bold text-gray-900 truncate pr-4 text-sm';
+    title.textContent = item.name;
+    titleRow.appendChild(title);
+
+    const tierBadge = document.createElement('span');
+    tierBadge.id = `tier-${item.id}`;
+    tierBadge.className = 'hidden flex-shrink-0 px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] rounded font-black tracking-widest uppercase';
+    tierBadge.textContent = 'OFFICIAL';
+    titleRow.appendChild(tierBadge);
+
+    infoTop.appendChild(titleRow);
+
+    const statusEl = document.createElement('div');
+    statusEl.id = `status-${item.id}`;
+    statusEl.className = 'text-[11px] text-gray-400 font-medium space-y-0.5';
+    statusEl.textContent = i18n.t('status.pending');
+    infoTop.appendChild(statusEl);
+
+    infoArea.appendChild(infoTop);
+
+    const infoBottom = document.createElement('div');
+    infoBottom.className = 'flex items-center justify-between mt-3';
+
+    const metaEl = document.createElement('div');
+    metaEl.id = `meta-${item.id}`;
+    metaEl.className = 'text-[10px] text-emerald-600 font-mono font-bold';
+    infoBottom.appendChild(metaEl);
+
+    const downloadBtn = document.createElement('button');
+    downloadBtn.id = `download-${item.id}`;
+    downloadBtn.className = 'px-4 py-1.5 bg-gray-900 hover:bg-black text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 hidden';
+    downloadBtn.textContent = i18n.t('btn.download');
+    infoBottom.appendChild(downloadBtn);
+
+    infoArea.appendChild(infoBottom);
+    mainWrapper.appendChild(infoArea);
+
+    card.appendChild(mainWrapper);
     imageList.appendChild(card);
 }
 
@@ -687,7 +747,10 @@ async function processQueue() {
                         
                         if (config && config.isOfficial) {
                             const tier = document.getElementById(`tier-${item.id}`);
-                            if (tier) tier.classList.remove('hidden');
+                            if (tier) {
+                                tier.textContent = `${config.tier.toUpperCase()} OFFICIAL`;
+                                tier.classList.remove('hidden');
+                            }
                         }
                         const resultImg = document.getElementById(`result-${item.id}`);
                         if (resultImg) {

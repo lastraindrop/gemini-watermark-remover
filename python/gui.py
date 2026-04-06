@@ -194,6 +194,10 @@ class ModernGUI:
             entry.insert(0, display_path)
 
     def start_task(self):
+        if not self.remover:
+            messagebox.showerror("Backend Error", "Core engine (Node.js) is not initialized. Please ensure Node.js is installed and project is built.")
+            return
+
         input_p = self.input_entry.get()
         output_p = self.output_entry.get()
         

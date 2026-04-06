@@ -41,8 +41,8 @@ export function removeWatermark(imageData, alphaMap, position) {
             // Get alpha value from map
             const alpha = Math.fround(alphaMap[alphaRowOffset + col]);
 
-            // Skip very small alpha values (noise)
-            if (alpha < ALPHA_THRESHOLD) continue;
+            // Skip invalid or very small alpha values (noise)
+            if (isNaN(alpha) || alpha < ALPHA_THRESHOLD) continue;
 
             const effectiveAlpha = Math.min(alpha, MAX_ALPHA);
             const oneMinusAlpha = Math.fround(1.0 - effectiveAlpha);

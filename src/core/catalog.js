@@ -63,7 +63,7 @@ export function getCatalogConfig(width, height) {
         
         // Exact match or very close uniform scale
         if (Math.abs(scaleX - scaleY) < MAX_SCALE_MISMATCH && Math.abs(scaleX - 1) < MAX_SCALE_MISMATCH) {
-            return { ...WATERMARK_CONFIGS[entry.tier], isOfficial: true };
+            return { ...WATERMARK_CONFIGS[entry.tier], isOfficial: true, tier: entry.tier };
         }
     }
     return null;
