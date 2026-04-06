@@ -12,6 +12,14 @@ const translations = {
     'ja-JP': jaJP
 };
 
+export const supportedLanguages = [
+    { code: 'zh-CN', label: '🇨🇳 中文' },
+    { code: 'en-US', label: '🇺🇸 EN' },
+    { code: 'ja-JP', label: '🇯🇵 日本語' },
+    { code: 'ru-RU', label: '🇷🇺 RU' },
+    { code: 'fr-FR', label: '🇫🇷 FR' }
+];
+
 const i18n = {
   locale: (typeof localStorage !== 'undefined' ? localStorage.getItem('locale') : null) || 
           (typeof navigator !== 'undefined' ? 
@@ -34,7 +42,7 @@ const i18n = {
   },
 
   t(key) {
-    let text = this.translations[key] || key;
+    let text = this.translations[key] || translations['en-US'][key] || key;
     if (typeof text === 'string') {
       text = text.replace('{{year}}', new Date().getFullYear());
     }
@@ -43,15 +51,22 @@ const i18n = {
 
   applyTranslations() {
     document.documentElement.lang = this.locale;
-    document.title = this.t('title');
+    const title = this.t('main.title') || this.t('title');
+    document.title = title + ' - Gemini Watermark Remover';
+
     document.querySelectorAll('[data-i18n]').forEach(el => {
       const key = el.getAttribute('data-i18n');
+      const val = this.t(key);
       if (el.tagName === 'INPUT' && el.placeholder !== undefined) {
-        el.placeholder = this.t(key);
+        el.placeholder = val;
       } else {
-        el.textContent = this.t(key);
+        el.textContent = val;
       }
     });
+
+    // Update Meta descriptions if they exist
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) metaDesc.content = this.t('main.subtitle');
   },
 
   async switchLocale(locale) {

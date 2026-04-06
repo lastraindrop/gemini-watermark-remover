@@ -100,7 +100,7 @@ class GeminiWatermarkRemover:
             )
             return result.stdout
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Pipe processing failed: {e.stderr.decode() if e.stderr else 'Unknown error'}")
+            raise RuntimeError(f"Pipe processing failed: {e.stderr.decode('utf-8', errors='replace') if e.stderr else 'Unknown error'}")
 
 # Example Usage
 if __name__ == "__main__":

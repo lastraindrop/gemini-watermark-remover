@@ -53,8 +53,8 @@ export function removeWatermark(imageData, alphaMap, position) {
 
             // Apply reverse alpha blending to RGB channels
             for (let c = 0; c < 3; c++) {
-                const watermarked = data[imgIdx + c];
-                const original = (watermarked - alphaLogo) / oneMinusAlpha;
+                const watermarked = Math.fround(data[imgIdx + c]);
+                const original = Math.fround((watermarked - alphaLogo) / oneMinusAlpha);
                 
                 data[imgIdx + c] = Math.min(255, Math.max(0, Math.round(original)));
             }

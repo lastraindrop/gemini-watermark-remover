@@ -7,7 +7,7 @@ import { calculateAlphaMap } from './alphaMap.js';
 import { removeWatermark } from './blendModes.js';
 import { detectWatermarkConfig, calculateWatermarkPosition } from './config.js';
 import { getCatalogConfig } from './catalog.js';
-import { detectWatermark } from './detector.js';
+import { detectWatermark, resetDetectorBuffers } from './detector.js';
 
 export class WatermarkEngine {
     constructor(bgCaptures) {
@@ -61,7 +61,8 @@ export class WatermarkEngine {
         if (!window.Worker || window.GM_info) return null;
         if (!this._worker) {
             try {
-                this._worker = new Worker('worker.js');
+                const workerUrl = new URL('worker.js', import.meta.url);
+                this._worker = new Worker(workerUrl);
                 this._worker.onmessage = (e) => {
                     const { taskId, imageData, error } = e.data;
                     const handler = this._workerHandlers.get(taskId);
@@ -105,6 +106,9 @@ export class WatermarkEngine {
         if (this.alphaMaps[size]) return this.alphaMaps[size];
 
         const bgImage = size === 48 ? this.bgCaptures.bg48 : this.bgCaptures.bg96;
+        if (!bgImage) {
+            throw new Error(`WatermarkEngine: Calibration assets for ${size}px not loaded.`);
+        }
 
         // Reuse canvas for alpha map extraction
         if (!this._reusableCanvas) {
@@ -210,5 +214,6 @@ export class WatermarkEngine {
         this._reusableCanvas = null;
         this._reusableCtx = null;
         this.alphaMaps = {};
+        resetDetectorBuffers();
     }
 }

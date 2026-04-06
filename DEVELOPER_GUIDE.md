@@ -11,12 +11,14 @@
 - **`config.js`**: 水印维度预测。v1.4 已重构为优先调用 `catalog.js` 进行精确匹配，仅在非标准尺寸下使用启发式逻辑。
 - **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。
 - **`watermarkEngine.js`**: 引擎调度层。支持 `noiseReduction` 和 `deepScan` 选项配置，并维护单例 Web Worker 与主线程回退。
-- **`i18n.js`**: (v1.5.5) **多语言引擎**。支持 5 国语言动态加载与浏览器语言自动识别。
+- **`i18n.js`**: (v1.5.5) **多语言引擎**。支持 5 国语言动态加载、浏览器语言自动识别与全局动态 ID 映射。
+- **PWA (v1.6.0)**: 通过 `sw.js` 和 `manifest.json` 实现本地安装与离线资产缓存。
 
 ### 2. 交互与持久化实现 (UI & Persistence)
 - **设置持久化**: 程序通过 `localStorage` 自动同步用户的 `locale`、`deepScan` 和 `noiseReduction` 偏好。
 - **一键剪贴板**: 使用现代 `Clipboard API` 实现 PNG 二进制数据复制。注意：此功能要求环境为 Secure Context (HTTPS 或 localhost)。
-- **Audit Console**: 实时追踪引擎状态、Worker 通信耗时及探测置信度，由 `AuditLog` 工具类驱动。
+- **Audit Console**: 实时追踪引擎状态、Worker 通信耗时及探测置信度，由 `AuditLog` 工具类驱动。在 v1.6.0 中增加了非开发环境下的自动折叠逻辑。
+- **UI Security (v1.6.0 Hardened)**: 移除了 `app.js` 中所有 `innerHTML` 调用。所有状态更新（如 `updateStatus`）均通过 `document.createTextNode` 或 `createElement` 动态生成。
 
 ### 3. 参数协议与动态对齐 (Core Parameter Protocol v1.5.5)
 
@@ -55,7 +57,7 @@
 ### 3. 工程化标准 (Engineering Standards)
 - **esbuild 资产内联**: 通过 `dataurl` loader 实现了背景掩模图片的 Base64 内联。构建后的 `dist/app.js` 是零依赖自包含的，解决了路径引用失效的顽疾。
 - **标准化测试 (node:test)**：使用 Node.js Native Test Runner (`npm test`)。
-- **全场景验证 (v1.6.0 Hardened)**: 总计 89+ 测试用例，覆盖了从底层数学混合到高层 CLI 流协议的全链路。修复了先前版本中目录探测结果无法正确透传至 UI 的 Tier 识别逻辑 Bug。
+- **全场景验证 (v1.6.0 Hardened)**: 总计 130+ 测试用例，覆盖了从底层数学混合、XSS 注入防护、超大分辨率边界到高层 CLI 流协议的全链路。修复了先前版本中目录探测结果无法正确透传至 UI 的 Tier 识别逻辑 Bug。
 
 ### 4. 外部接口化 (Interfacing)
 - **CLI 模式**：通过 `node src/cli.js -i <in> -o <out> --json` 实现机器可读输出（包含探测元数据）。

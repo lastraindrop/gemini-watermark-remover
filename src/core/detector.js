@@ -12,6 +12,27 @@
 
 import { getCatalogConfig } from './catalog.js';
 
+const SEARCH_CONFIG = {
+    RANGE_X: 0.45,
+    RANGE_Y: 0.45,
+    CANDIDATES_LIMIT_PER_SIZE: 5,
+    PROXIMITY_THRESHOLD: 8,
+    FINE_TUNE_RANGE: 4,
+    WEIGHT_CORRELATION: 0.6,
+    WEIGHT_GRADIENT: 0.4,
+    THRESHOLDS: {
+        ANCHORED_OFFICIAL: 0.30,
+        ANCHORED_OTHER: 0.40,
+        STRICT_EXIT: 0.6,
+        COARSE: 0.3,
+        STAGE2_NR: 0.3,
+        STAGE2_CLEAN: 0.35,
+        FINAL_ANCHORED: 0.3,
+        FINAL_ALIGNED: 0.35,
+        FINAL_FREE: 0.45
+    }
+};
+
 /**
  * Detect watermark position and size using pixel correlation
  * @param {ImageData} imageData - Full image data
@@ -57,7 +78,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         if (x < 0 || y < 0) continue;
 
         let confidence = calculateCorrelation(searchData, x, y, logoSize, alphaMap, true);
-        const threshold = cfg.isOfficial ? 0.30 : 0.40; // v1.5.5: More inclusive anchored thresholds
+        const threshold = cfg.isOfficial ? SEARCH_CONFIG.THRESHOLDS.ANCHORED_OFFICIAL : SEARCH_CONFIG.THRESHOLDS.ANCHORED_OTHER; 
         if (confidence >= threshold) {
             anchoredCandidates.push({ x, y, size: logoSize, confidence, mode: 'anchored' });
         }
@@ -67,14 +88,14 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         anchoredCandidates.sort((a, b) => b.confidence - a.confidence);
         const bestAnchored = anchoredCandidates[0];
         // If anchored confidence is very high, return immediately
-        if (bestAnchored.confidence > 0.6) return bestAnchored;
+        if (bestAnchored.confidence > SEARCH_CONFIG.THRESHOLDS.STRICT_EXIT) return bestAnchored;
         allCandidates.push(bestAnchored);
     }
 
     // --- Phase 2: Heuristic-based Global Search ---
 
-    const searchRangeX = Math.floor(width * 0.45);
-    const searchRangeY = Math.floor(height * 0.45);
+    const searchRangeX = Math.floor(width * SEARCH_CONFIG.RANGE_X);
+    const searchRangeY = Math.floor(height * SEARCH_CONFIG.RANGE_Y);
     const sizes = [96, 48];
 
     for (const size of sizes) {
@@ -93,14 +114,14 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
             for (let x = startX ; x < width - size / 2; x += 2) {
                 const confidence = calculateCorrelation(searchData, x, y, size, alphaMap);
                 
-                if (confidence > 0.3) {
+                if (confidence > SEARCH_CONFIG.THRESHOLDS.COARSE) {
 
                     const candidate = { x, y, size, confidence, mode: 'anchored' };
                     
                     let tooClose = false;
                     for (let i = 0; i < sizeCandidates.length; i++) {
                         const dist = Math.abs(sizeCandidates[i].x - x) + Math.abs(sizeCandidates[i].y - y);
-                        if (dist < 8) {
+                        if (dist < SEARCH_CONFIG.PROXIMITY_THRESHOLD) {
                             tooClose = true;
                             if (confidence > sizeCandidates[i].confidence) {
                                 sizeCandidates[i] = candidate;
@@ -110,7 +131,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                     }
 
                     if (!tooClose) {
-                        if (sizeCandidates.length < 5) {
+                        if (sizeCandidates.length < SEARCH_CONFIG.CANDIDATES_LIMIT_PER_SIZE) {
                             sizeCandidates.push(candidate);
                         } else if (confidence > sizeCandidates[sizeCandidates.length - 1].confidence) {
                             sizeCandidates[sizeCandidates.length - 1] = candidate;
@@ -128,18 +149,20 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
 
         // Stage 2: Fine-tuning
         for (const candidate of sizeCandidates) {
-            const fineRange = 4;
+            const fineRange = SEARCH_CONFIG.FINE_TUNE_RANGE;
             for (let fy = Math.max(startY, candidate.y - fineRange); fy <= Math.min(height - size / 2, candidate.y + fineRange); fy++) {
                 for (let fx = Math.max(startX, candidate.x - fineRange); fx <= Math.min(width - size / 2, candidate.x + fineRange); fx++) {
                     let confidence = calculateCorrelation(searchData, fx, fy, size, alphaMap, true);
 
                     
                     // Deep Scan Enhancement (v1.4): Sobel Gradient Matching
-                    if (deepScan && confidence > 0.3) {
+                    if (deepScan && confidence > SEARCH_CONFIG.THRESHOLDS.COARSE) {
                         // Reuse shared buffers for gradient calculation to reduce GC pressure
-                        if (!detectWatermark._sharedGradientsI) {
-                            detectWatermark._sharedGradientsI = new Float32Array(96 * 96);
-                            detectWatermark._sharedGradientsA = new Float32Array(96 * 96);
+                        // v1.6 Hardening: Dynamic sizing for buffers to support any logo scale safely
+                        const bufferSizeNeeded = size * size;
+                        if (!detectWatermark._sharedGradientsI || detectWatermark._sharedGradientsI.length < bufferSizeNeeded) {
+                            detectWatermark._sharedGradientsI = new Float32Array(bufferSizeNeeded);
+                            detectWatermark._sharedGradientsA = new Float32Array(bufferSizeNeeded);
                         }
                         const gradientConf = calculateGradientCorrelation(
                             searchData, fx, fy, size, alphaMap, 
@@ -148,11 +171,11 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                         );
                         // v1.5: Only refine if gradient info exists to avoid confidence collapse on solid backgrounds
                         if (gradientConf > 0) {
-                            confidence = confidence * 0.6 + gradientConf * 0.4;
+                            confidence = confidence * SEARCH_CONFIG.WEIGHT_CORRELATION + gradientConf * SEARCH_CONFIG.WEIGHT_GRADIENT;
                         }
                     }
 
-                    const stage2Threshold = noiseReduction ? 0.3 : 0.35; // v1.5: Adaptive threshold for noise
+                    const stage2Threshold = noiseReduction ? SEARCH_CONFIG.THRESHOLDS.STAGE2_NR : SEARCH_CONFIG.THRESHOLDS.STAGE2_CLEAN; // v1.5: Adaptive threshold for noise
                     if (confidence > stage2Threshold) {
                         const marginX = width - fx - size;
                         const marginY = height - fy - size;
@@ -206,8 +229,12 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     }
 
     if (bestResult) {
-        const thresholds = { 'anchored': 0.3, 'aligned': 0.35, 'free': 0.45 }; 
-        if (bestResult.confidence >= (thresholds[bestResult.mode] || 0.45)) {
+        const thresholds = { 
+            'anchored': SEARCH_CONFIG.THRESHOLDS.FINAL_ANCHORED, 
+            'aligned': SEARCH_CONFIG.THRESHOLDS.FINAL_ALIGNED, 
+            'free': SEARCH_CONFIG.THRESHOLDS.FINAL_FREE 
+        }; 
+        if (bestResult.confidence >= (thresholds[bestResult.mode] || SEARCH_CONFIG.THRESHOLDS.FINAL_FREE)) {
             return bestResult;
         }
     }
@@ -356,3 +383,11 @@ function fastBoxBlur(data, width, height, outputBuffer = null) {
     return output;
 }
 
+/**
+ * Explicitly clear reusable buffers to free memory (v1.6)
+ */
+export function resetDetectorBuffers() {
+    detectWatermark._blurBuffer = null;
+    detectWatermark._sharedGradientsI = null;
+    detectWatermark._sharedGradientsA = null;
+}

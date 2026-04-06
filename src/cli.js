@@ -116,8 +116,20 @@ async function main() {
     };
     
     for (let i = 0; i < args.length; i++) {
-        if (args[i] === '-i' || args[i] === '--input') params.input = args[++i];
-        if (args[i] === '-o' || args[i] === '--output') params.output = args[++i];
+        const arg = args[i];
+        const nextArg = args[i + 1];
+        
+        if (arg === '-i' || arg === '--input') {
+            if (nextArg && !nextArg.startsWith('-')) {
+                params.input = nextArg;
+                i++;
+            }
+        } else if (arg === '-o' || arg === '--output') {
+            if (nextArg && !nextArg.startsWith('-')) {
+                params.output = nextArg;
+                i++;
+            }
+        }
     }
 
     if (args.includes('--version') || args.includes('-v')) {

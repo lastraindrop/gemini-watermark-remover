@@ -10,21 +10,22 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 
 ## Features
 
-- ✅ **Clipboard Paste (v1.6.0)** - Global `Ctrl+V` support for instant processing without saving files.
-- ✅ **Auto-Download Workflow (v1.6.0)** - Toggleable automatic download upon processing completion.
-- ✅ **Desktop Path Persistence (v1.6.0)** - Remembers last used input/output directories in Python GUI.
-- ✅ **Exhaustive Testing Matrix (v1.6.0)** - 89+ test cases covering all parameter permutations (NCC/DeepScan/NR).
-- ✅ **Sliding Window Concurrency** - High-performance memory-efficient batch processing. (v1.5.5)
-- ✅ **Resilient Worker Fallback** - Automatic main-thread recovery if Web Workers fail. (v1.5.5)
-- ✅ **Precision-First (v1.6.0)** - Guaranteed parameter alignment via dynamic matrix validation.
-- ✅ **Zero-Config Asset Bundler** - esbuild-driven Base64 asset inlining for zero-dependency distribution. (v1.5.5)
-- ✅ **Tier Identification Badge** - Real-time visual feedback for Catalog match status (100% confidence). (Fixed in v1.6.0)
-- ✅ **Cross-Platform Parity** - Web, CLI, and Python GUI fully synchronized with engine protocols. (Fixed v1.6.0 compatibility)
-- ✅ **100% Client-side** - No backend, no server-side processing. Your data stays in your browser.
+- ✅ **PWA (Progressive Web App) (v1.6.0)** - Installable on desktop/mobile, offline ready.
+- ✅ **Premium UI / Glassmorphism (v1.6.0)** - Modern aesthetic with high-end micro-animations.
+- ✅ **Keyboard Shortcuts (v1.6.0)** - `←/→` sliders, `Esc` reset, `Ctrl+S` save.
+- ✅ **100% Client-side** - No backend, zero latency, maximum privacy. (v1.5.5 Ready)
+- ✅ **High-Performance Sliding Window** - Optimized memory for massive batch processing.
+- ✅ **Resource Inlining** - Built with esbuild to embed masks as Base64.
+- ✅ **Architectural Resilience** - Automatic worker-to-main fallback on failure.
+- ✅ **Clipboard Paste (v1.6.0)** - Global `Ctrl+V` support for instant processing.
+- ✅ **Auto-Download (v1.6.0)** - Optional workflow for automatic file saving.
+- ✅ **Path Persistence (v1.6.0)** - Python GUI remembers workspace directories.
+- ✅ **Exhaustive Testing (v1.6.0)** - 130+ cases ensuring protocol consistency.
+- ✅ **Catalog Tier Display** - Confidence badges for official resolution matches.
+- ✅ **Multi-language (v1.6.0)** - Support for **EN, ZH, JP, RU, FR**.
+- [x] **Production Hardened (v1.6.0)** - Fixed OOMs, memory leaks, and XSS risks.
 - ✅ **Edge-Crop Resilience** - Smart detection for watermarks partially outside image boundaries.
 - ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation.
-- ✅ **Multi-Language (5 Languages)** - Fully translated UI for **ZH, EN, JA, RU, FR**. (v1.6.0 Completed)
-- [x] **Production Hardened (v1.6.0)** - Critical stability fixes for Python GUI, memory leaks, and XSS.
 
 ## 🛡️ Production Hardened (v1.6.0)
 
@@ -33,7 +34,8 @@ To ensure absolute stability when processing thousands of images or ultra-high r
 1. **Memory Buffering & Pooling**: Persistent reuse of Float32Array and Uint8ClampedArray buffers within the `Detector` core. This reduces GC pressure for 4K processing by **85%**.
 2. **Streaming Directory Mode**: Utilizing **Async Generators** for high-volume local directory processing. The streaming architecture ensures no OOM even with tens of thousands of files.
 3. **Worker Resilience & Timeouts**: A 15-second mandatory timeout for Web Worker communication. If a worker hangs, the system automatically falls back to the main thread seamlessly.
-4. **UI State Full-Lock**: Global `isProcessing` locks and `ObjectUrl` auto-release mechanisms to prevent race conditions and ensure zero memory leakage after processing.
+4. **Safe DOM & State Locking**: Implemented `isProcessing` locks and eliminated `innerHTML` usage in favor of safe DOM nodes to prevent XSS.
+5. **Offline PWA**: Core algorithms and assets are cached via Service Worker, enabling unwatermarking in offline environments.
 
 ## Examples
 
@@ -144,31 +146,30 @@ The engine uses a **Tiered Hybrid Detection Strategy (v1.5)**:
 ## Project Structure
 
 ```text
-gemini-watermark-remover/
-├── public/                # Web UI assets (HTML/CSS)
 ├── src/
-│   ├── assets/            # 校准后的水印掩码 (bg_48, bg_96)
+│   ├── assets/            # Calibrated watermark masks (bg_48, bg_96)
 │   ├── core/
-│   │   ├── alphaMap.js    # Alpha map 计算逻辑
-│   │   ├── blendModes.js  # 优化版反向 alpha 混合算法
-│   │   ├── catalog.js     # 官方 Gemini 分辨率数据库
-│   │   ├── config.js      # 水印尺寸规则与参数协议
-│   │   ├── detector.js    # 分级混合探测器 (NCC + Sobel + Catalog)
-│   │   └── watermarkEngine.js  # 引擎调度 (含持久化 Worker)
-│   ├── i18n/              # 国际化语言文件 (JSON)
-│   ├── userscript/        # 油猴脚本
-│   ├── app.js             # 网站应用入口
-│   ├── cli.js             # 标准化命令行工具 (JSON, Pipe, 并发)
-│   ├── i18n.js            # 国际化工具
-│   └── utils.js           # 共享工具类 (环境守护)
-├── python/                # 带有跨平台 GUI 的 Python 集成
-├── tests/                 # Standardized test suite (89+ test cases)
-│   ├── consistency.test.js # Core: Parameter protocol dynamic validation (Redline)
-│   ├── build_pipeline.test.js # Build: Asset inlining & pipeline verification
-│   ├── memory_queue.test.js # Performance: Sliding window & concurrency resilience
-│   ├── test_utils.js      # Robust test factory (Exhaustive Parameter Matrix)
-│   └── ...                # Detailed unit & integration tests
-├── build.js               # esbuild-based build pipeline
+│   │   ├── alphaMap.js    # Alpha map calculation logic
+│   │   ├── blendModes.js  # Optimized reverse alpha blending
+│   │   ├── catalog.js     # Official Gemini resolution database
+│   │   ├── config.js      # Watermark rules & parameter protocol
+│   │   ├── detector.js    # Tiered detector (NCC + Sobel + Catalog)
+│   │   └── watermarkEngine.js  # Engine coordinator (Web Workers)
+│   ├── i18n/              # Language JSON files
+│   ├── userscript/        # Tampermonkey script
+│   ├── app.js             # Web Application entry
+│   ├── cli.js             # CLI tool (JSON, Pipe, Concurrency)
+│   ├── i18n.js            # i18n Engine
+│   └── utils.js           # Shared utilities
+├── python/                # Python integration with cross-platform GUI
+├── tests/                 # Standardized Test Suite (130+ cases)
+│   ├── security.test.js    # Security: XSS and Overflow protection
+│   ├── edge_cases.test.js  # Boundaries: 8K+, corrupted files, empty images
+│   ├── consistency.test.js # Core: Parameter protocol verification
+│   ├── build_pipeline.test.js # Build: Asset inlining validation
+│   ├── memory_queue.test.js # Performance: Sliding window robustness
+│   └── ...                # Extensive Unit & Integration tests
+├── build.js               # esbuild build pipeline
 └── package.json           # Scripts (test, build, cli, gui)
 ```
 
@@ -234,20 +235,13 @@ This tool is provided for **personal and educational use only**.
 
 The removal of watermarks may have legal implications depending on your jurisdiction and the intended use of the images. Users are solely responsible for ensuring their use of this tool complies with applicable laws, terms of service, and intellectual property rights.
 
-The author does not condone or encourage the misuse of this tool for copyright infringement, misrepresentation, or any other unlawful purposes.
-
-**THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF THIS SOFTWARE.**
+---
 
 ## Credits
 
 This project is a JavaScript port of the [Gemini Watermark Tool](https://github.com/allenk/GeminiWatermarkTool) by Allen Kuo ([@allenk](https://github.com/allenk)).
 
 The Reverse Alpha Blending method and calibrated watermark masks are based on the original work © 2024 AllenK (Kwyshell), licensed under MIT License.
-
-## Related Links
-
-- [Gemini Watermark Tool](https://github.com/allenk/GeminiWatermarkTool)
-- [Removing Gemini AI Watermarks: A Deep Dive into Reverse Alpha Blending](https://allenkuo.medium.com/removing-gemini-ai-watermarks-a-deep-dive-into-reverse-alpha-blending-bbbd83af2a3f)
 
 ## License
 

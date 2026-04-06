@@ -99,15 +99,28 @@ export function generateParameterMatrix() {
     const deepScans = [true, false];
     const noiseReductions = [true, false];
     const resolutions = [
-        { w: 1024, h: 1024 }, // Standard
-        { w: 1000, h: 1000 }, // Close Match
-        { w: 800, h: 600 }     // Non-Standard
+        // Catalog entries (one per tier)
+        { w: 512, h: 512 }, // 0.5k tier
+        { w: 384, h: 688 }, // 0.5k 9:16
+        { w: 1024, h: 1024 }, // 1k tier
+        { w: 1536, h: 672 }, // 1k 21:9
+        { w: 2048, h: 2048 }, // 2k tier
+        { w: 4096, h: 4096 }, // 4k tier
+        // Near-miss entries
+        { w: 1000, h: 1000 }, // Close to 1k
+        { w: 530, h: 530 }, // Close to 0.5k
+        // Non-standard
+        { w: 800, h: 600 }, // Non-standard
+        { w: 3000, h: 3000 }, // Large non-standard
+        { w: 200, h: 200 } // Tiny
     ];
     
     const matrix = [];
-    for (const deepScan of deepScans) {
-        for (const noiseReduction of noiseReductions) {
-            for (const res of resolutions) {
+    for (const res of resolutions) {
+        for (const deepScan of deepScans) {
+            for (const noiseReduction of noiseReductions) {
+                // Skip exhaustive high-res combinations to speed up testing
+                if (res.w >= 2000 && (deepScan === false || noiseReduction === true)) continue; 
                 matrix.push({ options: { deepScan, noiseReduction }, resolution: res });
             }
         }

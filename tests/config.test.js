@@ -23,7 +23,7 @@ describe('Watermark Config Logic - Priority & Fallback', () => {
         const config = detectWatermarkConfig(3000, 3000);
         assert.ok(config);
         assert.strictEqual(config.logoSize, 96, 'Heuristic for >1500 should be 96');
-        assert.strictEqual(config.isOfficial, undefined, 'Heuristic fallback should not be marked as official');
+        assert.strictEqual(config.isOfficial, false, 'Heuristic fallback should not be marked as official');
     });
 
     test('Heuristic Fallback: Small non-standard image (800x800)', () => {
@@ -60,7 +60,7 @@ describe('Watermark Config Logic - Priority & Fallback', () => {
 
         test('Standard maxSide but non-standard minSide: 1024x500', () => {
             const config = detectWatermarkConfig(1024, 500);
-            assert.strictEqual(config.isOfficial, undefined, 'Should not match catalog if height is too different');
+            assert.strictEqual(config.isOfficial, false, 'Should not match catalog if height is too different');
             assert.strictEqual(config.logoSize, 48, '1024 with small height should fallback to 48px logo');
         });
     });

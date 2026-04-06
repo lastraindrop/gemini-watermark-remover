@@ -1,4 +1,4 @@
-/* Gemini Watermark Remover - Core CSS */
+/* Gemini Watermark Remover - Premium CSS v1.6 */
 
 :root {
   --primary: #10B981;
@@ -10,37 +10,49 @@
   --warn: #F59E0B;
   --err: #EF4444;
   --info: #3B82F6;
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.4);
 }
 
 /* Base resets & common styles */
 body { 
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
-  transition: opacity 0.5s ease;
+  transition: opacity 0.5s ease, background-color 0.3s ease;
+  scroll-behavior: smooth;
 }
 
 body.loading { opacity: 0; }
 
-/* Components */
+/* Premium Components */
 .glass-card {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
 }
 
 .shadow-premium {
-  box-shadow: 0 20px 50px -12px rgba(16, 185, 129, 0.15);
+  box-shadow: 
+    0 10px 40px -10px rgba(16, 185, 129, 0.2),
+    0 4px 12px -2px rgba(0, 0, 0, 0.05);
 }
 
-/* Comparison Slider */
+/* Enhanced Comparison Slider */
 .comparison-slider {
   position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  cursor: col-resize;
+  cursor: ew-resize;
   user-select: none;
+  border-radius: 1rem;
+  transition: transform 0.3s ease;
+}
+
+.comparison-slider:hover {
+  transform: scale(1.002);
 }
 
 .comparison-slider img {
@@ -50,6 +62,7 @@ body.loading { opacity: 0; }
   width: 100%;
   height: 100%;
   object-fit: contain;
+  pointer-events: none;
 }
 
 .comparison-slider .resize {
@@ -60,8 +73,9 @@ body.loading { opacity: 0; }
   height: 100%;
   overflow: hidden;
   z-index: 2;
-  border-right: 2px solid white;
-  box-shadow: 0 0 15px rgba(0,0,0,0.15);
+  border-right: 3px solid white;
+  box-shadow: 10px 0 30px -10px rgba(0,0,0,0.3);
+  transition: width 0.1s ease-out;
 }
 
 .comparison-slider .handle {
@@ -69,28 +83,32 @@ body.loading { opacity: 0; }
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   background: white;
   border-radius: 50%;
   z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
   pointer-events: none;
-  border: 3px solid var(--primary);
-  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 4px solid var(--primary);
+  transition: left 0.1s ease-out, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .comparison-slider:active .handle {
-  transform: translate(-50%, -50%) scale(1.2);
+  transform: translate(-50%, -50%) scale(1.15);
+  background: var(--primary);
 }
+
+.comparison-slider:active .handle::before { border-right-color: white; }
+.comparison-slider:active .handle::after { border-left-color: white; }
 
 .comparison-slider .handle::before,
 .comparison-slider .handle::after {
   content: '';
-  border: 5px solid transparent;
+  border: 6px solid transparent;
 }
 
 .comparison-slider .handle::before {
@@ -103,20 +121,20 @@ body.loading { opacity: 0; }
   margin-left: 4px;
 }
 
-/* Animations */
+/* Micro-animations */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(30px); }
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-up {
-  animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 @keyframes scan {
   0% { top: 0%; opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
   100% { top: 100%; opacity: 0; }
 }
 
@@ -124,54 +142,42 @@ body.loading { opacity: 0; }
   position: absolute;
   left: 0;
   width: 100%;
-  height: 4px;
-  background: linear-gradient(to bottom, transparent, rgba(16, 185, 129, 0.8), transparent);
-  box-shadow: 0 0 15px rgba(16, 185, 129, 1);
+  height: 3px;
+  background: linear-gradient(to bottom, transparent, var(--primary), transparent);
+  box-shadow: 0 0 20px var(--primary);
   z-index: 10;
   display: none;
+  pointer-events: none;
 }
 
 .scan-active .scan-line {
   display: block;
-  animation: scan 1.5s ease-in-out infinite;
+  animation: scan 2s linear infinite;
 }
 
-/* Custom Checkbox / Toggle */
-.gwr-toggle-container {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+/* Layout helpers */
+.flex-center { display: flex; align-items: center; justify-content: center; }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .comparison-slider { height: 350px !important; }
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: #f8fafc; }
-::-webkit-scrollbar-thumb { 
-  background: #cbd5e1; 
-  border-radius: 4px;
-  border: 2px solid #f8fafc;
-}
-::-webkit-scrollbar-thumb:hover { background: var(--primary); }
-
-/* Card transitions */
-.gwr-image-card {
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.gwr-image-card:hover {
-  transform: translateY(-4px) scale(1.01);
-}
-
-/* Processing Overlay */
-#loadingOverlay {
-  transition: all 0.3s ease;
+/* Dark mode basic support - can be extended */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass-bg: rgba(15, 23, 42, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.1);
+  }
+  body { background-color: #0f172a; color: #f1f5f9; }
+  .bg-white { background-color: #1e293b !important; }
+  .text-gray-900 { color: #f8fafc !important; }
+  .text-gray-800 { color: #f1f5f9 !important; }
+  .text-gray-700 { color: #e2e8f0 !important; }
+  .text-gray-600 { color: #cbd5e1 !important; }
+  .text-gray-500 { color: #94a3b8 !important; }
+  .border-gray-100 { border-color: rgba(255, 255, 255, 0.05) !important; }
+  .bg-gray-50 { background-color: rgba(255, 255, 255, 0.02) !important; }
+  header { background-color: rgba(15, 23, 42, 0.9) !important; border-bottom-color: rgba(255, 255, 255, 0.05) !important; }
 }
 
-.pulse-primary {
-  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-@keyframes pulse-ring {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: .5; transform: scale(1.05); }
-}

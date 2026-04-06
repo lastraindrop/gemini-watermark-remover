@@ -68,7 +68,7 @@ describe('WatermarkEngine Coordination & Cache', () => {
         const originalWorker = global.Worker;
         global.Worker = function() { throw new Error('Worker blocked'); };
         
-        const localEngine = await WatermarkEngine.create();
+        const localEngine = new WatermarkEngine(mockBg);
         const img = createMockImageData(100, 100);
         
         // This should not throw, but fallback internally

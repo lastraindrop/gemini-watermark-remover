@@ -177,7 +177,7 @@ class ModernGUI:
 
     def browse_path(self, mode):
         if mode == "input":
-            path = filedialog.askopenfilenames(title="Select Images") if tk.messagebox.askyesno("Source Type", "Select multiple files? (No for Folder selection)") else filedialog.askdirectory(title="Select Input Folder")
+            path = filedialog.askopenfilenames(title="Select Images") if messagebox.askyesno("Source Type", "Select multiple files? (No for Folder selection)") else filedialog.askdirectory(title="Select Input Folder")
         else:
             path = filedialog.askdirectory(title="Select Output Folder")
             
@@ -236,7 +236,7 @@ class ModernGUI:
         except Exception as e:
             self.log(f"Fatal Error: {str(e)}", "err")
         finally:
-            self.process_btn.config(state="normal", text="START PROCESSING")
+            self.root.after(0, lambda: self.process_btn.config(state="normal", text="START PROCESSING"))
 
     def _handle_result(self, results):
         for r in results:

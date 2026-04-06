@@ -1,5 +1,4 @@
-import { WatermarkEngine } from './core/watermarkEngine.js';
-import i18n from './i18n.js';
+import i18n, { supportedLanguages } from './i18n.js';
 import { loadImage, checkOriginal, getOriginalStatus, setStatusMessage, showLoading, showLoadingFail, hideLoading } from './utils.js';
 import JSZip from 'jszip';
 import mediumZoom from 'medium-zoom';
@@ -57,6 +56,7 @@ const sideProcessed = document.getElementById('sideProcessed');
 const modeSliderBtn = document.getElementById('modeSliderBtn');
 const modeSideBtn = document.getElementById('modeSideBtn');
 const tierBadge = document.getElementById('tierBadge');
+const auditConsole = document.getElementById('auditConsole');
 
 /**
  * AuditLog Utility
@@ -80,7 +80,11 @@ const AuditLog = {
         if (type === 'process') colorClass = 'text-blue-400';
 
         entry.className = `${colorClass} py-0.5 border-b border-white/5 last:border-0`;
-        entry.innerHTML = `<span class="opacity-50">[${timeStr}]</span> [${type.toUpperCase()}] ${escapeHtml(message)}`;
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'opacity-50';
+        timeSpan.textContent = `[${timeStr}]`;
+        entry.appendChild(timeSpan);
+        entry.appendChild(document.createTextNode(` [${type.toUpperCase()}] ${message}`));
         list.prepend(entry);
     }
 };
@@ -138,10 +142,18 @@ async function init() {
         workerStatus.className = hasWorker ? 'text-emerald-400' : 'text-gray-500';
         AuditLog.log(`Web Worker status: ${hasWorker ? 'ENABLED' : 'DISABLED (UserScript or Fallback Mode)'}`, hasWorker ? 'success' : 'warn');
 
+        // Hide Audit Console by default in non-dev environments
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            auditConsole.classList.add('translate-y-[calc(100%-48px)]');
+        } else {
+            auditConsole.classList.remove('translate-y-[calc(100%-48px)]');
+        }
+
         hideLoading();
         setupEventListeners();
         setupDirectoryMode();
         loadSettings();
+        registerServiceWorker();
 
         zoom = mediumZoom('[data-zoomable]', {
             margin: 24,
@@ -164,6 +176,15 @@ function setupLanguageSelector() {
     const select = document.getElementById('langSelect');
     if (!select) return;
     
+    // Clear static options and build dynamic ones (v1.6)
+    select.innerHTML = '';
+    supportedLanguages.forEach(lang => {
+        const option = document.createElement('option');
+        option.value = lang.code;
+        option.textContent = lang.label;
+        select.appendChild(option);
+    });
+
     select.value = i18n.locale;
     
     select.addEventListener('change', async () => {
@@ -208,7 +229,46 @@ function setupEventListeners() {
     modeSideBtn.addEventListener('click', () => switchViewMode('side'));
     
     document.addEventListener('paste', handlePaste);
+    document.addEventListener('keydown', handleKeyDown);
     setupSlider();
+}
+
+/**
+ * Global Keyboard Shortcuts (v1.6)
+ */
+function handleKeyDown(e) {
+    // Esc to Reset
+    if (e.key === 'Escape') {
+        reset();
+    }
+    
+    // Ctrl+S to Download (Single Mode)
+    if (e.ctrlKey && e.key === 's') {
+        const downloadBtn = document.getElementById('downloadBtn');
+        if (downloadBtn && downloadBtn.style.display !== 'none') {
+            e.preventDefault();
+            downloadBtn.click();
+        }
+    }
+
+    // Slider arrows
+    if (!comparisonSlider.classList.contains('hidden')) {
+        const rect = comparisonSlider.getBoundingClientRect();
+        let currentPercent = parseFloat(sliderResize.style.width) || 50;
+        
+        if (e.key === 'ArrowLeft') {
+            currentPercent = Math.max(0, currentPercent - 2);
+            updateSliderPos(currentPercent);
+        } else if (e.key === 'ArrowRight') {
+            currentPercent = Math.min(100, currentPercent + 2);
+            updateSliderPos(currentPercent);
+        }
+    }
+}
+
+function updateSliderPos(percent) {
+    sliderResize.style.width = percent + '%';
+    sliderHandle.style.left = percent + '%';
 }
 
 /**
@@ -328,8 +388,7 @@ function setupSlider() {
         const x = (e.pageX || e.touches?.[0].pageX) - rect.left - window.scrollX;
         const width = Math.max(0, Math.min(rect.width, x));
         const percent = (width / rect.width) * 100;
-        sliderResize.style.width = percent + '%';
-        sliderHandle.style.left = percent + '%';
+        updateSliderPos(percent);
     };
 
     comparisonSlider.addEventListener('mousemove', move);
@@ -379,6 +438,9 @@ function handleFiles(files) {
         return;
     }
 
+    // Logic for dimension validation (v1.6 Hardening)
+    // We will validate dimensions during the actual processing step for single/batch
+    // to avoid redundant loading here, but we set a high-level warning.
     AuditLog.log(`Selected ${validFiles.length} files. Starting processing flow...`, 'info');
 
     objectUrlManager.clear();
@@ -417,6 +479,13 @@ function handleFiles(files) {
 async function processSingle(item) {
     try {
         const img = await loadImage(item.file);
+        
+        // v1.6 Hardening: Dimension validation
+        const MAX_PIXELS = 8000 * 8000; // 64MP
+        if (img.width * img.height > MAX_PIXELS) {
+            throw new Error(`Image too large: ${img.width}x${img.height} exceeds 64MP limit.`);
+        }
+
         item.originalImg = img;
         item.originalUrl = img.src;
 
@@ -427,11 +496,16 @@ async function processSingle(item) {
         originalImage.src = item.originalUrl;
 
         const watermarkInfo = engine.getWatermarkInfo(img.width, img.height);
-        originalInfo.innerHTML = `
-            <p>${i18n.t('info.size')}: ${img.width}×${img.height}</p>
-            <p>${i18n.t('info.watermark')}: ${watermarkInfo.size}×${watermarkInfo.size}</p>
-            <p>${i18n.t('info.position')}: (${watermarkInfo.position.x},${watermarkInfo.position.y})</p>
-        `;
+        originalInfo.textContent = '';
+        [
+            `${i18n.t('info.size')}: ${img.width}×${img.height}`,
+            `${i18n.t('info.watermark')}: ${watermarkInfo.size}×${watermarkInfo.size}`,
+            `${i18n.t('info.position')}: (${watermarkInfo.position.x},${watermarkInfo.position.y})`
+        ].forEach(text => {
+            const p = document.createElement('p');
+            p.textContent = text;
+            originalInfo.appendChild(p);
+        });
 
         const startTime = performance.now();
         const options = getEngineOptions();
@@ -479,11 +553,20 @@ async function processSingle(item) {
             copyBtn.onclick = () => copyImageToClipboard(item);
         }
 
-        processedInfo.innerHTML = `
-            <span>${img.width}×${img.height}</span>
-            <span class="px-2 opacity-50">|</span>
-            <span class="text-emerald-500 underline decoration-2 underline-offset-4">${i18n.t('info.removed')}</span>
-        `;
+        processedInfo.textContent = '';
+        const sizeSpan = document.createElement('span');
+        sizeSpan.textContent = `${img.width}×${img.height}`;
+        processedInfo.appendChild(sizeSpan);
+        
+        const sep = document.createElement('span');
+        sep.className = 'px-2 opacity-50';
+        sep.textContent = '|';
+        processedInfo.appendChild(sep);
+        
+        const removedSpan = document.createElement('span');
+        removedSpan.className = 'text-emerald-500 underline decoration-2 underline-offset-4';
+        removedSpan.textContent = i18n.t('info.removed');
+        processedInfo.appendChild(removedSpan);
 
         zoom.detach();
         zoom.attach('[data-zoomable]');
@@ -578,6 +661,12 @@ async function processQueue() {
                         const startTime = performance.now();
                         const img = await loadImage(item.file);
                         
+                        // v1.6 Hardening: Dimension validation
+                        const MAX_PIXELS = 8000 * 8000; // 64MP
+                        if (img.width * img.height > MAX_PIXELS) {
+                            throw new Error(`Image too large (${img.width}x${img.height})`);
+                        }
+                        
                         const container = document.querySelector(`#card-${item.id} .relative`);
                         if (container) container.classList.add('scan-active');
                         
@@ -609,9 +698,11 @@ async function processQueue() {
                         item.status = 'completed';
                         const watermarkInfo = engine.getWatermarkInfo(img.width, img.height);
 
-                        updateStatus(item.id, `<p>${i18n.t('info.size')}: ${img.width}×${img.height}</p>
-                            <p>${i18n.t('info.watermark')}: ${watermarkInfo.size}×${watermarkInfo.size}</p>
-                            <p>${i18n.t('info.position')}: (${watermarkInfo.position.x},${watermarkInfo.position.y})</p>`, true);
+                        updateStatus(item.id, [
+                            `${i18n.t('info.size')}: ${img.width}×${img.height}`,
+                            `${i18n.t('info.watermark')}: ${watermarkInfo.size}×${watermarkInfo.size}`,
+                            `${i18n.t('info.position')}: (${watermarkInfo.position.x},${watermarkInfo.position.y})`
+                        ]);
 
                         const downloadBtn = document.getElementById(`download-${item.id}`);
                         if (downloadBtn) {
@@ -626,7 +717,12 @@ async function processQueue() {
                             if (!is_google || !is_original) {
                                 const status = getOriginalStatus({ is_google, is_original });
                                 const statusEl = document.getElementById(`status-${item.id}`);
-                                if (statusEl) statusEl.innerHTML += `<p class="inline-block mt-1 text-xs md:text-sm text-warn">${status}</p>`;
+                                if (statusEl) {
+                                    const p = document.createElement('p');
+                                    p.className = 'inline-block mt-1 text-xs md:text-sm text-warn';
+                                    p.textContent = status;
+                                    statusEl.appendChild(p);
+                                }
                             }
                         }).catch(() => {});
                     } catch (error) {
@@ -644,14 +740,19 @@ async function processQueue() {
     });
 }
 
-function updateStatus(id, text, isHtml = false) {
+function updateStatus(id, content) {
     const el = document.getElementById(`status-${id}`);
-    if (el) {
-        if (isHtml) {
-            el.innerHTML = text;
-        } else {
-            el.textContent = text;
-        }
+    if (!el) return;
+    
+    el.textContent = '';
+    if (Array.isArray(content)) {
+        content.forEach(line => {
+            const p = document.createElement('p');
+            p.textContent = line;
+            el.appendChild(p);
+        });
+    } else {
+        el.textContent = content;
     }
 }
 
@@ -816,7 +917,7 @@ async function processDirectory() {
 
                         item.status = 'completed';
                         item.processedBlob = blob;
-                        updateStatus(item.id, `✅ Saved [${detectionMode.toUpperCase()}]`, true);
+                        updateStatus(item.id, `✅ ${i18n.t('status.success')} [${detectionMode.toUpperCase()}]`);
                         processedCount++;
                         updateProgress();
                     } catch (err) {
