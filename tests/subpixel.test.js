@@ -4,34 +4,6 @@ import { removeWatermark } from '../src/core/blendModes.js';
 
 describe('Sub-pixel Accuracy Tests (v1.7.0)', () => {
 
-    /**
-     * Helper to create a sub-pixel watermarked image
-     * Simulates the forward blending process with sub-pixel alignment
-     */
-    function createSubpixelWatermarked(w, h, originalColor, logoColor, alphaMap, size, tx, ty) {
-        const data = new Uint8ClampedArray(w * h * 4);
-        data.fill(originalColor);
-        for(let i=3; i<data.length; i+=4) data[i] = 255;
-
-        // Forward blend using the same logic we use for reverse
-        for (let iy = 0; iy < h; iy++) {
-            const relY = iy - ty;
-            for (let ix = 0; ix < w; ix++) {
-                const relX = ix - tx;
-                
-                // Bilinear sample alpha at this pixel
-                const alpha = sampleAlpha(alphaMap, relX, relY, size, size);
-                if (alpha < 0.001) continue;
-
-                const idx = (iy * w + ix) << 2;
-                for (let c = 0; ix < 3; ix++) { // Wait, ix < 3 is a bug, should be c < 3
-                    // ... fixing in actual code below
-                }
-            }
-        }
-        // ... simplified implementation below
-    }
-
     test('Bilinear reconstruction for X-offset (0.5)', () => {
         const original = 100;
         const logo = 255;
