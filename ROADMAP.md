@@ -2,7 +2,12 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.6.0 - Frontend & Security Hardened)
+## 📍 当前状态 (v1.7.0 Alpha - Hardened & Precision)
+- [x] **Sub-pixel Alignment (v1.7.0)**: Bilinear interpolation for sub-pixel accuracy (eliminating artifacts on scaled images).
+- [x] **Perceptual Luminance Detection (v1.7.0)**: Switched to 0.299R+0.587G+0.114B formula for robust color-aware detection.
+- [x] **Entropy-Adaptive Weighting (v1.7.0)**: Dynamic gradient weighting on flat backgrounds (SNR optimization).
+- [x] **Extreme Test Optimization (v1.7.0)**: 30x faster test execution (13m -> 26s) via parallelism and tiered mock assets.
+- [x] **Stress Test Audit Loop (v1.7.0)**: Dedicated `test:stress` for deep memory stability verification.
 - [x] **Premium UI/UX (v1.6.0)**: Glassmorphism, dark mode, and smooth micro-animations.
 - [x] **PWA Support (v1.6.0)**: Installable desktop/mobile app via Service Worker & Manifest.
 - [x] **Safe DOM Architecture (v1.6.0)**: 100% removal of `innerHTML` for XSS-proof UI.
@@ -20,9 +25,12 @@
 ---
 
 ### ⚡ 核心能力外溢
-- **v1.6.5: Sub-pixel Alignment (亚像素级对齐)**：针对非整数坐标的高分辨率输出，实现像素插值还原，消除缩放图像的极细微锯齿。(Planned)
-- **v1.7: Rust-driven Wasm Core (Alpha)**：使用 Rust 彻底重写像素混合逻辑，针对 8K+ 分辨率提升 3-5 倍的处理速度。 (Researching)
-- **v1.7: Image Genesis 3 Sync**: 加入最新 Google 生成模型的视觉标记指纹库。 (Pending Model Release)
+- [x] **v1.7.0: Sub-pixel Alignment (亚像素级对齐)**：针对非整数坐标的高分辨率输出，实现像素插值还原，消除缩放图像的极细微锯齿。
+- [x] **v1.7.0: Perceptual Detection (感知级探测)**：升级亮度计算公式，提升其在彩色/复杂背景下的捕捉精度。
+- [x] **v1.7.0: Adaptive SNR Weighting**：动态熵权分配，自动抑制低纹理背景下的梯度噪声影响。
+- [x] **v1.7.0: Hyper-Fast CI/Local Testing**：通过并发执行与分级 Mock 策略，大幅缩碳自动化验证周期。
+- **v1.8: Rust-driven Wasm Core (Alpha)**：使用 Rust 彻底重写像素混合逻辑，针对 8K+ 分辨率提升 3-5 倍的处理速度。 (Researching)
+- **v1.8: Image Genesis 3 Sync**: 加入最新 Google 生成模型的视觉标记指纹库。 (Pending Model Release)
 
 
 ---

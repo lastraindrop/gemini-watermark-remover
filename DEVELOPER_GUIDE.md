@@ -8,9 +8,11 @@
 
 ### 1. 核心层 (`src/core/`)
 - **`catalog.js`**: (v1.4 New) **官方分辨率目录**。内置了从 512px 到 4096px 的 Gemini 官方比例输出数据。
-- **`config.js`**: 水印维度预测。v1.4 已重构为优先调用 `catalog.js` 进行精确匹配，仅在非标准尺寸下使用启发式逻辑。
+- **`config.js`**: 水印维度预测。v1.4 已重构为优先调用 `catalog.js` 进行精确匹配。
 - **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。
-- **`watermarkEngine.js`**: 引擎调度层。支持 `noiseReduction` 和 `deepScan` 选项配置，并维护单例 Web Worker 与主线程回退。
+- **`blendModes.js`**: (v1.7.0 Hardened) **反向 Alpha 混合**。实现了 **双线性插值 (Bilinear Interpolation)**，支持浮点级亚像素对齐。
+- **`detector.js`**: (v1.7.0 Precision) **水印探测引擎**。引入了 **感知亮度公式 (Perceptual Luminance)** 和 **熵权自适应滤波 (Entropy-Adaptive SNR)**。
+- **`watermarkEngine.js`**: 引擎调度层。支持 `noiseReduction` 和 `deepScan` 选项配置。
 - **`i18n.js`**: (v1.5.5) **多语言引擎**。支持 5 国语言动态加载、浏览器语言自动识别与全局动态 ID 映射。
 - **PWA (v1.6.0)**: 通过 `sw.js` 和 `manifest.json` 实现本地安装与离线资产缓存。
 
@@ -38,7 +40,8 @@
 **自动化对齐与红线机制 (Enforcement)**：
 1. **Catalog Single Source**: 所有的官方 Tier 参数统一维护在 `src/core/catalog.js`。这是系统的**唯一事实来源 (Single Source of Truth)**。严禁在 UI 层或 Python 层硬编码这些偏移量。
 2. **Data-Driven Validation**: 每次修改参数协议后，**必须** 运行 `npm test`。现有的 `tests/consistency.test.js` 和 `tests/catalog.test.js` 会动态拉取目录条目进行全量校验，绝非硬编码比对。
-3. **Exhaustive Parameter Matrix (v1.6.0)**: 测试套件 `tests/detector.test.js` 现已升级为动态矩阵模式。它会自动遍历所有分辨率与 `deepScan/noiseReduction` 的排列组合。目前已覆盖 130+ 组核心用例，确保了在任何版本迭代下参数对齐的红线不被逾越。任何新的引擎参数都应在 `tests/test_utils.js` 的 `generateParameterMatrix` 中注册。
+3. **Hyper-Fast Test Matrix (v1.7.0 Optimized)**: 测试套件现已优化为双轨制。默认 `npm test` 通过 **256x256 级并行 Mock** 和 **分级探测逻辑**，将 138+ 用例的总时间压缩至 30 秒内（提升 30 倍）。任何新的引擎参数都应在 `tests/test_utils.js` 的 `generateParameterMatrix` 中注册。
+4. **Stress Testing (v1.7.0)**: 使用 `npm run test:stress` 命令可以触发深度的内存压力审计（500 次大图循环），用于针对 Buffer 复用逻辑的长周期验证。
 
 ### 🧪 测试开发规约 (Testing Principles)
 为避免出现历史版本中的参数硬编码与环境隔离失效问题，未来所有新提交的模块与测试必须严格遵守以下三大纪律：
@@ -57,7 +60,8 @@
 
 ### 1. 多线程与并发模型 (Threading & Concurrency)
 - **Sliding Window Model (v1.5.5)**: 网页版处理大量图片时，不再使用简单的 `Promise.all` 分块，而是采用高性能**滑动窗口 (Sliding Window)** 队列。在一个 Worker 任务完成后立即填充下一个，极大提升了多核心 CPU 的利用率，并防止大内存峰值导致的 OOM。
-- **Streaming Directory Processing (v1.5.6)**: 针对全目录扫描，引入了 **Async Generator**。通过 `for await...of` 驱动的文件流，实现了边扫描、边显示、边处理的流式闭环。这意味着系统可以处理包含上万张图片的文件夹，而不会因为在内存中预先构建完整文件列表而导致崩溃。
+- **Streaming Directory Processing (v1.5.6)**: 针对全目录扫描，引入了 **Async Generator**。通过 `for await...of` 驱动的文件流性能优异。
+- **Parallel Test Execution (v1.7.0)**: 使用 `node --test --test-concurrency` 实现了跨文件并行验证。这不仅提升了开发速度，也为未来集成更多高频 CI/CD 流程奠定了基础。
 - **Resilient Worker Context & Timeouts**: 网页版采用单例 Worker。v1.5.6 引入了 **15秒强制超时检测**。若 Worker 线程在处理极高分辨率或异常图片时挂起，主线程会自动触发 Fallback 机制，切换至串行模式完成任务，保障队列的连续性。
 
 ### 2. 内存管理与优化 (Memory Management)

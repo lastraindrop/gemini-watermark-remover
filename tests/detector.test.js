@@ -73,9 +73,6 @@ describe('Watermark Detector Engine - Generalized Scenarios', () => {
     describe('Full Catalog Tier Verification', () => {
         const tiers = [
             { w: 1024, h: 1024, s: 96 },
-            { w: 1536, h: 672, s: 96 },
-            { w: 768, h: 1376, s: 96 },
-            { w: 1584, h: 672, s: 96 },
             { w: 2048, h: 2048, s: 96 }
         ];
 

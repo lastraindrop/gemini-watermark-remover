@@ -8,6 +8,7 @@
  * 1. Catalog & Anchor Check (Ultra-Fast)
  * 2. Heuristic Global Search (Exhaustive)
  * 3. Confidence Ranking & Post-processing
+ * 4. Entropy-Adaptive Weighting (v1.7)
  */
 
 import { getCatalogConfig } from './catalog.js';
@@ -106,17 +107,16 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         const startX = Math.max(-size / 2, width - searchRangeX - size);
         const startY = Math.max(-size / 2, height - searchRangeY - size);
         const sizeCandidates = [];
-        
-
 
         // Stage 1: Coarse search
         for (let y = startY; y < height - size / 2; y += 2) {
             for (let x = startX ; x < width - size / 2; x += 2) {
                 const confidence = calculateCorrelation(searchData, x, y, size, alphaMap);
+                const lastVar = calculateCorrelation._lastVar || 0;
                 
                 if (confidence > SEARCH_CONFIG.THRESHOLDS.COARSE) {
 
-                    const candidate = { x, y, size, confidence, mode: 'anchored' };
+                    const candidate = { x, y, size, confidence, mode: 'anchored', _lastVar: lastVar };
                     
                     let tooClose = false;
                     for (let i = 0; i < sizeCandidates.length; i++) {
@@ -169,9 +169,15 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                             detectWatermark._sharedGradientsI, 
                             detectWatermark._sharedGradientsA
                         );
-                        // v1.5: Only refine if gradient info exists to avoid confidence collapse on solid backgrounds
+                        
+                        // v1.7 Adaptive Weighting: If background has very low texture, reduce gradient weight
+                        // to prevent noise from dragging down the correlation score.
+                        const localVariance = candidate._lastVar || 0.01;
+                        const adaptiveWeightGradient = Math.min(SEARCH_CONFIG.WEIGHT_GRADIENT, localVariance * 20);
+                        const adaptiveWeightCorr = 1.0 - adaptiveWeightGradient;
+
                         if (gradientConf > 0) {
-                            confidence = confidence * SEARCH_CONFIG.WEIGHT_CORRELATION + gradientConf * SEARCH_CONFIG.WEIGHT_GRADIENT;
+                            confidence = confidence * adaptiveWeightCorr + gradientConf * adaptiveWeightGradient;
                         }
                     }
 
@@ -246,6 +252,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
 /**
  * Grayscale NCC
  * v1.5: Added out-of-bounds safety
+ * v1.7: Perceptual luminance update
  */
 function calculateCorrelation(imageData, x, y, size, alphaMap, fullPrecision = false) {
     const { data, width: imgWidth, height: imgHeight } = imageData;
@@ -264,7 +271,8 @@ function calculateCorrelation(imageData, x, y, size, alphaMap, fullPrecision = f
             if (curX < 0 || curX >= imgWidth) continue;
 
             const imgIdx = (imgRowOffset + curX) << 2;
-            const brightness = Math.max(data[imgIdx], data[imgIdx + 1], data[imgIdx + 2]) / 255.0;
+            // v1.7: Perceptual Grayscale (0.299R + 0.587G + 0.114B)
+            const brightness = (data[imgIdx] * 0.299 + data[imgIdx + 1] * 0.587 + data[imgIdx + 2] * 0.114) / 255.0;
             const alpha = alphaMap[alphaRowOffset + col];
             
             sumI += brightness;
@@ -282,6 +290,13 @@ function calculateCorrelation(imageData, x, y, size, alphaMap, fullPrecision = f
     const varI = count * sumI2 - sumI * sumI;
     const varA = count * sumA2 - sumA * sumA;
     if (varI <= 0 || varA <= 0) return 0;
+
+    // Store variance for adaptive weighting in Phase 2
+    if (!fullPrecision) {
+        const normalizedVar = varI / (count * count);
+        calculateCorrelation._lastVar = normalizedVar;
+    }
+
     return (count * sumIA - sumI * sumA) / Math.sqrt(varI * varA);
 }
 
@@ -290,6 +305,7 @@ function calculateCorrelation(imageData, x, y, size, alphaMap, fullPrecision = f
  * Sobel Gradient NCC (v1.4)
  * v1.5: Added out-of-bounds safety
  * v1.6: Memory pooling: receives pre-allocated Float32Array for gradients
+ * v1.7: Perceptual luminance update
  */
 function calculateGradientCorrelation(imageData, x, y, size, alphaMap, gradientsI, gradientsA) {
     const { data, width: imgWidth, height: imgHeight } = imageData;
@@ -305,7 +321,8 @@ function calculateGradientCorrelation(imageData, x, y, size, alphaMap, gradients
     // 1. Precompute gradients for image and alpha map
     const getB = (r, c) => {
         const i = ((y + r) * imgWidth + (x + c)) << 2;
-        return Math.max(data[i], data[i+1], data[i+2]);
+        // v1.7: Perceptual Grayscale
+        return data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
     };
     const getA = (r, c) => alphaMap[r * size + c];
 

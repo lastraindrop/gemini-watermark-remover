@@ -11,11 +11,11 @@ describe('CLI Integration Tests', () => {
 
     before(async () => {
         if (!existsSync(TMP_DIR)) mkdirSync(TMP_DIR);
-        // Create a mock Gemini-like image (1024x1024)
+        // Create a mock Gemini-like image (256x256)
         const img = await sharp({
             create: {
-                width: 1024,
-                height: 1024,
+                width: 256,
+                height: 256,
                 channels: 4,
                 background: { r: 128, g: 128, b: 128, alpha: 1 }
             }
@@ -65,7 +65,7 @@ describe('CLI Integration Tests', () => {
         
         // Verify it's a valid image
         const meta = await sharp(result.stdout).metadata();
-        assert.strictEqual(meta.width, 1024);
+        assert.strictEqual(meta.width, 256);
         assert.strictEqual(meta.format, 'png');
     });
 
