@@ -9,8 +9,8 @@
 ### 1. 核心层 (`src/core/`)
 - **`catalog.js`**: (v1.4 New) **官方分辨率目录**。内置了从 512px 到 4096px 的 Gemini 官方比例输出数据。
 - **`config.js`**: 水印维度预测。v1.4 已重构为优先调用 `catalog.js` 进行精确匹配。
-- **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。
-- **`blendModes.js`**: (v1.7.0 Hardened) **反向 Alpha 混合**。实现了 **双线性插值 (Bilinear Interpolation)**，支持浮点级亚像素对齐。
+- **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。v1.7.0 已统一采用感知亮度公式进行提取。
+- **`blendModes.js`**: (v1.7.0 Production) **反向 Alpha 混合**。实现了全路径 **双线性插值 (Bilinear Interpolation)**：通过遍历图像像素反向采样 Alpha 掩膜，确保了亚像素级的对齐精度。
 - **`detector.js`**: (v1.7.0 Precision) **水印探测引擎**。引入了 **感知亮度公式 (Perceptual Luminance)** 和 **熵权自适应滤波 (Entropy-Adaptive SNR)**。
 - **`watermarkEngine.js`**: 引擎调度层。支持 `noiseReduction` 和 `deepScan` 选项配置。
 - **`i18n.js`**: (v1.5.5) **多语言引擎**。支持 5 国语言动态加载、浏览器语言自动识别与全局动态 ID 映射。
@@ -39,8 +39,9 @@
 
 **自动化对齐与红线机制 (Enforcement)**：
 1. **Catalog Single Source**: 所有的官方 Tier 参数统一维护在 `src/core/catalog.js`。这是系统的**唯一事实来源 (Single Source of Truth)**。严禁在 UI 层或 Python 层硬编码这些偏移量。
-2. **Data-Driven Validation**: 每次修改参数协议后，**必须** 运行 `npm test`。现有的 `tests/consistency.test.js` 和 `tests/catalog.test.js` 会动态拉取目录条目进行全量校验，绝非硬编码比对。
-3. **Hyper-Fast Test Matrix (v1.7.0 Optimized)**: 测试套件现已优化为双轨制。默认 `npm test` 通过 **256x256 级并行 Mock** 和 **分级探测逻辑**，将 138+ 用例的总时间压缩至 30 秒内（提升 30 倍）。任何新的引擎参数都应在 `tests/test_utils.js` 的 `generateParameterMatrix` 中注册。
+2. **Perceptual Symmetry (v1.7.0)**: 为了保证探测与还原的数学严密性，全系统统一使用 $Y = 0.299R + 0.587G + 0.114B$ 亮度模型。修改亮度逻辑时必须同步更新 `detector.js` 与 `alphaMap.js`。
+3. **Data-Driven Validation**: 每次修改参数协议后，**必须** 运行 `npm test`。现有的 `tests/consistency.test.js` 和 `tests/catalog.test.js` 会动态拉取目录条目进行全量校验，绝非硬编码比对。
+4. **Hyper-Fast Test Matrix (v1.7.0 Optimized)**: 测试套件现已优化为双轨制。默认 `npm test` 通过 **256x256 级并行 Mock** 和 **分级探测逻辑**，将 140+ 用例的总时间压缩至 30 秒内（提升 30 倍）。任何新的引擎参数都应在 `tests/test_utils.js` 的 `generateParameterMatrix` 中注册。
 4. **Stress Testing (v1.7.0)**: 使用 `npm run test:stress` 命令可以触发深度的内存压力审计（500 次大图循环），用于针对 Buffer 复用逻辑的长周期验证。
 
 ### 🧪 测试开发规约 (Testing Principles)

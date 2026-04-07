@@ -13,14 +13,15 @@
 
 import { getCatalogConfig } from './catalog.js';
 
+// Shared state for variance tracking during coarse search
+let _lastVar = 0;
+
 const SEARCH_CONFIG = {
     RANGE_X: 0.45,
     RANGE_Y: 0.45,
     CANDIDATES_LIMIT_PER_SIZE: 5,
     PROXIMITY_THRESHOLD: 8,
     FINE_TUNE_RANGE: 4,
-    WEIGHT_CORRELATION: 0.6,
-    WEIGHT_GRADIENT: 0.4,
     THRESHOLDS: {
         ANCHORED_OFFICIAL: 0.30,
         ANCHORED_OTHER: 0.40,
@@ -112,11 +113,11 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         for (let y = startY; y < height - size / 2; y += 2) {
             for (let x = startX ; x < width - size / 2; x += 2) {
                 const confidence = calculateCorrelation(searchData, x, y, size, alphaMap);
-                const lastVar = calculateCorrelation._lastVar || 0;
+                const currentVar = _lastVar;
                 
                 if (confidence > SEARCH_CONFIG.THRESHOLDS.COARSE) {
 
-                    const candidate = { x, y, size, confidence, mode: 'anchored', _lastVar: lastVar };
+                    const candidate = { x, y, size, confidence, mode: 'heuristic', _lastVar: currentVar };
                     
                     let tooClose = false;
                     for (let i = 0; i < sizeCandidates.length; i++) {
@@ -173,7 +174,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                         // v1.7 Adaptive Weighting: If background has very low texture, reduce gradient weight
                         // to prevent noise from dragging down the correlation score.
                         const localVariance = candidate._lastVar || 0.01;
-                        const adaptiveWeightGradient = Math.min(SEARCH_CONFIG.WEIGHT_GRADIENT, localVariance * 20);
+                        const adaptiveWeightGradient = Math.min(0.4, localVariance * 20);
                         const adaptiveWeightCorr = 1.0 - adaptiveWeightGradient;
 
                         if (gradientConf > 0) {
@@ -294,7 +295,7 @@ function calculateCorrelation(imageData, x, y, size, alphaMap, fullPrecision = f
     // Store variance for adaptive weighting in Phase 2
     if (!fullPrecision) {
         const normalizedVar = varI / (count * count);
-        calculateCorrelation._lastVar = normalizedVar;
+        _lastVar = normalizedVar;
     }
 
     return (count * sumIA - sumI * sumA) / Math.sqrt(varI * varA);

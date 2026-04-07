@@ -19,11 +19,11 @@ export function calculateAlphaMap(bgCaptureImageData) {
         const g = data[idx + 1];
         const b = data[idx + 2];
 
-        // Take the maximum value of the three RGB channels as the brightness value
-        const maxChannel = Math.max(r, g, b);
+        // Use perceptual luminance (0.299R + 0.587G + 0.114B) to determine the alpha value
+        const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
 
         // Normalize to [0, 1] range
-        alphaMap[i] = maxChannel / 255.0;
+        alphaMap[i] = brightness / 255.0;
     }
 
     return alphaMap;

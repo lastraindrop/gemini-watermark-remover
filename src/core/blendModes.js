@@ -9,30 +9,35 @@ export const MAX_ALPHA = 0.99;          // Avoid division by near-zero values
 export const LOGO_VALUE = 255.0;        // Color value for white watermark (float)
 
 /**
- * Sample pixel color using bilinear interpolation
- * @param {Uint8ClampedArray} data - Image data buffer
- * @param {number} x - Float X coordinate
- * @param {number} y - Float Y coordinate
- * @param {number} width - Image width
- * @param {number} height - Image height
- * @param {number} channel - RGB channel index (0-2)
- * @returns {number} Interpolated color value
+ * Sample alpha value from map using bilinear interpolation
+ * @param {Float32Array} alphaMap - Alpha channel data
+ * @param {number} x - Relative X coordinate in alphaMap space
+ * @param {number} y - Relative Y coordinate in alphaMap space
+ * @param {number} width - AlphaMap width
+ * @param {number} height - AlphaMap height
+ * @returns {number} Interpolated alpha value
  */
-function sampleBilinear(data, x, y, width, height, channel) {
+function sampleBilinearAlpha(alphaMap, x, y, width, height) {
+    // Boundary check for alphaMap space
+    if (x <= -1 || x >= width || y <= -1 || y >= height) return 0;
+
     const x0 = Math.floor(x);
     const y0 = Math.floor(y);
-    const x1 = Math.min(x0 + 1, width - 1);
-    const y1 = Math.min(y0 + 1, height - 1);
+    const x1 = x0 + 1;
+    const y1 = y0 + 1;
 
     const dx = x - x0;
     const dy = y - y0;
 
-    const getIdx = (px, py) => (py * width + px) << 2;
+    const getAlpha = (px, py) => {
+        if (px < 0 || px >= width || py < 0 || py >= height) return 0;
+        return alphaMap[py * width + px];
+    };
 
-    const v00 = data[getIdx(x0, y0) + channel];
-    const v10 = data[getIdx(x1, y0) + channel];
-    const v01 = data[getIdx(x0, y1) + channel];
-    const v11 = data[getIdx(x1, y1) + channel];
+    const v00 = getAlpha(x0, y0);
+    const v10 = getAlpha(x1, y0);
+    const v01 = getAlpha(x0, y1);
+    const v11 = getAlpha(x1, y1);
 
     const top = v00 + dx * (v10 - v00);
     const bottom = v01 + dx * (v11 - v01);
@@ -41,11 +46,13 @@ function sampleBilinear(data, x, y, width, height, channel) {
 }
 
 /**
- * Remove watermark using reverse alpha blending
+ * Remove watermark using reverse alpha blending with sub-pixel accuracy
  *
  * Principle:
  * Gemini adds watermark: watermarked = α × logo + (1 - α) × original
  * Reverse solve: original = (watermarked - α × logo) / (1 - α)
+ *
+ * v1.7.0 Optimized: Iterates over target image pixels and samples AlphaMap.
  *
  * @param {ImageData|Object} imageData - Image data to process (will be modified in place)
  * @param {Float32Array} alphaMap - Alpha channel data
@@ -55,54 +62,43 @@ export function removeWatermark(imageData, alphaMap, position) {
     const { x, y, width, height } = position;
     const { data, width: imgWidth, height: imgHeight } = imageData;
 
-    // Pre-calculate constants for efficiency
     const logoVal = Math.fround(LOGO_VALUE);
 
-    // Create a copy of the processing area to avoid artifacts during bilinear sampling
-    // Only if interpolation is actually needed (float coordinates)
-    const isSubpixel = x % 1 !== 0 || y % 1 !== 0;
-    const srcData = isSubpixel ? new Uint8ClampedArray(data) : data;
+    // Calculate the bounding box of affected pixels in the image
+    const startY = Math.floor(y);
+    const endY = Math.ceil(y + height);
+    const startX = Math.floor(x);
+    const endX = Math.ceil(x + width);
 
-    // Process each pixel in the watermark area
-    for (let row = 0; row < height; row++) {
-        const curY = y + row;
-        if (curY < 0 || curY >= imgHeight) continue; // Image boundary check
+    for (let iy = startY; iy < endY; iy++) {
+        if (iy < 0 || iy >= imgHeight) continue;
+        
+        const rowOffset = iy * imgWidth;
+        const relY = iy - y; // Float relative Y in alphaMap space
 
-        const isFloatY = curY % 1 !== 0;
-        const rowOffset = Math.floor(curY) * imgWidth;
-        const alphaRowOffset = row * width;
+        for (let ix = startX; ix < endX; ix++) {
+            if (ix < 0 || ix >= imgWidth) continue;
+            
+            const relX = ix - x; // Float relative X in alphaMap space
 
-        for (let col = 0; col < width; col++) {
-            const curX = x + col;
-            if (curX < 0 || curX >= imgWidth) continue; // Image boundary check
+            // Sample alpha value for this specific image pixel
+            const alpha = Math.fround(sampleBilinearAlpha(alphaMap, relX, relY, width, height));
 
-            const isFloatX = curX % 1 !== 0;
-
-            // Get alpha value from map
-            const alpha = Math.fround(alphaMap[alphaRowOffset + col]);
-
-            // Skip invalid or very small alpha values (noise)
+            // Skip invalid or very small alpha values
             if (isNaN(alpha) || alpha < ALPHA_THRESHOLD) continue;
 
             const effectiveAlpha = Math.min(alpha, MAX_ALPHA);
             const oneMinusAlpha = Math.fround(1.0 - effectiveAlpha);
             const alphaLogo = Math.fround(effectiveAlpha * logoVal);
 
-            // Calculate index in original image (RGBA format, 4 bytes per pixel)
-            const imgIdx = (rowOffset + Math.floor(curX)) << 2;
+            const imgIdx = (rowOffset + ix) << 2;
 
             // Apply reverse alpha blending to RGB channels
             for (let c = 0; c < 3; c++) {
-                let watermarked;
-                if (isFloatX || isFloatY) {
-                    // Use bilinear sampling for sub-pixel accuracy
-                    watermarked = Math.fround(sampleBilinear(srcData, curX, curY, imgWidth, imgHeight, c));
-                } else {
-                    watermarked = Math.fround(data[imgIdx + c]);
-                }
-
+                const watermarked = Math.fround(data[imgIdx + c]);
                 const original = Math.fround((watermarked - alphaLogo) / oneMinusAlpha);
                 
+                // Clamp and round
                 data[imgIdx + c] = Math.min(255, Math.max(0, Math.round(original)));
             }
         }

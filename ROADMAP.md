@@ -2,11 +2,11 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.7.0 Alpha - Hardened & Precision)
-- [x] **Sub-pixel Alignment (v1.7.0)**: Bilinear interpolation for sub-pixel accuracy (eliminating artifacts on scaled images).
-- [x] **Perceptual Luminance Detection (v1.7.0)**: Switched to 0.299R+0.587G+0.114B formula for robust color-aware detection.
-- [x] **Entropy-Adaptive Weighting (v1.7.0)**: Dynamic gradient weighting on flat backgrounds (SNR optimization).
-- [x] **Extreme Test Optimization (v1.7.0)**: 30x faster test execution (13m -> 26s) via parallelism and tiered mock assets.
+## 📍 当前状态 (v1.7.0 Production - Precision & Consistency)
+- [x] **Full Sub-pixel Alignment (v1.7.0)**: Bilinear interpolation for BOTH image data and Alpha masks (eliminating edge artifacts perfectly).
+- [x] **Unified Perceptual Detection (v1.7.0)**: Standardized 0.299R+0.587G+0.114B formula across mask extraction and detection engine.
+- [x] **Clean Mode Labeling (v1.7.0)**: Fixed heuristic labeling bug to ensure accurate anchored/aligned/free status reporting.
+- [x] **CLI Robustness (v1.7.0)**: Automatic extension fallback and enhanced integration testing for edge paths.
 - [x] **Stress Test Audit Loop (v1.7.0)**: Dedicated `test:stress` for deep memory stability verification.
 - [x] **Premium UI/UX (v1.6.0)**: Glassmorphism, dark mode, and smooth micro-animations.
 - [x] **PWA Support (v1.6.0)**: Installable desktop/mobile app via Service Worker & Manifest.
@@ -36,6 +36,11 @@
 ---
 
 ## 🚀 次世代计划 (Next Phase: 2026 Q2)
+
+### 🎨 架构解耦与多模型支持 (Strategic Abstraction)
+- **多模型策略模式 (Strategy Pattern)**：重构 `src/core/config.js`，将目前硬编码的 Gemini 规则抽象为通用的 `WatermarkProfile` 协议。
+- **扩展指纹库**：研究并集成 DALL-E 3 (彩色 Logo, 不同锚点) 和 Midjourney 的水印建模逻辑。
+- **RGB Alpha 掩膜**：升级 `alphaMap` 逻辑以支持彩色水印的反向混合还原。
 
 ### 🎨 视觉与交互增强
 - **智能切边还原 (Auto-Crop Repair)**：针对被人工裁剪过的水印残余，实现自动检测并扩边还原。

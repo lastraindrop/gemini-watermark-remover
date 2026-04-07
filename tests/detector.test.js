@@ -131,7 +131,8 @@ describe('Watermark Detector Engine - Generalized Scenarios', () => {
         test('Deep Scan Disabled: Should work using anchored detection only', () => {
             const img = createMockImageData(1024, 1024, 'solid', 150);
             const alphaMap = createMockAlphaMap(96);
-            applyWatermark(img, 928, 928, 96, alphaMap);
+            const targetPos = 1024 - 64 - 96; // 864
+            applyWatermark(img, targetPos, targetPos, 96, alphaMap);
             
             const result = detectWatermark(img, alphaMaps, { deepScan: false });
             assert.ok(result, 'Should detect even if deepScan is disabled');

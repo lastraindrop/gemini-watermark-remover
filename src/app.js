@@ -266,9 +266,11 @@ function handleKeyDown(e) {
         let currentPercent = parseFloat(sliderResize.style.width) || 50;
         
         if (e.key === 'ArrowLeft') {
+            e.preventDefault();
             currentPercent = Math.max(0, currentPercent - 2);
             updateSliderPos(currentPercent);
         } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
             currentPercent = Math.min(100, currentPercent + 2);
             updateSliderPos(currentPercent);
         }
@@ -980,12 +982,12 @@ async function processDirectory() {
 
                         item.status = 'completed';
                         item.processedBlob = blob;
-                        updateStatus(item.id, `✅ ${i18n.t('status.success')} [${detectionMode.toUpperCase()}]`);
+                        updateStatus(item.id, `${i18n.t('status.success')} [${detectionMode.toUpperCase()}]`);
                         processedCount++;
                         updateProgress();
                     } catch (err) {
                         item.status = 'error';
-                        updateStatus(item.id, `❌ Error: ${err.message}`);
+                        updateStatus(item.id, `Error: ${err.message}`);
                         AuditLog.log(`Error processing ${item.name}: ${err.message}`, 'err');
                     } finally {
                         activeCount--;

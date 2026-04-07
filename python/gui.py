@@ -11,7 +11,7 @@ from remover import GeminiWatermarkRemover
 class ModernGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Gemini Watermark Remover (Desktop) v1.6")
+        self.root.title("Gemini Watermark Remover (Desktop) v1.7")
         self.root.geometry("960x700")
 
         # Centralized Theme & Configuration (v1.6)

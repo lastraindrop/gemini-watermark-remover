@@ -2,7 +2,7 @@
 
 # Gemini Lossless Watermark Remover - [banana.ovo.re](https://banana.ovo.re)
 
-A high-performance, 100% client-side tool for removing Gemini AI watermarks. Built with pure JavaScript, it leverages a mathematically precise **Reverse Alpha Blending** algorithm rather than unpredictable AI inpainting.
+A high-performance, 100% client-side tool for removing Gemini AI watermarks. Built with pure JavaScript, it leverages a mathematically precise **Reverse Alpha Blending** algorithm with **Sub-pixel Accuracy** rather than unpredictable AI inpainting.
 
 <p align="center">
   <img src="https://count.getloli.com/@gemini-watermark-remover?name=gemini-watermark-remover&theme=minecraft&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400">
@@ -10,32 +10,35 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 
 ## Features
 
-- ✅ **PWA (Progressive Web App) (v1.6.0)** - Installable on desktop/mobile, offline ready.
-- ✅ **Premium UI / Glassmorphism (v1.6.0)** - Modern aesthetic with high-end micro-animations.
-- ✅ **Keyboard Shortcuts (v1.6.0)** - `←/→` sliders, `Esc` reset, `Ctrl+S` save.
-- ✅ **100% Client-side** - No backend, zero latency, maximum privacy. (v1.5.5 Ready)
+- ✅ **Sub-pixel Alignment (v1.7.0)** - Bilinear interpolation for both image and alpha mask, eliminating artifacts.
+- ✅ **Perceptual Detection (v1.7.0)** - Enhanced luminance formula for superior accuracy on complex/color backgrounds.
+- ✅ **Adaptive SNR Weighting (v1.7.0)** - Dynamic gradient weighting to suppress false positives on flat textures.
+- ✅ **PWA (Progressive Web App)** - Installable on desktop/mobile, offline ready.
+- ✅ **Premium UI / Glassmorphism** - Modern aesthetic with high-end micro-animations.
+- ✅ **Keyboard Shortcuts** - `←/→` sliders, `Esc` reset, `Ctrl+S` save.
+- ✅ **100% Client-side** - No backend, zero latency, maximum privacy.
 - ✅ **High-Performance Sliding Window** - Optimized memory for massive batch processing.
 - ✅ **Resource Inlining** - Built with esbuild to embed masks as Base64.
 - ✅ **Architectural Resilience** - Automatic worker-to-main fallback on failure.
-- ✅ **Clipboard Paste (v1.6.0)** - Global `Ctrl+V` support for instant processing.
-- ✅ **Auto-Download (v1.6.0)** - Optional workflow for automatic file saving.
-- ✅ **Path Persistence (v1.6.0)** - Python GUI remembers workspace directories.
-- ✅ **Exhaustive Testing (v1.6.0)** - 130+ cases ensuring protocol consistency.
+- ✅ **Clipboard Paste** - Global `Ctrl+V` support for instant processing.
+- ✅ **Auto-Download** - Optional workflow for automatic file saving.
+- ✅ **Path Persistence** - Python GUI remembers workspace directories.
+- ✅ **Exhaustive Testing** - 140+ cases ensuring protocol consistency and mathematical precision.
 - ✅ **Catalog Tier Display** - Confidence badges for official resolution matches.
-- ✅ **Multi-language (v1.6.0)** - Support for **EN, ZH, JP, RU, FR**.
-- [x] **Production Hardened (v1.6.0)** - Fixed OOMs, memory leaks, and XSS risks.
+- ✅ **Multi-language** - Support for **EN, ZH, JP, RU, FR**.
+- [x] **Production Hardened** - Fixed OOMs, memory leaks, and sub-pixel aliasing.
 - ✅ **Edge-Crop Resilience** - Smart detection for watermarks partially outside image boundaries.
 - ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation.
 
-## 🛡️ Production Hardened (v1.6.0)
+## 🛡️ Production Hardened (v1.7.0)
 
-To ensure absolute stability when processing thousands of images or ultra-high resolution (4K/8K), the v1.6.0 release incorporates several hardening technologies:
+To ensure absolute stability and precision when processing thousands of images or ultra-high resolution (4K/8K), the v1.7.0 release incorporates several hardening technologies:
 
-1. **Memory Buffering & Pooling**: Persistent reuse of Float32Array and Uint8ClampedArray buffers within the `Detector` core. This reduces GC pressure for 4K processing by **85%**.
-2. **Streaming Directory Mode**: Utilizing **Async Generators** for high-volume local directory processing. The streaming architecture ensures no OOM even with tens of thousands of files.
-3. **Worker Resilience & Timeouts**: A 15-second mandatory timeout for Web Worker communication. If a worker hangs, the system automatically falls back to the main thread seamlessly.
-4. **Safe DOM & State Locking**: Implemented `isProcessing` locks and eliminated `innerHTML` usage in favor of safe DOM nodes to prevent XSS.
-5. **Offline PWA**: Core algorithms and assets are cached via Service Worker, enabling unwatermarking in offline environments.
+1. **Sub-pixel Alpha Sampling**: Utilizing **Bilinear Interpolation** for both the image data and the watermark mask. This ensures that even when the watermark is offset by a fraction of a pixel (common in scaled images), the reconstruction is mathematically perfect.
+2. **Perceptual Luminance Detection**: Switched to the industry-standard luminance formula ($Y = 0.299R + 0.587G + 0.114B$) for detection, making the engine significantly more sensitive to watermarks on vivid or complex colored backgrounds.
+3. **Memory Buffering & Pooling**: Persistent reuse of Float32Array and Uint8ClampedArray buffers within the `Detector` core. This reduces GC pressure for 4K processing by **85%**.
+4. **Streaming Directory Mode**: Utilizing **Async Generators** for high-volume local directory processing. The streaming architecture ensures no OOM even with tens of thousands of files.
+5. **Worker Resilience & Timeouts**: A 15-second mandatory timeout for Web Worker communication. If a worker hangs, the system automatically falls back to the main thread seamlessly.
 
 ## Examples
 

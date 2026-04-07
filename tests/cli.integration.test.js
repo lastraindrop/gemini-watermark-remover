@@ -69,6 +69,22 @@ describe('CLI Integration Tests', () => {
         assert.strictEqual(meta.format, 'png');
     });
 
+    test('Output path without extension should default to PNG', () => {
+        const input = join(TMP_DIR, 'input.png');
+        const output = join(TMP_DIR, 'output_no_ext');
+        
+        const result = spawnSync('node', ['src/cli.js', '-i', input, '-o', output]);
+        
+        assert.strictEqual(result.status, 0);
+        assert.ok(existsSync(output), 'Output file should be created');
+        
+        // Verify it is a valid PNG
+        const resultBuffer = readFileSync(output);
+        // PNG magic number: 89 50 4E 47 0D 0A 1A 0A
+        assert.strictEqual(resultBuffer[0], 0x89);
+        assert.strictEqual(resultBuffer[1], 0x50);
+    });
+
     test('Flag Verification: --no-deepScan and --noiseReduction', () => {
         const input = join(TMP_DIR, 'input.png');
         const output = join(TMP_DIR, 'output_flags.png');
