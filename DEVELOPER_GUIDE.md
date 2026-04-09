@@ -7,13 +7,14 @@
 项目遵循模块化设计，将核心算法与环境实现（Web/Node）彻底解耦：
 
 ### 1. 核心层 (`src/core/`)
-- **`catalog.js`**: (v1.4 New) **官方分辨率目录**。内置了从 512px 到 4096px 的 Gemini 官方比例输出数据。
-- **`config.js`**: 水印维度预测。v1.4 已重构为优先调用 `catalog.js` 进行精确匹配。
-- **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。v1.7.0 已统一采用感知亮度公式进行提取。
-- **`blendModes.js`**: (v1.7.0 Production) **反向 Alpha 混合**。实现了全路径 **双线性插值 (Bilinear Interpolation)**：通过遍历图像像素反向采样 Alpha 掩膜，确保了亚像素级的对齐精度。
-- **`detector.js`**: (v1.7.0 Precision) **水印探测引擎**。引入了 **感知亮度公式 (Perceptual Luminance)** 和 **熵权自适应滤波 (Entropy-Adaptive SNR)**。
-- **`watermarkEngine.js`**: 引擎调度层。支持 `noiseReduction` 和 `deepScan` 选项配置。
-- **`i18n.js`**: (v1.5.5) **多语言引擎**。支持 5 国语言动态加载、浏览器语言自动识别与全局动态 ID 映射。
+- **`profiles.js`**: (v1.7.5 New) **水印配置文件中心**。定义了不同 AI 模型（如 Gemini, DALL-E）的水印协议、检测模式及锚点信息。
+- **`catalog.js`**: **官方分辨率目录**。内置了各模型官方比例输出数据。
+- **`config.js`**: 水印维度预测层。已重构为策略模式，根据当前活跃的 `Profile` 动态路由探测参数。
+- **`alphaMap.js`**: 负责从预设的校准图中计算 Alpha 透明度映射表。v1.7.0 已统一采用感知亮度公式提取。
+- **`blendModes.js`**: (v1.7.0 Production) **反向 Alpha 混合**。实现了全路径 **双线性插值 (Bilinear Interpolation)**。
+- **`detector.js`**: (v1.7.5 Precision) **水印探测引擎**。支持跨模型像素对齐验证，并输出 **置信度 (Confidence Score)**。
+- **`watermarkEngine.js`**: 引擎调度层。支持 `profileId` 切换及 Web Worker 通信。
+- **`i18n.js`**: (v1.5.5) **多语言引擎**。支持 5 国语言动态加载与全局动态 ID 映射。
 - **PWA (v1.6.0)**: 通过 `sw.js` 和 `manifest.json` 实现本地安装与离线资产缓存。
 
 ### 2. 交互与持久化实现 (UI & Persistence)
@@ -48,9 +49,9 @@
 为避免出现历史版本中的参数硬编码与环境隔离失效问题，未来所有新提交的模块与测试必须严格遵守以下三大纪律：
 
 1. **架构适应性 (Architectural Alignment)**:
-   测试文件必须与代码架构 1:1 映射（例如：`core_math` 验证底层算子，`detector` 验证调度策略，`watermarkEngine` 验证 Worker 生命周期与异常降级）。禁止跨层调用引发隐式副作用。
+   测试文件必须与代码架构 1:1 映射。v1.7.5 引入了 **Profile 对齐验证**，测试矩阵会自动遍历 `profiles.js` 中的协议 ID 进行全量回归。
 2. **非硬编码与唯一事实来源 (DRY & Single Source of Truth)**:
-   绝不允许在测试中断言硬编码的分辨率、偏移量或边距（如 `assert(pos.x === 928)`）。所有期望值必须通过调用 `catalog.js` 与 `config.js` 动态计算得出。统一使用 `tests/test_utils.js` 作为“测试工厂”生成 Mock 图像和 Alpha 贴图，彻底消除冗余代码。
+   绝不允许在测试中断言硬编码的分辨率、偏移量或边距。所有期望值必须通过调用 `catalog.js` 与 `config.js` 动态计算。统一使用 `tests/test_utils.js` 作为“测试工厂”生成模型感知的 Mock 图像。
 3. **全场景完备性与沙箱隔离 (Completeness & Isolation)**:
    - **自动化矩阵**：每新增一种分辨率规格或功能标志位（如 `noiseReduction`），必须被自动纳入参数矩阵进行全量验证，确保没有组合遗漏。
    - **沙箱级清理**：所有修改全局对象（如 `global.window`、`Worker` 模拟）或操作内部持久化缓冲区（如 `detectWatermark._blurBuffer`）的测试，必须通过严格的 `before/after` 钩子进行环境清理，确保并发测试执行时的绝对纯净与无状态。

@@ -1,36 +1,20 @@
 import { getCatalogConfig } from './catalog.js';
+import { GEMINI_PROFILE } from './profiles.js';
 
 /**
- * Detect watermark configuration based on image size
+ * Detect watermark configuration based on image size using profiles
  * @param {number} imageWidth - Image width
  * @param {number} imageHeight - Image height
+ * @param {string} profileId - ID of the watermark profile (default: 'gemini')
  * @returns {Object} Watermark configuration {logoSize, marginRight, marginBottom}
  */
-export function detectWatermarkConfig(imageWidth, imageHeight) {
+export function detectWatermarkConfig(imageWidth, imageHeight, profileId = 'gemini') {
     // 1. Try Catalog-based matching (Highly precise)
     const catalog = getCatalogConfig(imageWidth, imageHeight);
     if (catalog) return catalog;
 
-    // 2. Heuristic fallback for non-cataloged sizes
-    const maxSide = Math.max(imageWidth, imageHeight);
-    const minSide = Math.min(imageWidth, imageHeight);
-
-    // v1.4.0 Refined Heuristic:
-    if (maxSide >= 1500 || (maxSide > 1024 && minSide >= 900)) {
-        return {
-            logoSize: 96,
-            marginRight: 64,
-            marginBottom: 64,
-            isOfficial: false
-        };
-    } else {
-        return {
-            logoSize: 48,
-            marginRight: 32,
-            marginBottom: 32,
-            isOfficial: false
-        };
-    }
+    // 2. Profile-based Heuristic fallback
+    return GEMINI_PROFILE.getHeuristicConfig(imageWidth, imageHeight);
 }
 
 /**

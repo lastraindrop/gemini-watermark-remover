@@ -139,8 +139,16 @@
           </div>
         </div>
         
-        <!-- Advanced Engine Settings Panel: v1.5 functionality -->
+        <!-- Advanced Engine Settings Panel: v1.7 Multi-Profile support -->
         <div class="mt-4 flex flex-wrap gap-4 items-center justify-center p-4 bg-gray-50/50 rounded-xl border border-gray-100 shadow-glass">
+            
+          <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-indigo-100 shadow-sm transition-all">
+            <span class="text-[10px] font-black text-indigo-500 uppercase tracking-tighter" data-i18n="settings.model">Model</span>
+            <select id="profileSelect" class="bg-transparent border-none text-xs font-bold text-gray-800 outline-none cursor-pointer focus:ring-0">
+                <!-- Populated dynamically -->
+            </select>
+          </div>
+
           <div class="flex items-center gap-3 bg-white px-5 py-2 rounded-lg border border-emerald-50 shadow-sm hover:shadow-md transition-all">
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="deepScanToggle" class="sr-only peer" checked>
@@ -163,10 +171,6 @@
               <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
               <span class="ml-3 text-xs font-bold text-gray-700" data-i18n="settings.autoDownload">自动下载</span>
             </label>
-            <div class="group relative">
-                <svg class="h-3 w-3 text-gray-300 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 p-1 bg-dark text-white text-[8px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">处理完成后自动触发下载/保存操作。</div>
-            </div>
           </div>
         </div>
       </div>

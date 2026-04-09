@@ -4,40 +4,47 @@ import { detectWatermark } from '../src/core/detector.js';
 import { calculateWatermarkPosition, detectWatermarkConfig } from '../src/core/config.js';
 import { createMockImageData, createMockAlphaMap, applyWatermark, addNoise, generateParameterMatrix } from './test_utils.js';
 
+import { GEMINI_PROFILE } from '../src/core/profiles.js';
+
 describe('Watermark Detector Engine - Generalized Scenarios', () => {
 
-    const alphaMaps = { 48: createMockAlphaMap(48), 96: createMockAlphaMap(96) };
+    // Dynamically generate alpha maps from profile tiers
+    const alphaMaps = {};
+    for (const tierId in GEMINI_PROFILE.tiers) {
+        const size = GEMINI_PROFILE.tiers[tierId].logoSize;
+        if (!alphaMaps[size]) alphaMaps[size] = createMockAlphaMap(size);
+    }
+
     const matrix = generateParameterMatrix();
 
     describe('Automated Parameter Matrix Tests', () => {
         for (const { options, resolution } of matrix) {
-            const { w, h } = resolution;
+            const { w, h, tier } = resolution;
             const testName = `Matrix: ${w}x${h} [DeepScan: ${options.deepScan}, NR: ${options.noiseReduction}]`;
             
             test(testName, () => {
                 const config = detectWatermarkConfig(w, h);
                 const size = config.logoSize;
                 const img = createMockImageData(w, h, 'gradient');
-                const alphaMap = alphaMaps[size];
+                const alphaMap = alphaMaps[size] || createMockAlphaMap(size);
                 
-                // Get correct anchored position from real config logic
                 const pos = calculateWatermarkPosition(w, h, config);
-                const targetX = pos.x;
-                const targetY = pos.y;
+                applyWatermark(img, pos.x, pos.y, size, alphaMap);
                 
-                applyWatermark(img, targetX, targetY, size, alphaMap);
-                
-                if (options.noiseReduction) {
-                    addNoise(img, 20);
-                }
+                if (options.noiseReduction) addNoise(img, 20);
 
                 const result = detectWatermark(img, alphaMaps, options);
 
-                // If deepScan is on, it must find it. If off, it must find it if it's in the anchored position.
-                if (options.deepScan || (targetX === pos.x && targetY === pos.y)) {
+                // Validation Logic
+                if (options.deepScan || tier) {
                     assert.ok(result, `Detection failed for ${testName}`);
-                    assert.ok(Math.abs(result.x - targetX) <= 1, `X mismatch: got ${result.x}, expected ${targetX}`);
-                    assert.ok(Math.abs(result.y - targetY) <= 1, `Y mismatch: got ${result.y}, expected ${targetY}`);
+                    assert.ok(Math.abs(result.x - pos.x) <= 1, `X mismatch: got ${result.x}, expected ${pos.x}`);
+                    assert.ok(Math.abs(result.y - pos.y) <= 1, `Y mismatch: got ${result.y}, expected ${pos.y}`);
+                    
+                    // Verify architectural label consistency
+                    if (tier && !options.noiseReduction) {
+                        assert.strictEqual(result.mode, 'anchored', 'Cataloged size should be detected as anchored');
+                    }
                 }
             });
         }

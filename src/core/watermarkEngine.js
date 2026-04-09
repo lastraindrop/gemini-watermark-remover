@@ -193,6 +193,7 @@ export class WatermarkEngine {
         return { 
             canvas, 
             detectionMode: pixelDetect ? pixelDetect.mode : 'heuristic',
+            confidence: pixelDetect ? pixelDetect.confidence : 1.0, // Heuristic is 100% "confident" in its assumption
             config
         };
     }

@@ -84,7 +84,7 @@ class ModernGUI:
         title_label.pack(side="left")
         
         status_dot = tk.Canvas(header, width=10, height=10, bg=self.THEME["bg"], highlightthickness=0)
-        status_dot.create_oval(2, 2, 8, 8, fill=self.THEME["primary"])
+        self.status_circle = status_dot.create_oval(2, 2, 8, 8, fill=self.THEME["primary"])
         status_dot.pack(side="left", padx=10)
         
         # Content
@@ -99,12 +99,12 @@ class ModernGUI:
         options_bar = tk.Frame(content, bg=self.THEME["bg"])
         options_bar.pack(fill="x", pady=10)
         
-        tk.Checkbutton(options_bar, text="Deep Scan (Highly Recommended)", variable=self.deep_scan_var,
+        tk.Checkbutton(options_bar, text="Deep Scan (High Precision)", variable=self.deep_scan_var,
                        bg=self.THEME["bg"], fg=self.THEME["text"], selectcolor=self.THEME["card"],
                        activebackground=self.THEME["bg"], activeforeground=self.THEME["primary"],
                        font=self.THEME["font_main"], borderwidth=0, highlightthickness=0).pack(side="left", padx=(0, 20))
         
-        tk.Checkbutton(options_bar, text="Enforce Noise Reduction (Stable)", variable=self.noise_reduction_var,
+        tk.Checkbutton(options_bar, text="Enforce Noise Reduction", variable=self.noise_reduction_var,
                        bg=self.THEME["bg"], fg=self.THEME["text"], selectcolor=self.THEME["card"],
                        activebackground=self.THEME["bg"], activeforeground=self.THEME["primary"],
                        font=self.THEME["font_main"], borderwidth=0, highlightthickness=0).pack(side="left")
@@ -117,6 +117,11 @@ class ModernGUI:
                                      bg=self.THEME["primary"], fg="white", font=self.THEME["font_bold"],
                                      padx=30, pady=10, relief="flat", cursor="hand2", activebackground="#059669")
         self.process_btn.pack(side="right")
+
+        self.open_dir_btn = tk.Button(action_bar, text="OPEN OUTPUT", command=self.open_output_folder,
+                                     bg=self.THEME["card"], fg=self.THEME["text"], font=self.THEME["font_main"],
+                                     padx=15, pady=10, relief="flat", cursor="hand2")
+        self.open_dir_btn.pack(side="right", padx=10)
         
         # Progress Bar
         style = ttk.Style()
@@ -136,6 +141,13 @@ class ModernGUI:
         self.console = scrolledtext.ScrolledText(log_frame, bg="#020617", fg="#cbd5e1", 
                                                  font=("Consolas", 10), borderwidth=0, padx=10, pady=10)
         self.console.pack(fill="both", expand=True)
+
+    def open_output_folder(self):
+        path = self.output_entry.get()
+        if os.path.exists(path):
+            os.startfile(path)
+        else:
+            messagebox.showwarning("Not Found", "Output folder does not exist yet.")
 
     def _create_path_section(self, parent, title, subtitle, mode):
         frame = tk.Frame(parent, bg=self.THEME["card"], padx=20, pady=15)
@@ -166,18 +178,22 @@ class ModernGUI:
             return
         timestamp = datetime.now().strftime("%H:%M:%S")
         color = self.THEME["text"]
+        prefix = "●"
         if level == "success": color = self.THEME["primary"]
-        if level == "warn": color = self.THEME["warn"]
-        if level == "err": color = self.THEME["err"]
-        if level == "process": color = self.THEME["accent"]
+        if level == "warn": color = self.THEME["warn"]; prefix = "▲"
+        if level == "err": color = self.THEME["err"]; prefix = "✖"
+        if level == "process": color = self.THEME["accent"]; prefix = "⚙"
         
         self.console.tag_config(level, foreground=color)
-        self.console.insert(tk.END, f"[{timestamp}] [{level.upper()}] {msg}\n", level)
+        self.console.insert(tk.END, f"{prefix} [{timestamp}] {msg}\n", level)
         self.console.see(tk.END)
 
     def browse_path(self, mode):
         if mode == "input":
-            path = filedialog.askopenfilenames(title="Select Images") if messagebox.askyesno("Source Type", "Select multiple files? (No for Folder selection)") else filedialog.askdirectory(title="Select Input Folder")
+            if messagebox.askyesno("Source Type", "Want to select multiple individual files?\n(No to select a whole folder)"):
+                path = filedialog.askopenfilenames(title="Select Images")
+            else:
+                path = filedialog.askdirectory(title="Select Input Folder")
         else:
             path = filedialog.askdirectory(title="Select Output Folder")
             
@@ -195,7 +211,7 @@ class ModernGUI:
 
     def start_task(self):
         if not self.remover:
-            messagebox.showerror("Backend Error", "Core engine (Node.js) is not initialized. Please ensure Node.js is installed and project is built.")
+            messagebox.showerror("Backend Error", "Core engine (Node.js) is not initialized.")
             return
 
         input_p = self.input_entry.get()
@@ -206,6 +222,7 @@ class ModernGUI:
             return
 
         self._save_prefs()
+        self.root.after(0, lambda: self.status_dot_color(self.THEME["warn"]))
             
         self.process_btn.config(state="disabled", text="PROCESSING...")
         self.progress["value"] = 0
@@ -214,19 +231,25 @@ class ModernGUI:
         thread.daemon = True
         thread.start()
 
+    def status_dot_color(self, color):
+        if hasattr(self, 'status_canvas') and self.status_circle:
+             self.status_canvas.itemconfig(self.status_circle, fill=color)
+
     def run_process(self, src, dest):
         try:
             ds = self.deep_scan_var.get()
             nr = self.noise_reduction_var.get()
-            self.log(f"Starting process [DS={ds}, NR={nr}]...", "process")
+            self.log(f"Starting engine scan [DeepScan={ds}, NoiseReduc={nr}]", "process")
+            self.root.after(0, lambda: self.status_dot_color(self.THEME["warn"]))
             
-            # Synchronize: If the entry content doesn't match the multi-file cache, fallback to single path
+            # Simple heuristic for multi-file detection
             is_valid_multi = isinstance(self.input_paths, (list, tuple)) and str(self.input_paths) == src
             
             if is_valid_multi:
                 total = len(self.input_paths)
                 for i, f in enumerate(self.input_paths):
-                    self.log(f"Processing ({i+1}/{total}): {os.path.basename(f)}", "info")
+                    short_name = os.path.basename(f)
+                    self.log(f"({i+1}/{total}) Pipelining: {short_name}", "info")
                     res = self.remover.remove_watermark(f, dest, deep_scan=ds, noise_reduction=nr)
                     self._handle_result(res)
                     val = ((i + 1) / total) * 100
@@ -236,9 +259,11 @@ class ModernGUI:
                 self._handle_result(res)
                 self.root.after(0, lambda: self.progress.configure(value=100))
             
-            self.log("All tasks completed successfully.", "success")
+            self.log("Batch processing sequence finished.", "success")
+            self.root.after(0, lambda: self.status_dot_color(self.THEME["primary"]))
         except Exception as e:
-            self.log(f"Fatal Error: {str(e)}", "err")
+            self.log(f"Fatal Engine Panic: {str(e)}", "err")
+            self.root.after(0, lambda: self.status_dot_color(self.THEME["err"]))
         finally:
             self.root.after(0, lambda: self.process_btn.config(state="normal", text="START PROCESSING"))
 
@@ -247,13 +272,14 @@ class ModernGUI:
             status = r.get("status")
             name = r.get("file", r.get("input", "unknown"))
             if status == "success":
-                self.log(f"Success: {os.path.basename(name)}", "success")
+                conf = r.get("confidence", 0)
+                mode = r.get("mode", "unknown")
+                self.log(f"Cleaned [{mode}, {conf*100:.1f}%]: {os.path.basename(name)}", "success")
             else:
                 self.log(f"Failed: {os.path.basename(name)} - {r.get('message', 'Unknown error')}", "err")
 
 if __name__ == "__main__":
     from tkinter import messagebox
     root = tk.Tk()
-    # Attempt to use a cleaner theme if available
     app = ModernGUI(root)
     root.mainloop()

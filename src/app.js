@@ -1,6 +1,7 @@
 import i18n, { supportedLanguages } from './i18n.js';
 import { WatermarkEngine } from './core/watermarkEngine.js';
 import { loadImage, checkOriginal, getOriginalStatus, setStatusMessage, showLoading, showLoadingFail, hideLoading } from './utils.js';
+import { PROFILES } from './core/profiles.js';
 import JSZip from 'jszip';
 import mediumZoom from 'medium-zoom';
 
@@ -23,6 +24,7 @@ const startDirProcessBtn = document.getElementById('startDirProcessBtn');
 const dirStatus = document.getElementById('dirStatus');
 const inputDirPathEl = document.getElementById('inputDirPath');
 const outputDirPathEl = document.getElementById('outputDirPath');
+const profileSelect = document.getElementById('profileSelect');
 
 let inputDirHandle = null;
 let outputDirHandle = null;
@@ -75,9 +77,7 @@ const escapeHtml = (str) =>
 const AuditLog = {
     log(message, type = 'info') {
         let list = document.getElementById('auditLogList');
-        if (!list) {
-            return;
-        }
+        if (!list) return;
         const entry = document.createElement('div');
         const now = new Date();
         const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
@@ -130,6 +130,19 @@ const objectUrlManager = {
 async function init() {
     try {
         AuditLog.log('Application starting...', 'info');
+        
+        // Populate Profile Selector
+        if (profileSelect) {
+            profileSelect.innerHTML = '';
+            PROFILES.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                profileSelect.appendChild(opt);
+            });
+            profileSelect.addEventListener('change', saveSettings);
+        }
+
         if (window.location.protocol === 'file:') {
             AuditLog.log('Running via file:// protocol. Some features (Workers, Fetch) might be restricted.', 'warn');
         }
@@ -306,6 +319,7 @@ function handlePaste(e) {
  */
 function getEngineOptions() {
     return {
+        profileId: profileSelect?.value || 'gemini',
         deepScan: document.getElementById('deepScanToggle')?.checked ?? true,
         noiseReduction: document.getElementById('noiseReductionToggle')?.checked ?? false,
         autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false
@@ -333,17 +347,18 @@ function switchViewMode(mode) {
 }
 
 /**
- * Persistence Layer v1.5
+ * Persistence Layer v1.7
  */
 function saveSettings() {
     const settings = {
+        profileId: profileSelect?.value || 'gemini',
         deepScan: document.getElementById('deepScanToggle')?.checked ?? true,
         noiseReduction: document.getElementById('noiseReductionToggle')?.checked ?? false,
         autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false,
         locale: i18n.locale
     };
     localStorage.setItem('gwr_settings', JSON.stringify(settings));
-    AuditLog.log('Settings saved to local storage', 'info');
+    AuditLog.log('Settings persistent storage updated.', 'info');
 }
 
 async function loadSettings() {
@@ -352,6 +367,9 @@ async function loadSettings() {
         if (!saved) return;
         const settings = JSON.parse(saved);
         
+        if (settings.profileId && profileSelect) {
+            profileSelect.value = settings.profileId;
+        }
         if (settings.deepScan !== undefined) {
             const el = document.getElementById('deepScanToggle');
             if (el) el.checked = settings.deepScan;
@@ -370,7 +388,7 @@ async function loadSettings() {
             if (select) select.value = settings.locale;
             updateDynamicTexts();
         }
-        AuditLog.log('Settings restored from local storage', 'success');
+        AuditLog.log('Application state restored successfully.', 'success');
     } catch (err) {
         console.warn('Failed to load settings:', err);
     }
@@ -435,6 +453,10 @@ function handleFileSelect(e) {
 }
 
 function handleFiles(files) {
+    if (!engine) {
+        AuditLog.log('Engine not initialized. Please wait.', 'err');
+        return;
+    }
     if (isProcessing) {
         AuditLog.log('Processing already in progress...', 'warn');
         return;
@@ -524,7 +546,7 @@ async function processSingle(item) {
         AuditLog.log(`Processing image: ${item.name} (${img.width}x${img.height}) [NR: ${options.noiseReduction}]`, 'process');
         
         resultContainer.classList.add('scan-active');
-        const { canvas, detectionMode, config } = await engine.removeWatermarkFromImage(img, options);
+        const { canvas, detectionMode, confidence, config } = await engine.removeWatermarkFromImage(img, options);
         resultContainer.classList.remove('scan-active');
 
         // Update Tier Badge
@@ -538,7 +560,10 @@ async function processSingle(item) {
         const endTime = performance.now();
         const latency = (endTime - startTime).toFixed(0);
         lastLatency.textContent = `Latency: ${latency}ms`;
-        AuditLog.log(`Processing complete [Mode: ${detectionMode.toUpperCase()}] for ${item.name} in ${latency}ms`, 'success');
+        
+        // Confidence Display
+        const confPercent = (confidence * 100).toFixed(0);
+        AuditLog.log(`Processing complete [Mode: ${detectionMode.toUpperCase()}, Conf: ${confPercent}%] for ${item.name} in ${latency}ms`, 'success');
 
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
         item.processedBlob = blob;
@@ -575,6 +600,16 @@ async function processSingle(item) {
         sep.textContent = '|';
         processedInfo.appendChild(sep);
         
+        const confSpan = document.createElement('span');
+        confSpan.className = 'text-blue-500 font-black';
+        confSpan.textContent = `CONF: ${confPercent}%`;
+        processedInfo.appendChild(confSpan);
+
+        const sep2 = document.createElement('span');
+        sep2.className = 'px-2 opacity-50';
+        sep2.textContent = '|';
+        processedInfo.appendChild(sep2);
+
         const removedSpan = document.createElement('span');
         removedSpan.className = 'text-emerald-500 underline decoration-2 underline-offset-4';
         removedSpan.textContent = i18n.t('info.removed');
@@ -732,7 +767,7 @@ async function processQueue() {
                         const container = document.querySelector(`#card-${item.id} .relative`);
                         if (container) container.classList.add('scan-active');
                         
-                        const { canvas, detectionMode, config } = await engine.removeWatermarkFromImage(img, options);
+                        const { canvas, detectionMode, confidence, config } = await engine.removeWatermarkFromImage(img, options);
                         if (container) container.classList.remove('scan-active');
                         
                         const loader = document.getElementById(`loader-${item.id}`);
@@ -745,12 +780,13 @@ async function processQueue() {
                         item.processedBlob = blob;
 
                         item.processedUrl = objectUrlManager.create(blob);
-                        AuditLog.log(`Batch: ${item.name} done [${detectionMode}] in ${latency}ms`, 'success');
+                        const confPercent = (confidence * 100).toFixed(0);
+                        AuditLog.log(`Batch: ${item.name} done [${detectionMode}, ${confPercent}%] in ${latency}ms`, 'success');
                         
                         if (config && config.isOfficial) {
                             const tier = document.getElementById(`tier-${item.id}`);
                             if (tier) {
-                                tier.textContent = `${config.tier.toUpperCase()} OFFICIAL`;
+                                tier.textContent = `${config.tier.toUpperCase()} OFFICIAL [${confPercent}%]`;
                                 tier.classList.remove('hidden');
                             }
                         }
