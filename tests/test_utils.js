@@ -1,4 +1,4 @@
-import { CATALOGS } from '../src/core/catalog.js';
+import { registry } from '../src/core/templates/registry.js';
 
 /**
  * Build a map of alpha maps for all required sizes in a profile
@@ -81,11 +81,18 @@ export function applyWatermark(imageData, x, y, sizeW, sizeH, alphaMap, logoValu
 export function createMockAlphaMap(w, h) {
     const realH = h || w;
     const alphaMap = new Float32Array(w * realH).fill(0);
-    // Draw something complex
+    const centerX = w / 2;
+    const centerY = realH / 2;
+    const radius = Math.min(w, realH) / 3;
+    
     for (let i = 0; i < realH; i++) {
         for (let j = 0; j < w; j++) {
-            if (i > realH/4 && i < 3*realH/4 && j > w/4 && j < 3*w/4) {
-                alphaMap[i * w + j] = 0.5;
+            const dx = j - centerX;
+            const dy = i - centerY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < radius) {
+                // Smooth radial gradient for non-zero image gradients
+                alphaMap[i * w + j] = 0.5 * (1 - dist / radius);
             }
         }
     }
@@ -93,44 +100,136 @@ export function createMockAlphaMap(w, h) {
 }
 
 /**
- * Generate dynamic combinations for exhaustive testing
+ * Convert an AlphaMap (Float32Array) to RGBA data (Uint8ClampedArray) for asset mocking
  */
-export function generateParameterMatrix() {
-    const profiles = ['gemini', 'doubao'];
-    const matrix = [];
+export function alphaToRGBA(alphaMap, width, height) {
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < alphaMap.length; i++) {
+        const val = Math.round(alphaMap[i] * 255);
+        const idx = i * 4;
+        data[idx] = data[idx + 1] = data[idx + 2] = val; // Grayscale
+        data[idx + 3] = 255;
+    }
+    return data;
+}
+
+/**
+ * Generate a full Cartesian product of parameters for exhaustive testing (v1.8.1)
+ * combinations: Profiles x Anchors x Flags
+ */
+
+export function generateCartesianMatrix() {
+    const flags = [
+        { deepScan: true, noiseReduction: false },
+        { deepScan: false, noiseReduction: false }
+    ];
     
-    for (const pid of profiles) {
-        const catalog = CATALOGS[pid];
-        if (!catalog) continue;
-        
+    const matrix = [];
+    const allProfiles = registry.getAllProfiles();
+
+    for (const profile of allProfiles) {
+        const catalog = registry.getCatalog(profile.id);
         for (const entry of catalog) {
-            matrix.push({ 
-                profileId: pid,
-                options: { deepScan: true, noiseReduction: false }, 
-                resolution: { w: entry.width, h: entry.height, config: entry } 
-            });
+            for (const f of flags) {
+                matrix.push({
+                    profileId: profile.id,
+                    options: f,
+                    resolution: { w: entry.width, h: entry.height, config: entry }
+                });
+            }
         }
     }
-    
     return matrix;
+}
+
+/**
+ * Mocking Browser DOM elements for E2E node tests (v1.8.1)
+ */
+export class MockCanvas {
+    constructor(width, height) {
+        this._width = width || 300;
+        this._height = height || 150;
+        this.data = new Uint8ClampedArray(this._width * this._height * 4);
+    }
+    get width() { return this._width; }
+    set width(val) {
+        if (this._width !== val) {
+            this._width = val;
+            this.data = new Uint8ClampedArray(this._width * this._height * 4);
+        }
+    }
+    get height() { return this._height; }
+    set height(val) {
+        if (this._height !== val) {
+            this._height = val;
+            this.data = new Uint8ClampedArray(this._width * this._height * 4);
+        }
+    }
+    getContext(type) {
+        if (type !== '2d') return null;
+        return {
+            drawImage: (img, dx, dy) => {
+                if (img._data) {
+                    const len = Math.min(this.data.length, img._data.length);
+                    this.data.set(img._data.subarray(0, len));
+                }
+            },
+            getImageData: (x, y, w, h) => {
+                // v1.8.1 Fix: Ensure returned data matches requested dimensions
+                const buffer = new Uint8ClampedArray(w * h * 4);
+                // For simplicity in tests, if x,y=0 and sizes match, just return a slice
+                if (x === 0 && y === 0 && w === this._width && h === this._height) {
+                    return { width: w, height: h, data: this.data };
+                }
+                // Otherwise do a proper crop simulation (needed for asset extraction)
+                for (let r = 0; r < h; r++) {
+                    const srcOff = ((y + r) * this._width + x) * 4;
+                    const dstOff = (r * w) * 4;
+                    if (srcOff >= 0 && srcOff < this.data.length) {
+                        buffer.set(this.data.subarray(srcOff, srcOff + w * 4), dstOff);
+                    }
+                }
+                return { width: w, height: h, data: buffer };
+            },
+            putImageData: (imgData) => {
+                this.data.set(imgData.data);
+            }
+        };
+    }
+    toBlob(callback) {
+        callback(new Blob(['mock-blob-data'], { type: 'image/png' }));
+    }
+}
+
+export class MockImageElement {
+    constructor() {
+        this.width = 0;
+        this.height = 0;
+        this.src = '';
+        this._data = null;
+    }
+}
+
+export function createMockImageElement(width, height, data) {
+    const img = new MockImageElement();
+    img.width = width;
+    img.height = height;
+    img._data = data;
+    return img;
 }
 
 /**
  * Blob/URL Mocks for memory tracking
  */
 export function setupMemoryMocks() {
-    if (typeof global.URL === 'undefined') {
         const urls = new Set();
-        global.URL = {
-            createObjectURL: () => {
-                const url = `blob:mock-${Math.random()}`;
-                urls.add(url);
-                return url;
-            },
-            revokeObjectURL: (url) => urls.delete(url)
+        global.URL.createObjectURL = (obj) => {
+            const url = `blob:mock-${Math.random()}`;
+            urls.add(url);
+            return url;
         };
+        global.URL.revokeObjectURL = (url) => urls.delete(url);
         global.MockMemoryTracker = urls;
-    }
 }
 
 /**

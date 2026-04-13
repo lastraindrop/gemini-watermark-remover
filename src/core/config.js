@@ -1,6 +1,12 @@
 import { getCatalogConfig, getAllCatalogConfigs } from './catalog.js';
 import { PROFILES } from './profiles.js';
 
+export const ENGINE_LIMITS = {
+    MAX_PIXELS: 8000 * 8000, // 64MP
+    MAX_FILE_SIZE: 20 * 1024 * 1024, // 20MB
+    MAX_CONCURRENCY: 4
+};
+
 /**
  * Detect watermark configuration (tiers/size) for a given resolution.
  * Prefers Catalog (Precise) -> Profile Heuristics (Approximate).

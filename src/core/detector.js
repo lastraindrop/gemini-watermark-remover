@@ -162,7 +162,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                             detectWatermark._sharedGradientsI, 
                             detectWatermark._sharedGradientsA
                         );
-                        const adaptiveWeightGradient = Math.min(0.4, (candidate._lastVar || 0.01) * 20);
+                        const ADAPTIVE_WEIGHT_LIMIT = 0.4;
+                        const ADAPTIVE_SCALE = 20;
+                        const adaptiveWeightGradient = Math.min(ADAPTIVE_WEIGHT_LIMIT, (candidate._lastVar || 0.01) * ADAPTIVE_SCALE);
                         confidence = confidence * (1.0 - adaptiveWeightGradient) + gradientConf * adaptiveWeightGradient;
                     }
 

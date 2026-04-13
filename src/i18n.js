@@ -1,15 +1,19 @@
-import zhCN from './i18n/zh-CN.json';
-import enUS from './i18n/en-US.json';
-import ruRU from './i18n/ru-RU.json';
-import frFR from './i18n/fr-FR.json';
-import jaJP from './i18n/ja-JP.json';
+import zhCN from './i18n/zh-CN.json' with { type: 'json' };
+import enUS from './i18n/en-US.json' with { type: 'json' };
+import ruRU from './i18n/ru-RU.json' with { type: 'json' };
+import frFR from './i18n/fr-FR.json' with { type: 'json' };
+import jaJP from './i18n/ja-JP.json' with { type: 'json' };
+import esES from './i18n/es-ES.json' with { type: 'json' };
+import deDE from './i18n/de-DE.json' with { type: 'json' };
 
 const translations = {
     'zh-CN': zhCN,
     'en-US': enUS,
     'ru-RU': ruRU,
     'fr-FR': frFR,
-    'ja-JP': jaJP
+    'ja-JP': jaJP,
+    'es-ES': esES,
+    'de-DE': deDE
 };
 
 export const supportedLanguages = [
@@ -17,7 +21,9 @@ export const supportedLanguages = [
     { code: 'en-US', label: '🇺🇸 EN' },
     { code: 'ja-JP', label: '🇯🇵 日本語' },
     { code: 'ru-RU', label: '🇷🇺 RU' },
-    { code: 'fr-FR', label: '🇫🇷 FR' }
+    { code: 'fr-FR', label: '🇫🇷 FR' },
+    { code: 'es-ES', label: '🇪🇸 ES' },
+    { code: 'de-DE', label: '🇩🇪 DE' }
 ];
 
 const i18n = {
@@ -26,7 +32,9 @@ const i18n = {
             (navigator.language?.startsWith('zh') ? 'zh-CN' : 
              navigator.language?.startsWith('ru') ? 'ru-RU' :
              navigator.language?.startsWith('fr') ? 'fr-FR' :
-             navigator.language?.startsWith('ja') ? 'ja-JP' : 'en-US') 
+             navigator.language?.startsWith('ja') ? 'ja-JP' : 
+             navigator.language?.startsWith('es') ? 'es-ES' :
+             navigator.language?.startsWith('de') ? 'de-DE' : 'en-US') 
           : 'en-US'),
   translations: {},
 

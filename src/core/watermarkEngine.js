@@ -18,6 +18,7 @@ export class WatermarkEngine {
         this._reusableCanvas = null;
         this._reusableCtx = null;
         this._useWorker = false;
+        this._workerFailed = false;
         
         // Cache for loaded images
         this._assetCache = {};
@@ -33,7 +34,7 @@ export class WatermarkEngine {
      * Lazy-initialize or get the persistent worker
      */
     _getWorker() {
-        if (typeof window === 'undefined' || !window.Worker || window.GM_info) return null;
+        if (typeof window === 'undefined' || !window.Worker || window.GM_info || this._workerFailed) return null;
         if (!this._worker) {
             try {
                 const workerUrl = new URL('worker.js', import.meta.url);
@@ -53,10 +54,13 @@ export class WatermarkEngine {
                 this._worker.onerror = (e) => {
                     console.warn('Worker error, switching to main thread:', e);
                     this._useWorker = false;
+                    this._workerFailed = true;
                     this._workerHandlers.forEach(h => h.reject(new Error('Worker crashed')));
                     this._workerHandlers.clear();
                     if (this._worker) {
-                        this._worker.terminate();
+                        try {
+                            this._worker.terminate();
+                        } catch (err) {}
                         this._worker = null;
                     }
                 };
@@ -64,6 +68,7 @@ export class WatermarkEngine {
             } catch (err) {
                 console.warn('Failed to start worker:', err);
                 this._useWorker = false;
+                this._workerFailed = true;
                 return null;
             }
         }

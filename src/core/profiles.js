@@ -1,7 +1,4 @@
-/**
- * Watermark Model Profiles
- * Defines the characteristics and heuristics for different AI models.
- */
+import { registry } from './templates/registry.js';
 
 export const PROFILES = {
     gemini: {
@@ -20,23 +17,18 @@ export const PROFILES = {
     doubao: {
         id: 'doubao',
         name: 'ByteDance Doubao (豆包)',
-        logoValue: 255.0, // Precision check: is it 255 or lower? Standard appears to be 255.
-        // Support for multiple anchors (Top-Left and Bottom-Right)
+        logoValue: 255.0,
         anchors: ['bottom-right', 'top-left'],
-        // Maps anchor to its specific asset key
         assets: {
             'bottom-right': 'doubao_br',
             'top-left': 'doubao_tl'
         },
-        // Heuristic configurations for standard 2k (2730x1535 sample)
         tiers: {
             '2k_br': { logoWidth: 401, logoHeight: 173, marginRight: 24, marginBottom: 10, anchor: 'bottom-right' },
             '2k_tl': { logoWidth: 307, logoHeight: 167, marginLeft: 38, marginTop: 25, anchor: 'top-left' }
         },
-        // Adaptive heuristic: Doubao logos scale roughly with resolution
         getHeuristicConfig: (width, height, anchor = 'bottom-right') => {
             const isTL = anchor === 'top-left';
-            // Baseline 2730x1535
             const scale = width / 2730;
             if (isTL) {
                 return {
@@ -59,16 +51,17 @@ export const PROFILES = {
     }
 };
 
-export const DEFAULT_PROFILE = PROFILES.gemini;
+// Auto-register built-in profiles
+registry.registerProfile(PROFILES.gemini);
+registry.registerProfile(PROFILES.doubao);
 
-/** Convenience alias for backward compatibility and test imports */
+export const DEFAULT_PROFILE = PROFILES.gemini;
 export const GEMINI_PROFILE = PROFILES.gemini;
 
-/**
- * Get a registered profile by ID, with fallback to Gemini.
- * @param {string} id - Profile ID (e.g. 'gemini', 'doubao')
- * @returns {Object} Profile object
- */
 export function getProfile(id) {
-    return PROFILES[id] || PROFILES.gemini;
+    return registry.getProfile(id) || PROFILES.gemini;
+}
+
+export function getAllProfiles() {
+    return registry.getAllProfiles();
 }

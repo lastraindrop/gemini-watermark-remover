@@ -2,14 +2,13 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.8.0 - Production Ready)
-- [x] **Universal Model Integration (v1.8.0)**: Supports Gemini AND **Doubao (豆包)**.
-- [x] **Multi-Anchor Verification**: Probing system verifies and removes multiple watermarks (e.g., TL/BR corner combinations) in a single pass.
-- [x] **Sliding-Window Hardening**: Automatic Correction of positional jitter (±4px) for perfect mask alignment.
-- [x] **Gradient Correlation Core**: Support for transparent/dark-box watermarks using Sobel gradient matching.
-- [x] **@pilio Ecosystem Integration**: Package renamed to `@pilio/gemini-watermark-remover`. Added `bin/` and `skills/` for AI Agent compatibility.
-- [x] **Modular CLI Architecture**: Refactored CLI into `src/cli/` modules.
-- [x] **Detection Confidence Probe**: Real-time certainty reporting (Confidence %) in UI and Audit Console.
+## 📍 当前状态 (v1.8.5 - Production Hardening)
+- [x] **Modular App Refactor (v1.8.5)**: Decoupled UI, Processing, and State logic for better maintainability.
+- [x] **Ultra-Premium UI/UX**: Redesigned index.css with Mesh Gradients, Glassmorphism, and optimized micro-interactions.
+- [x] **Template Registry**: Introduced dynamic registration system to eliminate hardcoded model logic.
+- [x] **Audit Suite (Full Coverage)**: New `product_audit.test.js` verifying architecture, fidelity (Zero-Loss), and state contracts.
+- [x] **Dynamic Alignment**: Single source of truth for profiles/catalogs shared between engine and tests.
+- [x] **Universal Model Integration**: Full support for Gemini AND Doubao (豆包).
 
 ---
 

@@ -1,8 +1,8 @@
 [中文文档](README_zh.md)
 
-# Gemini & Doubao Lossless Watermark Remover (v1.8.0)
+# Gemini & Doubao Lossless Watermark Remover (v1.8.5)
 
-A high-performance, 100% client-side tool for removing Gemini and Doubao (豆包) AI watermarks. Now integrated into the **@pilio** ecosystem with native AI Agent support.
+A production-hardened, high-performance, 100% client-side tool for removing AI watermarks. v1.8.5 introduces a modular architecture and a comprehensive audit suite for mathematical verification.
 
 <p align="center">
   <img src="https://count.getloli.com/@gemini-watermark-remover?name=gemini-watermark-remover&theme=minecraft&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400">
@@ -17,6 +17,7 @@ A high-performance, 100% client-side tool for removing Gemini and Doubao (豆包
 - ✅ **Premium UI / Glassmorphism** - Modern aesthetic with high-end micro-animations.
 - ✅ **Auto-Detection & Sliding-Window Alignment** - Proactive correlation engine automatically finds watermark and corrects positional jitter (+/- 4px).
 - ✅ **Gradient-Based Probing** - Hardened detection for transparent/dark watermarks (like Doubao).
+- ✅ **Modular Template System** - Dynamic registry for multi-platform support (Gemini, Doubao).
 - ✅ **Keyboard Shortcuts** - `←/→` sliders, `Esc` reset, `Ctrl+S` save.
 - ✅ **100% Client-side** - No backend, zero latency, maximum privacy.
 - ✅ **Multi-language** - Support for **EN, ZH, JP, RU, FR, ES, DE**.

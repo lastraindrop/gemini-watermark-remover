@@ -50,7 +50,9 @@ const copyAssetsPlugin = {
       console.log('📂 Syncing static assets...');
       try {
         if (!existsSync('dist/i18n')) mkdirSync('dist/i18n', { recursive: true });
+        if (!existsSync('dist/assets')) mkdirSync('dist/assets', { recursive: true });
         cpSync('src/i18n', 'dist/i18n', { recursive: true });
+        cpSync('src/assets', 'dist/assets', { recursive: true });
         cpSync('public', 'dist', { recursive: true });
       } catch (err) {
         console.error('❌ Asset copy failed:', err);
@@ -129,6 +131,7 @@ if (isProd) {
     });
   };
   watchDir('src/i18n', 'dist/i18n');
+  watchDir('src/assets', 'dist/assets');
   watchDir('public', 'dist');
 
   console.log('👀 Watching for changes...');

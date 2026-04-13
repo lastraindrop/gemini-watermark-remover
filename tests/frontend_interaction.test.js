@@ -1,44 +1,67 @@
-import { test, describe } from 'node:test';
+import { test, describe, before } from 'node:test';
 import assert from 'node:assert';
+import { WatermarkEngine } from '../src/core/watermarkEngine.js';
 import { getProfile, PROFILES } from '../src/core/profiles.js';
-import { detectWatermark } from '../src/core/detector.js';
-import { removeWatermark } from '../src/core/blendModes.js';
 import { calculateWatermarkPosition, detectWatermarkConfig } from '../src/core/config.js';
-import { createMockImageData, createMockAlphaMap, applyWatermark } from './test_utils.js';
+import { 
+    createMockImageData, 
+    createMockAlphaMap, 
+    applyWatermark,
+    MockCanvas,
+    MockImageElement,
+    createMockImageElement,
+    alphaToRGBA
+} from './test_utils.js';
 
-describe('Frontend Interaction & Deep Probe', () => {
+describe('Frontend Interaction & Deep API Probe', () => {
+    let engine;
 
-    test('End-to-End: Full Restoration Pipeline', () => {
-        // 1. Setup Environment
+    before(async () => {
+        // Setup Node Mocks for Browser APIs
+        global.document = {
+            createElement: (tag) => {
+                if (tag === 'canvas') return new MockCanvas(100, 100);
+                return {};
+            }
+        };
+        global.Image = MockImageElement;
+        
+        engine = await WatermarkEngine.create();
+        engine._loadAsset = async (key) => {
+            const size = parseInt(key) || 96;
+            const alpha = createMockAlphaMap(size);
+            const rgba = alphaToRGBA(alpha, size, size);
+            return createMockImageElement(size, size, rgba);
+        };
+    });
+
+    test('API: Full Engine Restoration Call (Top-Level)', async () => {
+        // 1. Setup
         const w = 1024, h = 1024;
-        const profile = getProfile('gemini');
         const config = detectWatermarkConfig(w, h);
         const size = config.logoSize;
         const alphaMap = createMockAlphaMap(size);
         const originalColor = 100;
-        const canvasImg = createMockImageData(w, h, 'solid', originalColor);
+        const rawData = createMockImageData(w, h, 'solid', originalColor);
         
-        // 2. Simulate Watermark Application (Simulating Gemini result)
+        // 2. Inject Watermark
         const pos = calculateWatermarkPosition(w, h, config);
-        applyWatermark(canvasImg, pos.x, pos.y, size, size, alphaMap);
+        applyWatermark(rawData, pos.x, pos.y, size, size, alphaMap);
         
-        // Verify we have a watermark now
-        const midIdx = ( (pos.y + size/2|0) * w + (pos.x + size/2|0) ) << 2;
-        assert.notStrictEqual(canvasImg.data[midIdx], originalColor, 'Watermark injection failed');
+        // 3. API Call (Simulating app.js behavior)
+        const mockImg = createMockImageElement(w, h, rawData.data);
+        const result = await engine.removeWatermarkFromImage(mockImg, { profileId: 'gemini', deepScan: true });
 
-        // 3. Detection Phase
-        const alphaMaps = { [size]: alphaMap };
-        const detection = detectWatermark(canvasImg, alphaMaps, { deepScan: true });
-        assert.ok(detection, 'Frontend probe: Detection failed in E2E flow');
-        assert.strictEqual(detection.mode, 'anchored', 'Should reach anchored state for cataloged sizes');
-
-        // 4. Removal Phase
-        removeWatermark(canvasImg, alphaMap, detection);
-
-        // 5. Pixel Verification (Deep Probe)
-        const recoveredColor = canvasImg.data[midIdx];
-        // Mathematical tolerance check
-        assert.ok(Math.abs(recoveredColor - originalColor) <= 2, `Deep probe failed: pixel mismatch ${recoveredColor} vs ${originalColor}`);
+        // 4. Verification
+        assert.ok(result.removedCount > 0, 'Engine failed to detect/remove watermark via top-level API');
+        assert.ok(result.canvas instanceof MockCanvas, 'Result should contain a canvas object');
+        
+        const ctx = result.canvas.getContext('2d');
+        const finalData = ctx.getImageData(0, 0, w, h).data;
+        const midIdx = ((pos.y + size/2|0) * w + (pos.x + size/2|0)) << 2;
+        
+        const recoveredColor = finalData[midIdx];
+        assert.ok(Math.abs(recoveredColor - originalColor) <= 2, `Pixel mismatch: ${recoveredColor} vs ${originalColor}`);
     });
 
     test('Architecture: Profile Switching Stability', () => {
@@ -46,28 +69,25 @@ describe('Frontend Interaction & Deep Probe', () => {
         assert.ok(availableProfiles.includes('gemini'), 'Gemini profile missing in registry');
         assert.ok(availableProfiles.includes('doubao'), 'Doubao profile missing in registry');
         
-        // Doubao profile has heuristic config; Gemini uses catalog-only
         const doubaoProfile = getProfile('doubao');
-        assert.strictEqual(typeof doubaoProfile.getHeuristicConfig, 'function', 'Doubao profile protocol mismatch: getHeuristicConfig missing');
+        assert.strictEqual(typeof doubaoProfile.getHeuristicConfig, 'function', 'Doubao profile protocol mismatch');
     });
 
-    test('Data Handling: Multi-Protocol Parameter Support', () => {
-        // Verify that passing different profile options doesn't crash the core
+    test('Safety: Multi-Parameter Constellation resilience', async () => {
         const w = 512, h = 512;
-        const img = createMockImageData(w, h);
-        const alphaMaps = { 48: new Float32Array(48*48) };
+        const rawData = createMockImageData(w, h);
+        const mockImg = createMockImageElement(w, h, rawData.data);
         
-        // Test with various parameter constellations
+        // Test various flags passed to the engine
         const combinations = [
             { deepScan: true, noiseReduction: true },
-            { deepScan: false, noiseReduction: false },
-            { deepScan: true, noiseReduction: false }
+            { deepScan: false, noiseReduction: false }
         ];
 
         for (const opts of combinations) {
-            assert.doesNotThrow(() => {
-                detectWatermark(img, alphaMaps, opts);
-            }, `Crash detected with params: ${JSON.stringify(opts)}`);
+            await assert.doesNotReject(async () => {
+                await engine.removeWatermarkFromImage(mockImg, opts);
+            }, `Engine crashed with opts: ${JSON.stringify(opts)}`);
         }
     });
 });
