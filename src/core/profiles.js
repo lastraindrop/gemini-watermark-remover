@@ -60,3 +60,15 @@ export const PROFILES = {
 };
 
 export const DEFAULT_PROFILE = PROFILES.gemini;
+
+/** Convenience alias for backward compatibility and test imports */
+export const GEMINI_PROFILE = PROFILES.gemini;
+
+/**
+ * Get a registered profile by ID, with fallback to Gemini.
+ * @param {string} id - Profile ID (e.g. 'gemini', 'doubao')
+ * @returns {Object} Profile object
+ */
+export function getProfile(id) {
+    return PROFILES[id] || PROFILES.gemini;
+}

@@ -1,6 +1,6 @@
-# Walkthrough - Gemini Watermark Remover Hardened (v1.7.0 Alpha)
+# Walkthrough - Gemini Watermark Remover Hardened (v1.8.0)
 
-我们已经完成了 `gemini-watermark-remover` 的核心算法加固与生产级优化。本次更新将项目版本提升至 **v1.7.0-alpha**，重点解决了高分辨率缩放图像下的锯齿重影问题，并增强了在复杂色彩背景下的探测准确度。
+我们已经完成了 `gemini-watermark-remover` 的核心算法加固与生产级优化。本次更新将项目版本提升至 **v1.8.0**，重点解决了 Gemini 与 Doubao 两种水印的多锚点检测、动态参数一致性以及整个测试矩阵的自动对齐。
 
 ## 🛠 已完成的核心改进
 
@@ -37,9 +37,9 @@
 
 ## 📦 项目变更概览
 
-- **package.json**: 版本升级至 `1.7.0-alpha`。
-- **ROADMAP.md**: 更新了 Current Status 为 v1.7.0。
-- **DEVELOPER_GUIDE.md**: 文档同步，详细记录了亚像素插值与感知探测的技术细节。
+- **package.json**: 版本升级至 `1.8.0`。
+- **ROADMAP.md**: 更新了 Current Status 为 v1.8.0。
+- **DEVELOPER_GUIDE.md**: 文档同步，详细记录了多模型配置与动态参数对齐的测试原则。
 
 > [!IMPORTANT]
 > 建议在接下来的生产环境中重点关注彩色高动态范围 (HDR) 图像的还原效果，目前的公式已针对此场景进行了预先建模。

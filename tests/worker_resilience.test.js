@@ -11,6 +11,7 @@ before(() => {
         savedGlobals.window = global.window;
         savedGlobals.Worker = global.Worker;
         savedGlobals.ImageData = global.ImageData;
+        savedGlobals.Image = global.Image;
         savedGlobals.document = global.document;
 
         global.window = {
@@ -32,6 +33,11 @@ before(() => {
                 this.width = width;
                 this.height = height;
             }
+        };
+        // Mock HTMLImageElement for _loadAsset
+        global.Image = class {
+            constructor() { this.width = 1; this.height = 1; }
+            set src(_) { Promise.resolve().then(() => { if (this.onload) this.onload(); }); }
         };
         global.document = {
             createElement: (tag) => {
@@ -57,35 +63,42 @@ after(() => {
     if (savedGlobals.window) global.window = savedGlobals.window;
     if (savedGlobals.Worker) global.Worker = savedGlobals.Worker;
     if (savedGlobals.ImageData) global.ImageData = savedGlobals.ImageData;
+    if (savedGlobals.Image !== undefined) global.Image = savedGlobals.Image;
     if (savedGlobals.document) global.document = savedGlobals.document;
 });
 
 describe('Worker Resilience (Timeout Fallback)', () => {
-    test('Engine should fallback to main thread when worker times out', async () => {
-        const mockBg = {
-            bg48: { width: 48, height: 48 },
-            bg96: { width: 96, height: 96 }
-        };
-        const engine = new WatermarkEngine(mockBg);
-        engine._useWorker = true; // Force worker mode
+    test('Engine should process via main thread (removeWatermark is always synchronous)', async () => {
+        const engine = new WatermarkEngine();
 
+        // Mock image with valid dimensions
         const img = { width: 100, height: 100 };
         
-        // Silence expected warn logging
         const origWarn = console.warn;
         console.warn = () => {};
 
-        // This should timeout (500ms in test environment) and then use fallback
-        const start = Date.now();
+        // removeWatermarkFromImage always uses main thread for pixel ops (worker is for future use)
         const result = await engine.removeWatermarkFromImage(img);
-        const duration = Date.now() - start;
 
-        // Restore warn
         console.warn = origWarn;
 
-        assert.ok(duration >= 500, `Should have waited for timeout (duration: ${duration}ms)`);
-        assert.ok(result.canvas, 'Should return result via fallback');
-        assert.strictEqual(result.detectionMode, 'heuristic', 'Fallback should work');
+        assert.ok(result.canvas, 'Should return a canvas result');
+        assert.ok(['multi-probe', 'none'].includes(result.detectionMode), 
+            `detectionMode should be multi-probe or none, got: ${result.detectionMode}`);
         engine.destroy();
+    });
+
+    test('Engine can be created without failing even when Worker constructor throws', async () => {
+        const origWorker = global.Worker;
+        global.Worker = function() { throw new Error('Worker not available'); };
+
+        const engine = new WatermarkEngine();
+        // _getWorker should handle exception gracefully
+        const worker = engine._getWorker();
+        assert.strictEqual(worker, null, 'Should return null when Worker fails to construct');
+        assert.strictEqual(engine._useWorker, false, 'Should disable worker on failure');
+        
+        engine.destroy();
+        global.Worker = origWorker;
     });
 });

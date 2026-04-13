@@ -53,12 +53,12 @@ describe('Core Math & Logic Tests', () => {
 
     describe('Config & Scaling', () => {
         test('Official resolution thresholds', () => {
-            // Small image (<512) - Heuristic 48
+            // Small image (both sides <= 1024) - Heuristic 48
             assert.strictEqual(detectWatermarkConfig(500, 500).logoSize, 48);
-            // Large image (maxSide > 1500) - Heuristic 96
-            assert.strictEqual(detectWatermarkConfig(2048, 400).logoSize, 96);
-            // Non-catalog medium image - Heuristic 48
-            assert.strictEqual(detectWatermarkConfig(1200, 600).logoSize, 48);
+            // Both sides > 1024 - Heuristic 96
+            assert.strictEqual(detectWatermarkConfig(2048, 2048).logoSize, 96);
+            // Wide but short - Heuristic 48 (height 400 < 1024)
+            assert.strictEqual(detectWatermarkConfig(2048, 400).logoSize, 48);
         });
 
     });

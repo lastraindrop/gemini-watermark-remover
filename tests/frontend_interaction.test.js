@@ -20,7 +20,7 @@ describe('Frontend Interaction & Deep Probe', () => {
         
         // 2. Simulate Watermark Application (Simulating Gemini result)
         const pos = calculateWatermarkPosition(w, h, config);
-        applyWatermark(canvasImg, pos.x, pos.y, size, alphaMap);
+        applyWatermark(canvasImg, pos.x, pos.y, size, size, alphaMap);
         
         // Verify we have a watermark now
         const midIdx = ( (pos.y + size/2|0) * w + (pos.x + size/2|0) ) << 2;
@@ -42,11 +42,13 @@ describe('Frontend Interaction & Deep Probe', () => {
     });
 
     test('Architecture: Profile Switching Stability', () => {
-        const availableProfiles = PROFILES.map(p => p.id);
+        const availableProfiles = Object.values(PROFILES).map(p => p.id);
         assert.ok(availableProfiles.includes('gemini'), 'Gemini profile missing in registry');
+        assert.ok(availableProfiles.includes('doubao'), 'Doubao profile missing in registry');
         
-        const profile = getProfile('gemini');
-        assert.strictEqual(typeof profile.getHeuristicConfig, 'function', 'Profile protocol mismatch: getHeuristicConfig missing');
+        // Doubao profile has heuristic config; Gemini uses catalog-only
+        const doubaoProfile = getProfile('doubao');
+        assert.strictEqual(typeof doubaoProfile.getHeuristicConfig, 'function', 'Doubao profile protocol mismatch: getHeuristicConfig missing');
     });
 
     test('Data Handling: Multi-Protocol Parameter Support', () => {

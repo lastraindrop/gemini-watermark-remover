@@ -17,7 +17,7 @@ if (args.length > 0 && args[0] !== 'remove' && !args[0].startsWith('-')) {
     // This is probably an old-style direct input path or version check
     // We'll try to handle version check or just tell them to use the new CLI
     if (args.includes('--version') || args.includes('-v')) {
-        console.log('Gemini Watermark Remover v1.8.0-rc.1 (Legacy Entry)');
+        console.log('Gemini Watermark Remover v1.8.0 (Legacy Entry)');
         process.exit(0);
     }
 }

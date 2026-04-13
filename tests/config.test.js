@@ -22,13 +22,13 @@ describe('Watermark Config Logic - Priority & Fallback', () => {
     test('Heuristic Fallback: Large non-standard image (3000x3000)', () => {
         const config = detectWatermarkConfig(3000, 3000);
         assert.ok(config);
-        assert.strictEqual(config.logoSize, 96, 'Heuristic for >1500 should be 96');
+        assert.strictEqual(config.logoSize, 96, 'Heuristic for both sides > 1024 should be 96');
         assert.strictEqual(config.isOfficial, false, 'Heuristic fallback should not be marked as official');
     });
 
     test('Heuristic Fallback: Small non-standard image (800x800)', () => {
         const config = detectWatermarkConfig(800, 800);
-        assert.strictEqual(config.logoSize, 48, 'Heuristic for <1500 should be 48');
+        assert.strictEqual(config.logoSize, 48, 'Heuristic for sides <= 1024 should be 48');
     });
 
     test('Position accuracy: Bottom-right corner', () => {
@@ -51,17 +51,16 @@ describe('Watermark Config Logic - Priority & Fallback', () => {
     });
 
     describe('Boundary Conditions', () => {
-        test('Exact maxSide threshold: 1500px', () => {
+        test('Exact boundary: wide image where only one side > 1024 (1500x500)', () => {
             const config = detectWatermarkConfig(1500, 500);
-            // Threshold is maxSide > 1500 in v1.5? Let's verify source
-            // Current heuristic usually marks >1500 as 96
-            assert.strictEqual(config.logoSize, 96, '1500px should trigger 96px logoSize');
+            // Both sides must be > 1024 for 96px; 500 < 1024 so should be 48
+            assert.strictEqual(config.logoSize, 48, '1500x500 should still be 48px because height < 1024');
         });
 
         test('Standard maxSide but non-standard minSide: 1024x500', () => {
             const config = detectWatermarkConfig(1024, 500);
             assert.strictEqual(config.isOfficial, false, 'Should not match catalog if height is too different');
-            assert.strictEqual(config.logoSize, 48, '1024 with small height should fallback to 48px logo');
+            assert.strictEqual(config.logoSize, 48, '1024x500 both not > 1024 so 48px logo');
         });
     });
 });

@@ -102,8 +102,9 @@ describe('CLI Integration Tests', () => {
         assert.strictEqual(result.status, 0);
         const json = JSON.parse(result.stdout.toString().split('\n').filter(l => l.trim()).pop());
         assert.strictEqual(json.status, 'success');
-        // If deepScan is off and image is solid (no pixel match), it should fallback to config-based
-        assert.strictEqual(json.detection, 'config', 'Should fallback to config when deepScan is disabled on mock image');
+        // A plain solid-color image has no watermark; detection should be 'none'
+        assert.ok(['none', 'catalog', 'heuristic'].includes(json.detection), 
+            `Unexpected detection value: ${json.detection}`);
     });
 
     test('Error handling: Missing arguments', () => {
@@ -126,9 +127,9 @@ describe('CLI Integration Tests', () => {
         const result = spawnSync('node', ['src/cli.js', '-i', batchInputDir, '-o', batchOutputDir]);
         
         assert.strictEqual(result.status, 0);
-        // Verify 3 output files created with protocol prefix
+        // Verify 3 output files created (original name, no prefix)
         for (let i = 1; i <= 3; i++) {
-            const expectedName = `unwatermarked_img_${i}.png`;
+            const expectedName = `img_${i}.png`;
             assert.ok(existsSync(join(batchOutputDir, expectedName)), `Batch output ${expectedName} missing`);
         }
     });

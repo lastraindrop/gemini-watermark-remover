@@ -74,6 +74,8 @@ export class WatermarkEngine {
      * Load asset image (browser/bundler compatible)
      */
     async _loadAsset(assetKey) {
+        // Normalize numeric keys (e.g. 48, 96) to strings
+        assetKey = String(assetKey);
         if (this._assetCache[assetKey]) return this._assetCache[assetKey];
 
         // Determine path based on asset name (v1.8 naming convention)
@@ -98,6 +100,7 @@ export class WatermarkEngine {
      * Get alpha map for a specific asset
      */
     async getAlphaMap(assetKey) {
+        assetKey = String(assetKey);
         if (this.alphaMaps[assetKey]) return this.alphaMaps[assetKey];
 
         const img = await this._loadAsset(assetKey);

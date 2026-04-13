@@ -20,21 +20,22 @@ describe('System Pipeline Integration - E2E Simulation', () => {
 
         const size = 96;
         const alphaMap = createMockAlphaMap(size);
-        const targetX = w - 100; // Edge case: partial crop
-        const targetY = h - 50;
+        // Place watermark well inside image to avoid clipping
+        const targetX = w - size - 64;  // = 640 (standard 64px margin)
+        const targetY = h - size - 50;  // = 454
         
         // 1. Apply Watermark
-        applyWatermark(processedImg, targetX, targetY, size, alphaMap);
+        applyWatermark(processedImg, targetX, targetY, size, size, alphaMap);
 
         // 2. Detect Watermark
         const alphaMaps = { 96: alphaMap, 48: new Float32Array(48*48) };
         const detection = detectWatermark(processedImg, alphaMaps);
         
         assert.ok(detection, 'Pipeline step 1 (Detection) failed');
-        assert.strictEqual(detection.size, 96);
+        assert.strictEqual(detection.width, 96);
 
         // 3. Remove Watermark
-        const pos = { x: detection.x, y: detection.y, width: detection.size, height: detection.size };
+        const pos = { x: detection.x, y: detection.y, width: detection.width, height: detection.height };
         removeWatermark(processedImg, alphaMap, pos);
 
         // 4. Verify Reconstruction

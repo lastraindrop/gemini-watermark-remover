@@ -128,7 +128,7 @@ class Engine {
  * Basic Arg Parser (Zero Dependency Replacement for Yargs)
  */
 function parseArgs(args) {
-    const opts = { _: [], profile: 'gemini', format: 'png', overwrite: false, json: false };
+    const opts = { _: [], profile: 'gemini', format: 'png', overwrite: false, json: false, pipe: false };
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
         if (arg === '--output' || arg === '-o') opts.output = args[++i];
@@ -137,6 +137,7 @@ function parseArgs(args) {
         else if (arg === '--format' || arg === '-f') opts.format = args[++i];
         else if (arg === '--overwrite') opts.overwrite = true;
         else if (arg === '--json') opts.json = true;
+        else if (arg === '--pipe') opts.pipe = true;
         else if (!arg.startsWith('-')) opts._.push(arg);
     }
     return opts;
@@ -146,6 +147,25 @@ export async function runRemoveCommand(args, io) {
     const opts = parseArgs(args);
     const engine = new Engine();
     const startTime = performance.now();
+
+    // --- Pipe mode: read from stdin, write to stdout ---
+    if (opts.pipe) {
+        const chunks = [];
+        for await (const chunk of io.stdin || process.stdin) {
+            chunks.push(chunk);
+        }
+        const buffer = Buffer.concat(chunks);
+        try {
+            const result = await engine.processBuffer(buffer, opts);
+            if (io.stdout.write) {
+                io.stdout.write(result.buffer);
+            }
+        } catch (err) {
+            io.stderr.write(`❌ Pipe error: ${err.message}\n`);
+            return 1;
+        }
+        return 0;
+    }
 
     const input = opts._[0];
     if (!input) {

@@ -103,13 +103,13 @@ export function generateParameterMatrix() {
         const catalog = CATALOGS[pid];
         if (!catalog) continue;
         
-        // Sample first entry and some variation
-        const sample = catalog[0];
-        matrix.push({ 
-            profileId: pid,
-            options: { deepScan: true, noiseReduction: false }, 
-            resolution: { w: sample.width, h: sample.height, config: sample } 
-        });
+        for (const entry of catalog) {
+            matrix.push({ 
+                profileId: pid,
+                options: { deepScan: true, noiseReduction: false }, 
+                resolution: { w: entry.width, h: entry.height, config: entry } 
+            });
+        }
     }
     
     return matrix;

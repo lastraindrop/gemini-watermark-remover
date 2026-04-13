@@ -12,34 +12,26 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     // Global Error Boundary
-    window.onerror = function(msg, url, lineNo, columnNo, error) {
+    function appendErrorBanner(className, title, message) {
       const errorDiv = document.createElement('div');
-      errorDiv.className = 'fixed top-0 left-0 w-full bg-red-600 text-white p-4 z-[9999] font-mono text-xs overflow-auto max-h-48 shadow-2xl';
-      
+      errorDiv.className = className;
+
       const strong = document.createElement('strong');
-      strong.textContent = '[RUNTIME ERROR] ';
+      strong.textContent = title;
       errorDiv.appendChild(strong);
-      errorDiv.appendChild(document.createTextNode(msg));
-      errorDiv.appendChild(document.createElement('br'));
-      
-      const small = document.createElement('small');
-      small.textContent = `${url} : ${lineNo}:${columnNo}`;
-      errorDiv.appendChild(small);
-      
-      document.body.appendChild(errorDiv);
+      errorDiv.appendChild(document.createTextNode(message));
+
+      const target = document.body || document.documentElement;
+      if (target) target.appendChild(errorDiv);
+    }
+
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      appendErrorBanner('fixed top-0 left-0 w-full bg-red-600 text-white p-4 z-[9999] font-mono text-xs overflow-auto max-h-48 shadow-2xl', '[RUNTIME ERROR] ', `${msg}\n${url} : ${lineNo}:${columnNo}`);
       return false;
     };
     window.onunhandledrejection = function(event) {
       console.error('Unhandled rejection:', event.reason);
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'fixed top-0 left-0 w-full bg-orange-600 text-white p-4 z-[9999] font-mono text-xs shadow-2xl';
-      
-      const strong = document.createElement('strong');
-      strong.textContent = '[PROMISE REJECTION] ';
-      errorDiv.appendChild(strong);
-      errorDiv.appendChild(document.createTextNode(event.reason?.message || event.reason));
-      
-      document.body.appendChild(errorDiv);
+      appendErrorBanner('fixed top-0 left-0 w-full bg-orange-600 text-white p-4 z-[9999] font-mono text-xs shadow-2xl', '[PROMISE REJECTION] ', event.reason?.message || String(event.reason));
     };
   </script>
   <script>
@@ -138,6 +130,7 @@
             <p class="text-xs text-gray-400 font-medium" data-i18n="upload.hint">支持 JPG, PNG, WebP • 100% 本地安全 • 支持剪贴板粘贴 (Ctrl+V)</p>
           </div>
         </div>
+        <input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp" multiple class="hidden" aria-hidden="true">
         
         <!-- Advanced Engine Settings Panel: v1.7 Multi-Profile support -->
         <div class="mt-4 flex flex-wrap gap-4 items-center justify-center p-4 bg-gray-50/50 rounded-xl border border-gray-100 shadow-glass">
@@ -240,8 +233,8 @@
               <div class="flex gap-2 items-center">
                 <div id="tierBadge" class="hidden px-2 py-0.5 bg-gemini-gradient text-white text-[9px] rounded font-black tracking-widest uppercase shadow-sm">-- TIER</div>
                 <div class="flex bg-white rounded-lg p-0.5 border border-emerald-100 shadow-sm mr-2">
-                  <button id="modeSliderBtn" class="px-3 py-1 text-[10px] font-bold rounded-md bg-emerald-500 text-white shadow-sm transition-all">SLIDER</button>
-                  <button id="modeSideBtn" class="px-3 py-1 text-[10px] font-bold rounded-md text-emerald-600 hover:bg-emerald-50 transition-all">SIDE-BY-SIDE</button>
+                  <button id="modeSliderBtn" class="px-3 py-1 text-[10px] font-bold rounded-md bg-emerald-500 text-white shadow-sm transition-all" data-i18n="view.slider">SLIDER</button>
+                  <button id="modeSideBtn" class="px-3 py-1 text-[10px] font-bold rounded-md text-emerald-600 hover:bg-emerald-50 transition-all" data-i18n="view.sideBySide">SIDE-BY-SIDE</button>
                 </div>
                 <span id="processedInfo" class="text-xs text-emerald-600 font-mono font-bold"></span>
               </div>

@@ -11,7 +11,7 @@
  * 4. Entropy-Adaptive Weighting (v1.7)
  */
 
-import { getCatalogConfig } from './catalog.js';
+import { getCatalogConfig, getAllCatalogConfigs } from './catalog.js';
 
 // Shared state for variance tracking during coarse search
 let _lastVar = 0;
@@ -61,23 +61,32 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
 
     // --- Phase 1: Catalog & Anchor Check ---
     const catalogConfig = getCatalogConfig(width, height);
+    // Include doubao catalog entries that match this resolution
+    const doubaoMatches = getAllCatalogConfigs(width, height, 'doubao');
     const standardConfigs = [
         catalogConfig,
         { logoSize: 96, marginRight: 64, marginBottom: 64 },
         { logoSize: 48, marginRight: 32, marginBottom: 32 },
-        // Doubao 2k Standard
-        { logoWidth: 373, logoHeight: 165, marginRight: 11, marginBottom: 4, profile: 'doubao' }
+        ...doubaoMatches
     ].filter(Boolean);
 
     for (const cfg of standardConfigs) {
         const logoW = cfg.logoWidth || cfg.logoSize;
         const logoH = cfg.logoHeight || cfg.logoSize;
-        const key = cfg.logoWidth ? `${logoW}x${logoH}` : `${logoW}`;
-        const alphaMap = alphaMaps[key];
+        // alphaMaps can be keyed by dimension string OR by asset name
+        const dimKey = cfg.logoWidth ? `${logoW}x${logoH}` : `${logoW}`;
+        const alphaMap = alphaMaps[dimKey] || alphaMaps[cfg.assetKey];
         if (!alphaMap) continue;
 
-        const x = width - cfg.marginRight - logoW;
-        const y = height - cfg.marginBottom - logoH;
+        // For top-left anchored doubao configs
+        let x, y;
+        if (cfg.anchor === 'top-left') {
+            x = cfg.marginLeft || 0;
+            y = cfg.marginTop || 0;
+        } else {
+            x = width - (cfg.marginRight || 0) - logoW;
+            y = height - (cfg.marginBottom || 0) - logoH;
+        }
         if (x < 0 || y < 0) continue;
 
         let confidence = calculateCorrelation(searchData, x, y, logoW, logoH, alphaMap, true);

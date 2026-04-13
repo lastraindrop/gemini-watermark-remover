@@ -23,9 +23,9 @@ A high-performance, 100% client-side tool for removing Gemini and Doubao (豆包
 - ✅ **Production Hardened (v1.8)** - Multi-anchor support, multi-profile orchestration, and non-hardcoded architecture.
 - ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation.
 
-## 🛡️ Production Hardened (v1.7.0)
+## 🛡️ Production Hardened (v1.8.0)
 
-To ensure absolute stability and precision when processing thousands of images or ultra-high resolution (4K/8K), the v1.7.0 release incorporates several hardening technologies:
+To ensure absolute stability and precision when processing thousands of images or ultra-high resolution (4K/8K), the v1.8.0 release incorporates several hardening technologies:
 
 1. **Sub-pixel Alpha Sampling**: Utilizing **Bilinear Interpolation** for both the image data and the watermark mask. This ensures that even when the watermark is offset by a fraction of a pixel (common in scaled images), the reconstruction is mathematically perfect.
 2. **Perceptual Luminance Detection**: Switched to the industry-standard luminance formula ($Y = 0.299R + 0.587G + 0.114B$) for detection, making the engine significantly more sensitive to watermarks on vivid or complex colored backgrounds.

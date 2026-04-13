@@ -8,7 +8,8 @@ describe('Profile System Abstraction', () => {
     test('Gemini profile registration', () => {
         const profile = getProfile('gemini');
         assert.strictEqual(profile.id, 'gemini');
-        assert.strictEqual(profile.logoColor.r, 255);
+        // profiles.js uses logoValue (not logoColor.r); verify it exists and is 255
+        assert.strictEqual(profile.logoValue, 255.0);
     });
 
     test('Default profile fallback', () => {
@@ -17,11 +18,11 @@ describe('Profile System Abstraction', () => {
     });
 
     test('Config detection using profile heuristics', () => {
-        // Test 1k tier heuristic (maxSide >= 1500)
+        // Test large image (both sides > 1024) → 96px logo
         const config4k = detectWatermarkConfig(4096, 4096);
         assert.strictEqual(config4k.logoSize, 96);
         
-        // Test 0.5k tier heuristic
+        // Test small image (both sides <= 1024) → 48px logo
         const configSmall = detectWatermarkConfig(512, 512);
         assert.strictEqual(configSmall.logoSize, 48);
     });

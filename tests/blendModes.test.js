@@ -12,7 +12,7 @@ describe('Blend Modes Logic - Precision & Boundaries', () => {
         const img = createMockImageData(100, 100, 'solid', originalColor);
         
         // Apply: 0.5 * 255 + 0.5 * 100 = 127.5 + 50 = 177.5 -> 178
-        applyWatermark(img, 10, 10, size, alphaMap);
+        applyWatermark(img, 10, 10, size, size, alphaMap);
         
         const pos = { x: 10, y: 10, width: size, height: size };
         removeWatermark(img, alphaMap, pos);
@@ -57,7 +57,7 @@ describe('Blend Modes Logic - Precision & Boundaries', () => {
         const originalColor = 50;
         const img = createMockImageData(100, 100, 'solid', originalColor);
         
-        applyWatermark(img, 0, 0, size, alphaMap);
+        applyWatermark(img, 0, 0, size, size, alphaMap);
         const pos = { x: 0, y: 0, width: size, height: size };
         removeWatermark(img, alphaMap, pos);
         
@@ -78,7 +78,7 @@ describe('Blend Modes Logic - Precision & Boundaries', () => {
         img.data[idx+2] = 200;
         
         const originalColors = [100, 150, 200];
-        applyWatermark(img, 0, 0, 10, alphaMap);
+        applyWatermark(img, 0, 0, 10, 10, alphaMap);
         
         const pos = { x: 0, y: 0, width: 10, height: 10 };
         removeWatermark(img, alphaMap, pos);

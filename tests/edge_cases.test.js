@@ -10,7 +10,7 @@ describe('Edge Cases & Stress Tests', () => {
     const size = 48;
     const img = createMockImageData(size, size, 'gradient');
     const alphaMap = createMockAlphaMap(size);
-    applyWatermark(img, 0, 0, size, alphaMap);
+    applyWatermark(img, 0, 0, size, size, alphaMap);
 
     const result = detectWatermark(img, { 48: alphaMap, 96: createMockAlphaMap(96) });
     assert.ok(result, 'Should detect watermark at (0,0)');
@@ -20,7 +20,7 @@ describe('Edge Cases & Stress Tests', () => {
     const size = 48;
     const img = createMockImageData(size, size, 'solid', 128);
     const alphaMap = createMockAlphaMap(size);
-    applyWatermark(img, 0, 0, size, alphaMap);
+    applyWatermark(img, 0, 0, size, size, alphaMap);
 
     const result = detectWatermark(img, { 48: alphaMap, 96: createMockAlphaMap(96) });
     assert.ok(result, 'Should detect on image that IS the watermark');
@@ -32,7 +32,7 @@ describe('Edge Cases & Stress Tests', () => {
     const alphaMap = createMockAlphaMap(size);
     const pos = calculateWatermarkPosition(w, h, { logoSize: size, marginRight: 64, marginBottom: 64 });
 
-    applyWatermark(img, pos.x, pos.y, size, alphaMap);
+    applyWatermark(img, pos.x, pos.y, size, size, alphaMap);
 
     // Simulate JPEG quantization (destructive)
     for (let i = 0; i < img.data.length; i += 4) {
@@ -57,7 +57,8 @@ describe('Edge Cases & Stress Tests', () => {
   test('Very wide image (panoramic)', () => {
     const img = createMockImageData(4000, 500, 'gradient');
     const config = detectWatermarkConfig(4000, 500);
-    assert.strictEqual(config.logoSize, 96); // maxSide >= 1500
+    // Height 500 < 1024, so heuristic gives 48px logo regardless of width
+    assert.strictEqual(config.logoSize, 48);
 
     const pos = calculateWatermarkPosition(4000, 500, config);
     assert.ok(pos.x > 0 && pos.y > 0, 'Position should be valid');

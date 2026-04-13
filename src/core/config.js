@@ -18,11 +18,12 @@ export function detectWatermarkConfig(imageWidth, imageHeight, profileId = 'gemi
     }
 
     // 3. Global Legacy Fallback
-    const maxSide = Math.max(imageWidth, imageHeight);
+    // Aligned with upstream GargantuaX logic: use 96px when both sides > 1024
+    const use96 = imageWidth > 1024 && imageHeight > 1024;
     return {
-        logoSize: maxSide > 1500 ? 96 : 48,
-        marginRight: maxSide > 1500 ? 64 : 32,
-        marginBottom: maxSide > 1500 ? 64 : 32,
+        logoSize: use96 ? 96 : 48,
+        marginRight: use96 ? 64 : 32,
+        marginBottom: use96 ? 64 : 32,
         isOfficial: false
     };
 }

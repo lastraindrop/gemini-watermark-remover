@@ -5,22 +5,29 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 describe('Build Pipeline & Assets Verification', () => {
-    test('esbuild should inline png assets as base64 in app.js', () => {
+    test('esbuild should produce a working browser bundle', () => {
         const appJsPath = resolve(process.cwd(), 'dist/app.js');
         const workerJsPath = resolve(process.cwd(), 'dist/worker.js');
+        const indexHtmlPath = resolve(process.cwd(), 'dist/index.html');
 
-        if (!existsSync(appJsPath)) {
-            console.warn('⚠️ Skipping build verification: dist/app.js not found. Performance build first.');
+        if (!existsSync(appJsPath) || !existsSync(workerJsPath) || !existsSync(indexHtmlPath)) {
+            console.warn('⚠️ Skipping build verification: dist assets not found. Build first.');
             return;
         }
         
         const appJsContent = readFileSync(appJsPath, 'utf8');
-        // Check if data URL string for png is embedded
-        const hasBase64Png = appJsContent.includes('data:image/png;base64,');
+        const indexHtmlContent = readFileSync(indexHtmlPath, 'utf8');
+        const hasWorkerReference = appJsContent.includes('new URL("worker.js"') || appJsContent.includes("new URL('worker.js'");
+        const hasAppScript = indexHtmlContent.includes('script src="app.js"');
         
         assert.ok(
-            hasBase64Png, 
-            'Critical Failure: PNG assets were not inlined in app.js. esbuild loader failed.'
+            hasWorkerReference,
+            'Critical Failure: worker.js reference is missing from the bundled app.js.'
+        );
+
+        assert.ok(
+            hasAppScript,
+            'Critical Failure: dist/index.html should load the bundled app.js.'
         );
     });
 

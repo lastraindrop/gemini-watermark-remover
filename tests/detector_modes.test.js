@@ -15,7 +15,7 @@ describe('Detector Mode Labeling Accuracy', () => {
         // Place watermark in a random free position (not 32 or 64 margin)
         const targetX = 500;
         const targetY = 500;
-        applyWatermark(img, targetX, targetY, size, alphaMap);
+        applyWatermark(img, targetX, targetY, size, size, alphaMap);
 
         const result = detectWatermark(img, alphaMaps, { deepScan: true });
 
@@ -33,7 +33,7 @@ describe('Detector Mode Labeling Accuracy', () => {
         // This is ALIGNED but NOT ANCHORED (because standardConfigs for 48px expects 32px margin)
         const targetX = w - 64 - size;
         const targetY = h - 64 - size;
-        applyWatermark(img, targetX, targetY, size, alphaMap);
+        applyWatermark(img, targetX, targetY, size, size, alphaMap);
 
         const result = detectWatermark(img, alphaMaps, { deepScan: true });
 
