@@ -1,12 +1,41 @@
- /**
- * Official Gemini resolution catalog and their watermark configurations.
- * Based on GargantuaX/gemini-watermark-remover data.
- *
- * [IMPORTANT] SINGLE SOURCE OF TRUTH:
- * All core offsets (logoSize, marginRight, marginBottom) MUST be maintained here.
- * Any modification to these constants will trigger a cascade effect across
- * tests, CLI, and UI. Run `npm test` after any changes to ensure consistency.
+/**
+ * Multi-Profile Resolution Catalog
  */
+
+export const CATALOGS = {
+    gemini: [
+        { width: 512, height: 512, logoSize: 48, marginRight: 32, marginBottom: 32, tier: '0.5k' },
+        { width: 1024, height: 1024, logoSize: 96, marginRight: 64, marginBottom: 64, tier: '1k' },
+        { width: 2048, height: 2048, logoSize: 96, marginRight: 64, marginBottom: 64, tier: '2k' },
+        { width: 4096, height: 4096, logoSize: 96, marginRight: 64, marginBottom: 64, tier: '4k' }
+    ],
+    doubao: [
+        // 2048x2048 standard (extracted previously)
+        { width: 2048, height: 2048, logoWidth: 373, logoHeight: 165, marginRight: 11, marginBottom: 4, anchor: 'bottom-right' },
+        
+        // 2730x1535 sample (6b) - Refined
+        { width: 2730, height: 1535, logoWidth: 307, logoHeight: 167, marginLeft: 38, marginTop: 25, anchor: 'top-left' },
+        { width: 2730, height: 1535, logoWidth: 401, logoHeight: 173, marginRight: 24, marginBottom: 10, anchor: 'bottom-right' },
+        
+        // 2364x1773 sample (b53f) - Refined
+        { width: 2364, height: 1773, logoWidth: 248, logoHeight: 105, marginLeft: 39, marginTop: 39, anchor: 'top-left' },
+        { width: 2364, height: 1773, logoWidth: 348, logoHeight: 151, marginRight: 10, marginBottom: 4, anchor: 'bottom-right' },
+
+        // 1536x2727 sample (5b) - Refined
+        { width: 1536, height: 2727, logoWidth: 221, logoHeight: 109, marginLeft: 16, marginTop: 16, anchor: 'top-left' },
+        { width: 1536, height: 2727, logoWidth: 276, logoHeight: 125, marginRight: 10, marginBottom: 2, anchor: 'bottom-right' }
+    ]
+};
+
+const GEMINI_ADDITIONAL = [
+    { width: 384, height: 688, logoSize: 48, marginRight: 32, marginBottom: 32, tier: '0.5k' },
+    { width: 688, height: 384, logoSize: 48, marginRight: 32, marginBottom: 32, tier: '0.5k' },
+    { width: 768, height: 1376, logoSize: 96, marginRight: 64, marginBottom: 64, tier: '1k' },
+    { width: 1376, height: 768, logoSize: 96, marginRight: 64, marginBottom: 64, tier: '1k' }
+];
+CATALOGS.gemini.push(...GEMINI_ADDITIONAL);
+
+export const GEMINI_SIZE_CATALOG = CATALOGS.gemini;
 
 export const WATERMARK_CONFIGS = {
     '0.5k': { logoSize: 48, marginRight: 32, marginBottom: 32 },
@@ -15,56 +44,17 @@ export const WATERMARK_CONFIGS = {
     '4k': { logoSize: 96, marginRight: 64, marginBottom: 64 }
 };
 
-// Common Gemini resolutions and their tiers
-export const GEMINI_SIZE_CATALOG = [
-    // 0.5k Tier (logo: 48, margin: 32)
-    { width: 512, height: 512, tier: '0.5k' },   // 1:1
-    { width: 384, height: 688, tier: '0.5k' },   // 9:16
-    { width: 688, height: 384, tier: '0.5k' },   // 16:9
-    { width: 424, height: 632, tier: '0.5k' },   // 2:3
-    { width: 632, height: 424, tier: '0.5k' },   // 3:2
-    { width: 792, height: 168, tier: '0.5k' },   // 21:9
-
-    // 1k Tier (logo: 96, margin: 64)
-    { width: 1024, height: 1024, tier: '1k' },   // 1:1
-    { width: 768, height: 1376, tier: '1k' },    // 9:16
-    { width: 1376, height: 768, tier: '1k' },     // 16:9
-    { width: 848, height: 1264, tier: '1k' },    // 2:3
-    { width: 1264, height: 848, tier: '1k' },    // 3:2
-    { width: 1584, height: 672, tier: '1k' },    // 21:9
-    { width: 1536, height: 672, tier: '1k' },    // Gemini 1.5 Flash 21:9
-
-    // 2k Tier (logo: 96, margin: 64)
-    { width: 2048, height: 2048, tier: '2k' },
-    { width: 1536, height: 2752, tier: '2k' },
-    { width: 2752, height: 1536, tier: '2k' },
-    { width: 1696, height: 2528, tier: '2k' },
-    { width: 2528, height: 1696, tier: '2k' },
-    { width: 3168, height: 1344, tier: '2k' },
-
-    // 4k Tier (logo: 96, margin: 64)
-    { width: 4096, height: 4096, tier: '4k' },   // 1:1
-    { width: 3072, height: 5504, tier: '4k' },   // 9:16
-    { width: 5504, height: 3072, tier: '4k' },   // 16:9
-    { width: 3392, height: 5056, tier: '4k' },   // 2:3
-    { width: 5056, height: 3392, tier: '4k' },   // 3:2
-    { width: 6336, height: 2688, tier: '4k' }    // 21:9
-];
-
-/**
- * Find the best matching config for a given resolution
- */
-export function getCatalogConfig(width, height) {
-    const MAX_SCALE_MISMATCH = 0.02; // 2% tolerance
-
-    for (const entry of GEMINI_SIZE_CATALOG) {
+export function getAllCatalogConfigs(width, height, profileId = 'gemini') {
+    const catalog = CATALOGS[profileId] || CATALOGS.gemini;
+    const MAX_SCALE_MISMATCH = 0.02;
+    return catalog.filter(entry => {
         const scaleX = width / entry.width;
         const scaleY = height / entry.height;
-        
-        // Exact match or very close uniform scale
-        if (Math.abs(scaleX - scaleY) < MAX_SCALE_MISMATCH && Math.abs(scaleX - 1) < MAX_SCALE_MISMATCH) {
-            return { ...WATERMARK_CONFIGS[entry.tier], isOfficial: true, tier: entry.tier };
-        }
-    }
-    return null;
+        return Math.abs(scaleX - scaleY) < MAX_SCALE_MISMATCH && Math.abs(scaleX - 1) < MAX_SCALE_MISMATCH;
+    }).map(entry => ({ ...entry, isOfficial: true }));
+}
+
+export function getCatalogConfig(width, height, profileId = 'gemini') {
+    const matches = getAllCatalogConfigs(width, height, profileId);
+    return matches.length > 0 ? matches[0] : null;
 }

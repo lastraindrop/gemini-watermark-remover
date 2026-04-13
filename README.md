@@ -1,8 +1,8 @@
 [中文文档](README_zh.md)
 
-# Gemini Lossless Watermark Remover - [banana.ovo.re](https://banana.ovo.re)
+# Gemini & Doubao Lossless Watermark Remover (v1.8.0)
 
-A high-performance, 100% client-side tool for removing Gemini AI watermarks. Built with pure JavaScript, it leverages a mathematically precise **Reverse Alpha Blending** algorithm with **Sub-pixel Accuracy** rather than unpredictable AI inpainting.
+A high-performance, 100% client-side tool for removing Gemini and Doubao (豆包) AI watermarks. Now integrated into the **@pilio** ecosystem with native AI Agent support.
 
 <p align="center">
   <img src="https://count.getloli.com/@gemini-watermark-remover?name=gemini-watermark-remover&theme=minecraft&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400">
@@ -10,24 +10,17 @@ A high-performance, 100% client-side tool for removing Gemini AI watermarks. Bui
 
 ## Features
 
-- ✅ **Sub-pixel Alignment (v1.7.0)** - Bilinear interpolation for both image and alpha mask, eliminating artifacts.
-- ✅ **Perceptual Detection (v1.7.0)** - Enhanced luminance formula for superior accuracy on complex/color backgrounds.
-- ✅ **Adaptive SNR Weighting (v1.7.0)** - Dynamic gradient weighting to suppress false positives on flat textures.
+- ✅ **Multi-Model Support** - Now supports **Gemini** and **Doubao (豆包)** AI watermarks via the Profile System.
+- ✅ **Sub-pixel Alignment** - Bilinear interpolation for both image and alpha mask, eliminating artifacts.
+- ✅ **Modular CLI Engine** - High-speed batch processing with a flexible command-line interface.
 - ✅ **PWA (Progressive Web App)** - Installable on desktop/mobile, offline ready.
 - ✅ **Premium UI / Glassmorphism** - Modern aesthetic with high-end micro-animations.
+- ✅ **Auto-Detection & Sliding-Window Alignment** - Proactive correlation engine automatically finds watermark and corrects positional jitter (+/- 4px).
+- ✅ **Gradient-Based Probing** - Hardened detection for transparent/dark watermarks (like Doubao).
 - ✅ **Keyboard Shortcuts** - `←/→` sliders, `Esc` reset, `Ctrl+S` save.
 - ✅ **100% Client-side** - No backend, zero latency, maximum privacy.
-- ✅ **High-Performance Sliding Window** - Optimized memory for massive batch processing.
-- ✅ **Resource Inlining** - Built with esbuild to embed masks as Base64.
-- ✅ **Architectural Resilience** - Automatic worker-to-main fallback on failure.
-- ✅ **Clipboard Paste** - Global `Ctrl+V` support for instant processing.
-- ✅ **Auto-Download** - Optional workflow for automatic file saving.
-- ✅ **Path Persistence** - Python GUI remembers workspace directories.
-- ✅ **Exhaustive Testing** - 140+ cases ensuring protocol consistency and mathematical precision.
-- ✅ **Catalog Tier Display** - Confidence badges for official resolution matches.
-- ✅ **Multi-language** - Support for **EN, ZH, JP, RU, FR**.
-- [x] **Production Hardened** - Fixed OOMs, memory leaks, and sub-pixel aliasing.
-- ✅ **Edge-Crop Resilience** - Smart detection for watermarks partially outside image boundaries.
+- ✅ **Multi-language** - Support for **EN, ZH, JP, RU, FR, ES, DE**.
+- ✅ **Production Hardened (v1.8)** - Multi-anchor support, multi-profile orchestration, and non-hardcoded architecture.
 - ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation.
 
 ## 🛡️ Production Hardened (v1.7.0)

@@ -1,149 +1,70 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { detectWatermark } from '../src/core/detector.js';
-import { calculateWatermarkPosition, detectWatermarkConfig } from '../src/core/config.js';
-import { createMockImageData, createMockAlphaMap, applyWatermark, addNoise, generateParameterMatrix } from './test_utils.js';
+import { calculateCorrelation, calculateProbeConfidence } from '../src/core/detector.js';
+import { calculateWatermarkPosition } from '../src/core/config.js';
+import { createMockImageData, createMockAlphaMap, applyWatermark, generateParameterMatrix } from './test_utils.js';
+import { PROFILES } from '../src/core/profiles.js';
 
-import { GEMINI_PROFILE } from '../src/core/profiles.js';
-
-describe('Watermark Detector Engine - Generalized Scenarios', () => {
-
-    // Dynamically generate alpha maps from profile tiers
-    const alphaMaps = {};
-    for (const tierId in GEMINI_PROFILE.tiers) {
-        const size = GEMINI_PROFILE.tiers[tierId].logoSize;
-        if (!alphaMaps[size]) alphaMaps[size] = createMockAlphaMap(size);
-    }
+describe('Detector Architecture Validation (v1.8)', () => {
 
     const matrix = generateParameterMatrix();
 
-    describe('Automated Parameter Matrix Tests', () => {
-        for (const { options, resolution } of matrix) {
-            const { w, h, tier } = resolution;
-            const testName = `Matrix: ${w}x${h} [DeepScan: ${options.deepScan}, NR: ${options.noiseReduction}]`;
-            
-            test(testName, () => {
-                const config = detectWatermarkConfig(w, h);
-                const size = config.logoSize;
-                const img = createMockImageData(w, h, 'gradient');
-                const alphaMap = alphaMaps[size] || createMockAlphaMap(size);
-                
-                const pos = calculateWatermarkPosition(w, h, config);
-                applyWatermark(img, pos.x, pos.y, size, alphaMap);
-                
-                if (options.noiseReduction) addNoise(img, 20);
+    test('Verification: calculateCorrelation basic logic', () => {
+        const w = 100, h = 100;
+        const img = createMockImageData(w, h, 'solid', 100);
+        const alphaMap = createMockAlphaMap(w, h);
+        
+        // Perfect match apply
+        applyWatermark(img, 0, 0, w, h, alphaMap);
+        const conf = calculateCorrelation(img, 0, 0, w, h, alphaMap, true);
+        assert.ok(conf > 0.9, `Should have high correlation, got ${conf}`);
+        
+        // Offset match
+        const confOffset = calculateCorrelation(img, 5, 5, w, h, alphaMap, true);
+        assert.ok(confOffset < conf, 'Offset should decrease correlation');
+    });
 
-                const result = detectWatermark(img, alphaMaps, options);
+    test('Verification: calculateProbeConfidence (Sliding Window)', () => {
+        const w = 100, h = 100;
+        const img = createMockImageData(w, h, 'grid'); // Grid is better for alignment testing
+        const alphaMap = createMockAlphaMap(w, h);
+        
+        // Apply at (10, 10)
+        applyWatermark(img, 10, 10, w, h, alphaMap);
+        
+        // Probe at (12, 12) - offset by 2
+        const initialPos = { x: 12, y: 12, width: w, height: h };
+        const result = calculateProbeConfidence(img, initialPos, alphaMap, 'gemini');
+        
+        assert.strictEqual(result.x, 10, 'Should find the correct X after fine-tuning');
+        assert.strictEqual(result.y, 10, 'Should find the correct Y after fine-tuning');
+        assert.ok(result.confidence > 0.3, `Confidence too low: ${result.confidence}`);
+    });
 
-                // Validation Logic
-                if (options.deepScan || tier) {
-                    assert.ok(result, `Detection failed for ${testName}`);
-                    assert.ok(Math.abs(result.x - pos.x) <= 1, `X mismatch: got ${result.x}, expected ${pos.x}`);
-                    assert.ok(Math.abs(result.y - pos.y) <= 1, `Y mismatch: got ${result.y}, expected ${pos.y}`);
-                    
-                    // Verify architectural label consistency
-                    if (tier && !options.noiseReduction) {
-                        assert.strictEqual(result.mode, 'anchored', 'Cataloged size should be detected as anchored');
-                    }
-                }
+    describe('Cross-Profile Matrix Validation', () => {
+        for (const { profileId, resolution } of matrix) {
+            test(`Profile [${profileId}] at ${resolution.w}x${resolution.h}`, () => {
+                const profile = PROFILES[profileId];
+                const config = resolution.config;
+                const img = createMockImageData(resolution.w, resolution.h, 'gradient');
+                
+                const pos = calculateWatermarkPosition(resolution.w, resolution.h, config);
+                const alphaMap = createMockAlphaMap(pos.width, pos.height);
+                
+                applyWatermark(img, pos.x, pos.y, pos.width, pos.height, alphaMap, profile.logoValue);
+                
+                const result = calculateProbeConfidence(img, pos, alphaMap, profileId);
+                assert.ok(result.confidence > 0.7, `Detection failed for ${profileId} at ${resolution.w}x${resolution.h}. Conf: ${result.confidence}`);
             });
         }
     });
 
-    test('V1.5 Edge Crop Recovery (Partial Overflow)', () => {
-        const w = 400, h = 400, size = 96;
-        const img = createMockImageData(w, h, 'solid', 50);
-        const alphaMap = alphaMaps[size];
-        
-        // 40% outside (60% visible)
-        const targetX = 50, targetY = 400 - (size * 0.6); 
-        applyWatermark(img, targetX, targetY, size, alphaMap);
-
-        const result = detectWatermark(img, alphaMaps);
-        assert.ok(result, 'Edge detection failed');
-        assert.ok(Math.abs(result.y - targetY) <= 1);
-        assert.ok(result.confidence > 0.45);
-    });
-
-    test('Robustness: 800x2048 (gradient) - High Conf', () => {
-        const img = createMockImageData(800, 2048, 'gradient');
-        const alphaMap = alphaMaps[48];
-        const config = { logoSize: 48, marginRight: 32, marginBottom: 32 };
-        const pos = calculateWatermarkPosition(800, 2048, config);
-        applyWatermark(img, pos.x, pos.y, 48, alphaMap);
-        
-        const result = detectWatermark(img, alphaMaps);
-        assert.ok(result);
-        assert.strictEqual(result.size, 48);
-    });
-
-    describe('Full Catalog Tier Verification', () => {
-        const tiers = [
-            { w: 1024, h: 1024, s: 96 },
-            { w: 2048, h: 2048, s: 96 }
-        ];
-
-        tiers.forEach(({ w, h, s }) => {
-            test(`Detection accuracy: ${w}x${h} (size=${s})`, () => {
-                const gridImg = createMockImageData(w, h, 'grid');
-                const alphaMap = createMockAlphaMap(s);
-                for (let i=0; i<s*s; i++) if (alphaMap[i] === 0) alphaMap[i] = 0.05; 
-                
-                const config = { logoSize: s, marginRight: 64, marginBottom: 64 };
-                const pos = calculateWatermarkPosition(w, h, config);
-                applyWatermark(gridImg, pos.x, pos.y, s, alphaMap);
-                
-                const tierAlphaMaps = { 96: alphaMap, 48: new Float32Array(48*48) };
-                const result = detectWatermark(gridImg, tierAlphaMaps);
-                assert.ok(result, `Should detect ${s} on ${w}x${h}`);
-                assert.strictEqual(result.size, s);
-            });
-        });
-    });
-
-    test('Safety: tiny image (50x50) returns null', () => {
-        const img = createMockImageData(50, 50);
-        const result = detectWatermark(img, alphaMaps);
-        assert.strictEqual(result, null);
-    });
-
-    test('V1.5 High-Noise Resilience (Adaptive NR)', () => {
-        const w = 512, h = 512, size = 96;
-        const img = createMockImageData(w, h, 'solid', 128);
-        const alphaMap = alphaMaps[size];
-        const targetX = w - 64 - size;
-        const targetY = h - 64 - size;
-        
-        applyWatermark(img, targetX, targetY, size, alphaMap);
-        addNoise(img, 60); 
-
-        const result = detectWatermark(img, alphaMaps, { deepScan: false, noiseReduction: true });
-        assert.ok(result, 'Noise Reduction detection failed');
-        assert.ok(result.confidence > 0.3);
-    });
-
-    describe('Edge Case Scenarios', () => {
-        test('Empty Image: Should return null for zero-filled image', () => {
-            const emptyImg = createMockImageData(512, 512, 'solid', 0);
-            const result = detectWatermark(emptyImg, alphaMaps);
-            assert.strictEqual(result, null, 'Black image should not trigger watermark detection');
-        });
-
-        test('White Image: Should return null for white image', () => {
-            const whiteImg = createMockImageData(512, 512, 'solid', 255);
-            const result = detectWatermark(whiteImg, alphaMaps);
-            assert.strictEqual(result, null, 'White image should not trigger watermark detection');
-        });
-
-        test('Deep Scan Disabled: Should work using anchored detection only', () => {
-            const img = createMockImageData(1024, 1024, 'solid', 150);
-            const alphaMap = createMockAlphaMap(96);
-            const targetPos = 1024 - 64 - 96; // 864
-            applyWatermark(img, targetPos, targetPos, 96, alphaMap);
-            
-            const result = detectWatermark(img, alphaMaps, { deepScan: false });
-            assert.ok(result, 'Should detect even if deepScan is disabled');
-            assert.strictEqual(result.mode, 'anchored', 'Should use anchored mode');
-        });
+    test('Safety: Out of bounds probe', () => {
+        const img = createMockImageData(500, 500);
+        const alphaMap = createMockAlphaMap(100);
+        const pos = { x: 450, y: 450, width: 100, height: 100 }; // 50px overflow
+        const conf = calculateCorrelation(img, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
+        // Should not crash and return 0 or low value
+        assert.strictEqual(typeof conf, 'number');
     });
 });

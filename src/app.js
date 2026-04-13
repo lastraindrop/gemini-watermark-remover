@@ -11,6 +11,8 @@ let imageQueue = [];
 let processedCount = 0;
 let zoom = null;
 let isProcessing = false;
+let totalRemovedCount = 0;
+let batchSuccessCount = 0;
 
 // dom elements references
 const batchProgressBar = document.getElementById('batchProgressBar');
@@ -64,15 +66,7 @@ const auditConsole = document.getElementById('auditConsole');
 /**
  * AuditLog Utility
  */
-const escapeHtml = (str) =>
-  str
-    .toString()
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
+
 
 const AuditLog = {
     log(message, type = 'info') {
@@ -134,7 +128,7 @@ async function init() {
         // Populate Profile Selector
         if (profileSelect) {
             profileSelect.innerHTML = '';
-            PROFILES.forEach(p => {
+            Object.values(PROFILES).forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id;
                 opt.textContent = p.name;
@@ -165,7 +159,7 @@ async function init() {
         AuditLog.log(`Web Worker status: ${hasWorker ? 'ENABLED' : 'DISABLED (UserScript or Fallback Mode)'}`, hasWorker ? 'success' : 'warn');
 
         // Hide Audit Console by default in non-dev environments
-        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.location.protocol.startsWith('file')) {
             auditConsole.classList.add('translate-y-[calc(100%-48px)]');
         } else {
             auditConsole.classList.remove('translate-y-[calc(100%-48px)]');
@@ -188,6 +182,23 @@ async function init() {
         engineStatus.textContent = 'ERROR';
         engineStatus.className = 'text-err font-bold';
         console.error('initialize error:', error);
+    }
+}
+
+/**
+ * register service worker for PWA support (v1.6+)
+ */
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => {
+                    AuditLog.log('ServiceWorker registration successful', 'success');
+                })
+                .catch(err => {
+                    AuditLog.log(`ServiceWorker registration failed: ${err}`, 'warn');
+                });
+        });
     }
 }
 
@@ -275,7 +286,7 @@ function handleKeyDown(e) {
 
     // Slider arrows
     if (!comparisonSlider.classList.contains('hidden')) {
-        const rect = comparisonSlider.getBoundingClientRect();
+
         let currentPercent = parseFloat(sliderResize.style.width) || 50;
         
         if (e.key === 'ArrowLeft') {
@@ -546,12 +557,13 @@ async function processSingle(item) {
         AuditLog.log(`Processing image: ${item.name} (${img.width}x${img.height}) [NR: ${options.noiseReduction}]`, 'process');
         
         resultContainer.classList.add('scan-active');
-        const { canvas, detectionMode, confidence, config } = await engine.removeWatermarkFromImage(img, options);
+        const { canvas, detectionMode, confidence, config, removedCount } = await engine.removeWatermarkFromImage(img, options);
         resultContainer.classList.remove('scan-active');
 
         // Update Tier Badge
-        if (config && config.isOfficial) {
-            tierBadge.textContent = `${config.tier.toUpperCase()} Tier (${config.logoSize}px)`;
+        if (config) {
+            const tierText = config.tier ? config.tier.toUpperCase() : (config.anchor || 'DETECTED');
+            tierBadge.textContent = `${tierText} (${config.logoWidth || config.logoSize}px)`;
             tierBadge.classList.remove('hidden');
         } else {
             tierBadge.classList.add('hidden');
@@ -563,7 +575,10 @@ async function processSingle(item) {
         
         // Confidence Display
         const confPercent = (confidence * 100).toFixed(0);
-        AuditLog.log(`Processing complete [Mode: ${detectionMode.toUpperCase()}, Conf: ${confPercent}%] for ${item.name} in ${latency}ms`, 'success');
+        const msg = removedCount > 0 
+           ? `Success: Removed ${removedCount} watermarks [Conf: ${confPercent}%]`
+           : `None: No watermarks detected above threshold.`;
+        AuditLog.log(msg, removedCount > 0 ? 'success' : 'warn');
 
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
         item.processedBlob = blob;
@@ -600,20 +615,22 @@ async function processSingle(item) {
         sep.textContent = '|';
         processedInfo.appendChild(sep);
         
-        const confSpan = document.createElement('span');
-        confSpan.className = 'text-blue-500 font-black';
-        confSpan.textContent = `CONF: ${confPercent}%`;
-        processedInfo.appendChild(confSpan);
-
-        const sep2 = document.createElement('span');
-        sep2.className = 'px-2 opacity-50';
-        sep2.textContent = '|';
-        processedInfo.appendChild(sep2);
-
         const removedSpan = document.createElement('span');
-        removedSpan.className = 'text-emerald-500 underline decoration-2 underline-offset-4';
-        removedSpan.textContent = i18n.t('info.removed');
+        removedSpan.className = 'text-emerald-500 font-bold decoration-2 underline-offset-4';
+        removedSpan.textContent = `${removedCount} REMOVED`;
         processedInfo.appendChild(removedSpan);
+        
+        if (removedCount > 0) {
+            const sep2 = document.createElement('span');
+            sep2.className = 'px-2 opacity-50';
+            sep2.textContent = '|';
+            processedInfo.appendChild(sep2);
+
+            const confSpan = document.createElement('span');
+            confSpan.className = 'text-blue-500 font-black';
+            confSpan.textContent = `CONF: ${confPercent}%`;
+            processedInfo.appendChild(confSpan);
+        }
 
         zoom.detach();
         zoom.attach('[data-zoomable]');
@@ -734,8 +751,9 @@ async function processQueue() {
                 isProcessing = false;
                 if (processedCount > 0) {
                     downloadAllBtn.style.display = 'flex';
-                    setStatusMessage(i18n.t('status.success'), 'success');
-                    AuditLog.log('All batch tasks completed', 'success');
+                    const summaryMsg = `Batch Complete: ${batchSuccessCount}/${imageQueue.length} images cleaned. Total ${totalRemovedCount} watermarks eliminated.`;
+                    setStatusMessage(summaryMsg, 'success');
+                    AuditLog.log(summaryMsg, 'success');
                     if (getEngineOptions().autoDownload) {
                         AuditLog.log('Auto-download triggered.', 'info');
                         downloadAll();
@@ -767,7 +785,7 @@ async function processQueue() {
                         const container = document.querySelector(`#card-${item.id} .relative`);
                         if (container) container.classList.add('scan-active');
                         
-                        const { canvas, detectionMode, confidence, config } = await engine.removeWatermarkFromImage(img, options);
+                        const { canvas, detectionMode, confidence, config, removedCount } = await engine.removeWatermarkFromImage(img, options);
                         if (container) container.classList.remove('scan-active');
                         
                         const loader = document.getElementById(`loader-${item.id}`);
@@ -781,12 +799,22 @@ async function processQueue() {
 
                         item.processedUrl = objectUrlManager.create(blob);
                         const confPercent = (confidence * 100).toFixed(0);
-                        AuditLog.log(`Batch: ${item.name} done [${detectionMode}, ${confPercent}%] in ${latency}ms`, 'success');
+                        AuditLog.log(`Batch: ${item.name} done [Removed: ${removedCount}, Conf: ${confPercent}%] in ${latency}ms`, 'success');
                         
-                        if (config && config.isOfficial) {
-                            const tier = document.getElementById(`tier-${item.id}`);
-                            if (tier) {
-                                tier.textContent = `${config.tier.toUpperCase()} OFFICIAL [${confPercent}%]`;
+                        if (removedCount > 0) {
+                            batchSuccessCount++;
+                            totalRemovedCount += removedCount;
+                        }
+
+                        const tier = document.getElementById(`tier-${item.id}`);
+                        if (tier) {
+                            if (removedCount > 0) {
+                                const tierText = config ? (config.tier || config.anchor || 'DETECTED') : 'DETECTED';
+                                tier.textContent = `${tierText.toUpperCase()} [${removedCount} RMV]`;
+                                tier.classList.remove('hidden');
+                            } else {
+                                tier.textContent = 'CLEAN / SKIPPED';
+                                tier.className = 'flex-shrink-0 px-2 py-0.5 bg-gray-50 text-gray-400 text-[9px] rounded font-bold uppercase tracking-widest';
                                 tier.classList.remove('hidden');
                             }
                         }

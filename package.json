@@ -1,7 +1,7 @@
 {
-  "name": "gemini-watermark-remover",
+  "name": "@pilio/gemini-watermark-remover",
   "description": "Automatically removes watermarks from Gemini AI generated images",
-  "version": "1.7.0-alpha",
+  "version": "1.8.0-rc.1",
   "author": "journey-ad",
   "repository": {
     "type": "git",
@@ -11,6 +11,8 @@
   "type": "module",
   "files": [
     "src",
+    "bin",
+    "skills",
     "dist",
     "public",
     "python",
@@ -19,7 +21,8 @@
     "README_zh.md"
   ],
   "bin": {
-    "gemini-watermark-remover": "./src/cli.js"
+    "gwr": "./bin/gwr.mjs",
+    "gemini-watermark-remover": "./bin/gwr.mjs"
   },
   "scripts": {
     "dev": "node build.js",

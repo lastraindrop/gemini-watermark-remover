@@ -2,21 +2,14 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.7.5 Production - Architecture Hardened)
-- [x] **Strategic Abstraction (v1.7.5)**: Decoupled `src/core/profiles.js` from hardcoded logic, enabling the Strategy Pattern for multi-model protocols.
-- [x] **Multi-Model UI Support (v1.7.5)**: Added Profile Selector to the frontend, supporting Gemini, DALL-E, and custom AI profiles.
-- [x] **Detection Confidence Probe (v1.7.5)**: Real-time certainty reporting (Confidence %) in UI and Audit Console for better quality assurance.
-- [x] **Dynamic Test Matrix (v1.7.5)**: Unit tests now dynamically adapt to `Profiles` and `Catalog` data, eliminating hardcoded magic numbers.
-- [x] **Full Sub-pixel Alignment (v1.7.0)**: Bilinear interpolation for BOTH image data and Alpha masks.
-- [x] **Unified Perceptual Detection (v1.7.0)**: Standardized 0.299R+0.587G+0.114B formula across mask extraction and detection engine.
-- [x] **Clean Mode Labeling (v1.7.0)**: Fixed heuristic labeling bug to ensure accurate anchored/aligned/free status reporting.
-- [x] **CLI Robustness (v1.7.0)**: Automatic extension fallback and enhanced integration testing for edge paths.
-- [x] **Audit Console v1.0**: Pro-grade logging window in `src/app.js` for real-time engine diagnostics.
-- [x] **Premium UI/UX (v1.6.0)**: Glassmorphism, dark mode, and smooth micro-animations.
-- [x] **PWA Support (v1.6.0)**: Installable desktop/mobile app via Service Worker.
-- [x] **Keyboard Shortcuts (v1.6.0)**: `←/→` for slider, `Esc` for reset, `Ctrl+S` for save.
-- [x] **Clipboard Paste (v1.6.0)**: Global `Ctrl+V` support for instant removal.
-- [x] **Streaming Directory Mode**: Async Generator-based processing for massive batches.
+## 📍 当前状态 (v1.8.0 - Production Ready)
+- [x] **Universal Model Integration (v1.8.0)**: Supports Gemini AND **Doubao (豆包)**.
+- [x] **Multi-Anchor Verification**: Probing system verifies and removes multiple watermarks (e.g., TL/BR corner combinations) in a single pass.
+- [x] **Sliding-Window Hardening**: Automatic Correction of positional jitter (±4px) for perfect mask alignment.
+- [x] **Gradient Correlation Core**: Support for transparent/dark-box watermarks using Sobel gradient matching.
+- [x] **@pilio Ecosystem Integration**: Package renamed to `@pilio/gemini-watermark-remover`. Added `bin/` and `skills/` for AI Agent compatibility.
+- [x] **Modular CLI Architecture**: Refactored CLI into `src/cli/` modules.
+- [x] **Detection Confidence Probe**: Real-time certainty reporting (Confidence %) in UI and Audit Console.
 
 ---
 
@@ -25,7 +18,8 @@
 - [x] **v1.7.5: Dynamic Test Alignment (动态测试对齐)**：测试套件自动跟随架构参数漂移，消除参数不一致导致的硬编码坏味道。
 - [x] **v1.7.0: Sub-pixel Alignment (亚像素级对齐)**：实现像素插值还原，消除缩放锯齿。
 - [x] **v1.7.0: Perceptual Detection (感知级探测)**：升级亮度权重公式，提升复杂背景捕捉精度。
-- **v1.8: Rust-driven Wasm Core (Targeted)**：通过 Wasm 实施核心像素算力加速，适配 8K 极清图像处理。 (In Development)
+- [ ] **v1.9: Intelligent Auto-Profile (Targeted)**: Automatic detection of image generator type via visual fingerprinting.
+- [ ] **v2.0: Rust-driven Wasm Core**: Porting pixel loops to Rust for 8K+ ultra-extremes performance.
 
 ---
 
@@ -49,17 +43,6 @@
 
 ### ⚡ 性能天花板 (Performance)
 - **Rust / WebAssembly 深度迁移**：将整个像素循环（alphaMap & blendModes）通过 Rust 重新实现，针对超高分辨率 (8K+) 获取原生级别的处理性能。
-- **边缘算力共享 (Optional)**：探索基于 P2P 的批量处理能力加速（实验性）。
-
-### 🤖 泛化支持 (Generalized Support)
-- **通用 AI 视觉指纹库**：支持多款 AI 生成器（如 Midjourney, DALL-E, Stable Diffusion 各类定制水印）的特征识别与数学还原。
-
-### 📖 Core Detection Algorithm (v1.5)
-The engine uses a tiered approach:
-1. **Catalog Matching**: O(1) resolution lookup.
-2. **Noise-Aware NCC**: Optimized Normalized Cross-Correlation. If `noiseReduction` is enabled, a Fast Box Blur is applied to the detection copy to improve SNR.
-3. **Edge Crop Tolerance**: The search range and NCC calculation allow for negative coordinates and pixel overflow, enabling detection of watermarks that have been partially cropped.
-4. **Deep Sobel Gradient Scan**: NCC of image gradients for final verification.
 
 ---
 
