@@ -35,13 +35,19 @@ async function init() {
         
         // Populate Profiles (Fix code-review issue: letting users choose)
         if (elements.profileSelect) {
-            elements.profileSelect.innerHTML = '';
             getAllProfiles().forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id;
                 opt.textContent = p.name;
                 elements.profileSelect.appendChild(opt);
             });
+
+            const autoOpt = document.createElement('option');
+            autoOpt.value = 'auto';
+            autoOpt.textContent = 'AUTO DETECT (Slow)';
+            elements.profileSelect.appendChild(autoOpt);
+
+            elements.profileSelect.value = 'gemini';
             elements.profileSelect.addEventListener('change', () => {
                 saveSettings();
                 const p = getAllProfiles().find(x => x.id === elements.profileSelect.value);
@@ -62,9 +68,10 @@ async function init() {
         hideLoading();
         setupEventListeners();
         loadSettings();
-
-        // Initial appearance
-        document.body.classList.remove('loading');
+        
+        // v1.9.8: Dynamic UI initialization
+        const yearEl = document.querySelector('[data-i18n="footer.copyright"]');
+        if (yearEl) yearEl.innerHTML = yearEl.innerHTML.replace('{{year}}', new Date().getFullYear());
     } catch (error) {
         AuditLog.log(`Critical Fault: ${error.message}`, 'err');
         showLoadingFail(error.message);
@@ -80,7 +87,19 @@ function setupEventListeners() {
             if (evt === 'dragover') elements.uploadArea.classList.add('scale-[0.98]');
             else elements.uploadArea.classList.remove('scale-[0.98]');
             
-            if (evt === 'drop') handleFiles(Array.from(e.dataTransfer.files));
+            if (evt === 'drop') {
+                const items = e.dataTransfer.items;
+                const uri = e.dataTransfer.getData('text/uri-list');
+                
+                if (uri) {
+                    AuditLog.log(`Remote asset detected: ${uri.split('/').pop()}`, 'process');
+                    handleUrl(uri);
+                } else if (items && items.length > 0 && items[0].webkitGetAsEntry) {
+                    handleDataTransferItems(items);
+                } else {
+                    handleFiles(Array.from(e.dataTransfer.files));
+                }
+            }
         });
     });
 
@@ -135,8 +154,8 @@ function handleFiles(files) {
         document.getElementById('resultContainer')?.classList.add('scan-active');
         
         processSingle(state.imageQueue[0], getEngineOptions(), {
-            onSuccess: ({ item, removedCount, confidence, latency, config }) => {
-                updateSingleUI(item, removedCount, confidence, latency, config);
+            onSuccess: ({ item, removedCount, confidence, latency, config, profileId }) => {
+                updateSingleUI(item, removedCount, confidence, latency, config, profileId);
                 document.getElementById('resultContainer')?.classList.remove('scan-active');
             },
             onError: () => document.getElementById('resultContainer')?.classList.remove('scan-active')
@@ -148,14 +167,56 @@ function handleFiles(files) {
         state.imageQueue.forEach(createImageCard);
         
         processQueue(getEngineOptions(), {
-            onItemSuccess: ({ item, removedCount, confidence, latency, config }) => {
-                updateCardUI(item, removedCount, confidence, latency, config);
+            onItemSuccess: ({ item, removedCount, confidence, latency, config, profileId }) => {
+                updateCardUI(item, removedCount, confidence, latency, config, profileId);
             },
             onComplete: () => {
                 showToast(`Batch completed: ${state.imageQueue.length} processed`, 'success');
                 elements.downloadAllBtn.style.display = 'block';
             }
         });
+    }
+}
+
+async function handleUrl(uri) {
+    try {
+        showLoading('Fetching remote asset...', uri);
+        const response = await fetch(uri);
+        if (!response.ok) throw new Error('CORS blocked or server error');
+        const blob = await response.blob();
+        if (!blob.type.startsWith('image/')) throw new Error('Not an image');
+        
+        const file = new File([blob], uri.split('/').pop() || 'remote_image.png', { type: blob.type });
+        handleFiles([file]);
+    } catch (e) {
+        AuditLog.log(`Remote Fetch Failed: ${e.message}. Please save and upload manually.`, 'err');
+        showToast('Remote fetch failed (CORS)', 'err');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function handleDataTransferItems(items) {
+    const files = [];
+    const traverseEntry = async (entry) => {
+        if (entry.isFile) {
+            const file = await new Promise(resolve => entry.file(resolve));
+            files.push(file);
+        } else if (entry.isDirectory) {
+            const reader = entry.createReader();
+            const entries = await new Promise(resolve => reader.readEntries(resolve));
+            for (const e of entries) await traverseEntry(e);
+        }
+    };
+
+    for (const item of items) {
+        const entry = item.webkitGetAsEntry();
+        if (entry) await traverseEntry(entry);
+    }
+    
+    if (files.length > 0) {
+        AuditLog.log(`Deep-scanned ${files.length} items from drag-source`, 'info');
+        handleFiles(files);
     }
 }
 
@@ -166,16 +227,17 @@ function updateSingleUI(item, removedCount, confidence, latency, config) {
     document.getElementById('sideProcessed').src = item.processedUrl;
 
     if (config && elements.tierBadge) {
-        elements.tierBadge.textContent = `${config.tier || 'AUTO'} • ${config.anchor || 'BR'}`;
+        const profileName = profileId ? (getAllProfiles().find(p=>p.id===profileId)?.id.toUpperCase() || 'AUTO') : 'AUTO';
+        elements.tierBadge.textContent = `${profileName} • ${config.tier || 'MOCK'} • ${config.anchor || 'BR'}`;
         elements.tierBadge.classList.remove('hidden');
-        updateStatsUI(config, latency, confidence);
+        updateStatsUI(config, latency, confidence, profileId);
     }
 
     if (elements.lastLatency) elements.lastLatency.textContent = `Latency: ${latency}ms`;
     
     elements.downloadBtn.onclick = () => downloadImage(item);
     
-    AuditLog.log(`[PASS] ${item.name} | Conf: ${confidence}% | ${latency}ms`, 'success');
+    AuditLog.log(`[PASS] ${item.name} | Profile: ${profileId} | Conf: ${confidence}% | ${latency}ms`, 'success');
     showToast(`Removed ${removedCount} watermarks`, 'success');
 }
 
@@ -242,11 +304,11 @@ function switchViewMode(mode) {
     }
 }
 
-function updateStatsUI(config, latency, confidence) {
+function updateStatsUI(config, latency, confidence, profileId) {
     document.getElementById('statAnchor').textContent = (config.anchor || 'BOTTOM-RIGHT').toUpperCase();
     document.getElementById('statCoord').textContent = config.x !== undefined ? `${config.x}, ${config.y}` : 'AUTO';
     document.getElementById('statScale').textContent = config.scale !== undefined ? `${config.scale.toFixed(3)}x` : '1.000x';
-    document.getElementById('statAlgo').textContent = confidence > 0.8 ? 'INVERSE-ALPHA' : 'HEURISTIC-FILL';
+    document.getElementById('statAlgo').textContent = (profileId || 'AUTO').toUpperCase();
 }
 
 function applyProfileTheme(profile) {

@@ -1,22 +1,44 @@
 import exifr from 'exifr';
 import i18n from './i18n.js';
 
-export function loadImage(input) {
+export async function loadImage(input) {
+    if (input instanceof File || input instanceof Blob) {
+        return _createImageFromBlob(input);
+    }
+    
+    if (typeof input === 'string') {
+        // Try fetch approach first (Bypasses some CORS Tainting issues if server allows fetch)
+        try {
+            const response = await fetch(input, { mode: 'cors' });
+            if (response.ok) {
+                const blob = await response.blob();
+                return _createImageFromBlob(blob);
+            }
+        } catch (e) {
+            // Fallback to traditional <img> loading
+        }
+        
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('Image Load Failed: CORS or network error. Please download and upload locally.'));
+            img.src = input;
+        });
+    }
+    throw new Error('Invalid image input type');
+}
+
+function _createImageFromBlob(blob) {
     return new Promise((resolve, reject) => {
         const img = new Image();
+        const url = URL.createObjectURL(blob);
         img.onload = () => {
-            resolve(img);
-            // Revoke after decode: the img element retains the decoded bitmap
-            if (input instanceof File || input instanceof Blob) {
-                URL.revokeObjectURL(img.src);
-            }
+             // We don't revoke immediately anymore to stay safe across multi-renders
+             resolve(img);
         };
-        img.onerror = (_e) => reject(new Error('Failed to load image'));
-        if (input instanceof File || input instanceof Blob) {
-            img.src = URL.createObjectURL(input);
-        } else {
-            img.src = input;
-        }
+        img.onerror = () => reject(new Error('Failed to decode local image blob'));
+        img.src = url;
     });
 }
 

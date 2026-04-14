@@ -37,6 +37,9 @@ if (args.includes('-i') || args.includes('--input')) {
         if (args.includes('--json')) adaptedArgs.push('--json');
         if (args.includes('--noiseReduction')) adaptedArgs.push('--noiseReduction');
         if (args.includes('--no-deepScan')) adaptedArgs.push('--no-deepScan');
+        const profileIdx = args.findIndex(a => a === '--profile' || a === '-p');
+        if (profileIdx !== -1) adaptedArgs.push('--profile', args[profileIdx + 1]);
+        
         console.warn('⚠️  Warning: Legacy CLI format detected. Please use "gwr remove <input> --output <output>" instead.');
     }
 } else if (adaptedArgs[0] !== 'remove') {

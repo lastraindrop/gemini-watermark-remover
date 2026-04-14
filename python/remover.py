@@ -46,7 +46,7 @@ class GeminiWatermarkRemover:
         except (subprocess.CalledProcessError, FileNotFoundError):
             raise RuntimeError("Node.js is not installed or not in PATH.")
 
-    def remove_watermark(self, input_path: str, output_path: str, deep_scan: bool = True, noise_reduction: bool = False) -> List[Dict[str, Any]]:
+    def remove_watermark(self, input_path: str, output_path: str, deep_scan: bool = True, noise_reduction: bool = False, profile: str = "gemini") -> List[Dict[str, Any]]:
         """
         Processes a single image or a directory.
         Returns a list of result dictionaries.
@@ -55,7 +55,7 @@ class GeminiWatermarkRemover:
         try:
             # We use a wrapper if cli_path is a JS file, or direct execution if it's a binary/link
             exec_cmd = ["node", self.cli_path] if self.cli_path.endswith(".js") else [self.cli_path]
-            final_cmd = exec_cmd + ["--input", input_path, "--output", output_path, "--json"]
+            final_cmd = exec_cmd + ["--input", input_path, "--output", output_path, "--json", "--profile", profile]
             
             if not deep_scan: final_cmd.append("--no-deepScan")
             if noise_reduction: final_cmd.append("--noiseReduction")

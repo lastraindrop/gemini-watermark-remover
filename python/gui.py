@@ -39,6 +39,7 @@ class ModernGUI:
             self.root.after(100, lambda: self.log(f"Backend Initialization Failed: {str(e)}", "err"))
         
         self.input_paths = None
+        self.profile_var = tk.StringVar(value="gemini")
         self.deep_scan_var = tk.BooleanVar(value=True)
         self.noise_reduction_var = tk.BooleanVar(value=False)
 
@@ -109,6 +110,12 @@ class ModernGUI:
                        activebackground=self.THEME["bg"], activeforeground=self.THEME["primary"],
                        font=self.THEME["font_main"], borderwidth=0, highlightthickness=0).pack(side="left")
 
+        # Profile Selector
+        tk.Label(options_bar, text="Profile:", bg=self.THEME["bg"], fg="#94a3b8", font=self.THEME["font_main"]).pack(side="left", padx=(40, 5))
+        profile_menu = ttk.Combobox(options_bar, textvariable=self.profile_var, state="readonly", width=15)
+        profile_menu['values'] = ("auto", "gemini", "doubao", "dalle3")
+        profile_menu.pack(side="left")
+
         # Action Bar
         action_bar = tk.Frame(content, bg=self.THEME["bg"])
         action_bar.pack(fill="x", pady=15)
@@ -169,8 +176,17 @@ class ModernGUI:
                   bg=self.THEME["accent"], fg="white", font=self.THEME["font_main"], 
                   relief="flat", padx=10).pack()
         
-        if mode == "input": self.input_entry = path_entry
+        if mode == "input": 
+            self.input_entry = path_entry
+            self.input_entry.bind("<Control-v>", lambda e: self.root.after(10, self._on_input_paste))
         else: self.output_entry = path_entry
+
+    def _on_input_paste(self):
+        # Auto-detect if pasted content is a valid path
+        val = self.input_entry.get().strip().strip('"')
+        if os.path.exists(val):
+            self.input_paths = val
+            self.log(f"Smart-link detected path: {os.path.basename(val)}", "success")
 
     def log(self, msg, level="info"):
         if threading.current_thread() is not threading.main_thread():
@@ -239,7 +255,8 @@ class ModernGUI:
         try:
             ds = self.deep_scan_var.get()
             nr = self.noise_reduction_var.get()
-            self.log(f"Starting engine scan [DeepScan={ds}, NoiseReduc={nr}]", "process")
+            prof = self.profile_var.get()
+            self.log(f"Starting engine scan [Profile={prof}, DeepScan={ds}, NoiseReduc={nr}]", "process")
             self.root.after(0, lambda: self.status_dot_color(self.THEME["warn"]))
             
             # Simple heuristic for multi-file detection
@@ -250,12 +267,12 @@ class ModernGUI:
                 for i, f in enumerate(self.input_paths):
                     short_name = os.path.basename(f)
                     self.log(f"({i+1}/{total}) Pipelining: {short_name}", "info")
-                    res = self.remover.remove_watermark(f, dest, deep_scan=ds, noise_reduction=nr)
+                    res = self.remover.remove_watermark(f, dest, deep_scan=ds, noise_reduction=nr, profile=prof)
                     self._handle_result(res)
                     val = ((i + 1) / total) * 100
                     self.root.after(0, lambda v=val: self.progress.configure(value=v))
             else:
-                res = self.remover.remove_watermark(src, dest, deep_scan=ds, noise_reduction=nr)
+                res = self.remover.remove_watermark(src, dest, deep_scan=ds, noise_reduction=nr, profile=prof)
                 self._handle_result(res)
                 self.root.after(0, lambda: self.progress.configure(value=100))
             
@@ -272,7 +289,10 @@ class ModernGUI:
             status = r.get("status")
             name = r.get("file", r.get("input", "unknown"))
             if status == "success":
-                conf = r.get("confidence", 0)
+                try:
+                    conf = float(r.get("confidence", 0))
+                except (ValueError, TypeError):
+                    conf = 0.0
                 mode = r.get("mode", "unknown")
                 self.log(f"Cleaned [{mode}, {conf*100:.1f}%]: {os.path.basename(name)}", "success")
             else:

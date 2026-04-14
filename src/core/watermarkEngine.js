@@ -138,8 +138,8 @@ export class WatermarkEngine {
      * @returns {Promise<Object>} Detection results
      */
     async removeWatermarkFromImage(image, options = {}) {
-        const profileId = options.profileId || 'gemini';
-        const profile = PROFILES[profileId] || PROFILES.gemini;
+        const requestedProfileId = options.profileId || 'gemini';
+        let profilesToTry = requestedProfileId === 'auto' ? Object.keys(PROFILES) : [requestedProfileId];
         
         const canvas = document.createElement('canvas');
         canvas.width = image.width;
@@ -147,19 +147,18 @@ export class WatermarkEngine {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(image, 0, 0);
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        
-        // 1. Generate all potential probes for this profile and resolution
-        const potentialConfigs = getAllPotentialConfigs(canvas.width, canvas.height, profileId);
-        const probes = [];
-
-        for (const config of potentialConfigs) {
-            const pos = calculateWatermarkPosition(canvas.width, canvas.height, config);
-            const assetKey = (profile.assets && profile.assets[pos.anchor]) || config.logoSize || '96';
-            const alphaMap = await this.getAlphaMap(assetKey, pos.width, pos.height);
-            probes.push({ config, pos, alphaMap });
+        let imageData;
+        try {
+            imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        } catch (e) {
+            console.error('Core Engine - Pixel Access Violation:', e);
+            const msg = `Security Error: ${e.message}. 
+                1. 浏览器检测到该图片来自第三方网站（跨域）。 
+                2. 即使开启了 CORS，服务器也可能未正确发送 Header。
+                3. 请务必先将图片“另存为”到本地电脑，再拖入本工具处理。`;
+            throw new Error(msg);
         }
-
+        
         let removedCount = 0;
         let bestConfidence = 0;
         let lastResult = null;
@@ -168,19 +167,47 @@ export class WatermarkEngine {
         // 2. Multi-Probe Detection Loop (Hardened v1.8)
         const detectionOptions = { deepScan: options.deepScan !== false };
         
-        for (const probe of probes) {
-            const verification = calculateProbeConfidence(imageData, probe.pos, probe.alphaMap.data, profileId, detectionOptions);
-            
-            if (verification.confidence > threshold) {
-                const finalPos = { ...probe.pos, x: verification.x, y: verification.y };
-                removeWatermark(imageData, probe.alphaMap.data, finalPos);
-                removedCount++;
+        const tryProfile = async (id) => {
+            const p = PROFILES[id] || PROFILES.gemini;
+            const potentialConfigs = getAllPotentialConfigs(canvas.width, canvas.height, id);
+            let localRemoved = 0;
+            let localBestConf = 0;
+            let localBestResult = null;
+
+            for (const config of potentialConfigs) {
+                const pos = calculateWatermarkPosition(canvas.width, canvas.height, config);
+                const assetKey = (p.assets && p.assets[pos.anchor]) || config.logoSize || '96';
+                const alphaMap = await this.getAlphaMap(assetKey, pos.width, pos.height);
                 
-                if (verification.confidence > bestConfidence) {
-                    bestConfidence = verification.confidence;
-                    lastResult = { config: probe.config, pos: finalPos };
+                const verification = calculateProbeConfidence(imageData, pos, alphaMap.data, id, detectionOptions);
+                if (verification.confidence > threshold) {
+                    if (verification.confidence > localBestConf) {
+                        localBestConf = verification.confidence;
+                        localBestResult = { config, pos: { ...pos, x: verification.x, y: verification.y }, alphaMap: alphaMap.data };
+                    }
+                    localRemoved++;
                 }
             }
+            return { removed: localRemoved, confidence: localBestConf, result: localBestResult, profileId: id };
+        };
+
+        let overallBest = { confidence: 0 };
+        if (requestedProfileId === 'auto') {
+            for (const pid of profilesToTry) {
+                const pRes = await tryProfile(pid);
+                if (pRes.confidence > overallBest.confidence) {
+                    overallBest = pRes;
+                }
+            }
+        } else {
+            overallBest = await tryProfile(requestedProfileId);
+        }
+
+        if (overallBest.result) {
+            removeWatermark(imageData, overallBest.result.alphaMap, overallBest.result.pos);
+            removedCount = 1;
+            bestConfidence = overallBest.confidence;
+            lastResult = { config: overallBest.result.config, pos: overallBest.result.pos, profileId: overallBest.profileId };
         }
 
         if (removedCount > 0) {
@@ -192,7 +219,8 @@ export class WatermarkEngine {
             detectionMode: removedCount > 0 ? 'multi-probe' : 'none',
             confidence: bestConfidence,
             removedCount,
-            config: lastResult ? lastResult.config : null
+            config: lastResult ? lastResult.config : null,
+            profileId: lastResult ? lastResult.profileId : requestedProfileId
         };
     }
 

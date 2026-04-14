@@ -60,52 +60,72 @@ class Engine {
         const image = sharp(buffer);
         const metadata = await image.metadata();
         const { data, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-        const imageData = { width: info.width, height: info.height, data: new Uint8ClampedArray(data.buffer) };
+        const imageData = { 
+            width: info.width, 
+            height: info.height, 
+            data: new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength) 
+        };
         
-        const profileId = options.profile || 'gemini';
-        const profile = PROFILES[profileId] || PROFILES.gemini;
+        const requestedProfileId = options.profile || 'gemini';
+        const profilesToTry = requestedProfileId === 'auto' ? Object.keys(PROFILES) : [requestedProfileId];
 
-        const potentialConfigs = getAllPotentialConfigs(info.width, info.height, profileId);
-        const probes = [];
-
-        for (const config of potentialConfigs) {
-            const assetKey = profile.assets ? profile.assets[config.anchor] : (profile.defaultAsset || '96');
-            const w = config.logoWidth || config.logoSize;
-            const h = config.logoHeight || config.logoSize;
-            
-            const alphaMap = await this.getAlphaMap(assetKey, w, h);
-            const pos = calculateWatermarkPosition(info.width, info.height, config);
-            
-            probes.push({ config, pos, alphaMap });
-        }
-
+        const THRESHOLD = 0.25;
         let winner = null;
         let removedCounter = 0;
-        const THRESHOLD = 0.25;
 
-        for (const probe of probes) {
-            const probeResult = calculateProbeConfidence(imageData, probe.pos, probe.alphaMap.data, options.profile || 'gemini');
-            const confidence = probeResult.confidence;
-            
-            if (confidence > THRESHOLD) {
-                const finalPos = { ...probe.pos, x: probeResult.x, y: probeResult.y };
-                removeWatermark(imageData, probe.alphaMap.data, finalPos);
-                removedCounter++;
-                if (!winner || confidence > winner.confidence) {
-                    winner = { ...probe, pos: finalPos, confidence };
+        const tryProfile = async (id) => {
+            const p = PROFILES[id] || PROFILES.gemini;
+            const potentialConfigs = getAllPotentialConfigs(info.width, info.height, id);
+            let localWinner = null;
+            let localRemoved = 0;
+
+            for (const config of potentialConfigs) {
+                const assetKey = p.assets ? p.assets[config.anchor] : (p.defaultAsset || '96');
+                const w = config.logoWidth || config.logoSize;
+                const h = config.logoHeight || config.logoSize;
+                
+                const alphaMap = await this.getAlphaMap(assetKey, w, h);
+                const pos = calculateWatermarkPosition(info.width, info.height, config);
+                
+                const probeResult = calculateProbeConfidence(imageData, pos, alphaMap.data, id);
+                const confidence = probeResult.confidence;
+                
+                if (confidence > THRESHOLD) {
+                    localRemoved++;
+                    if (!localWinner || confidence > localWinner.confidence) {
+                        localWinner = { config, pos: { ...pos, x: probeResult.x, y: probeResult.y }, alphaMap: alphaMap.data, confidence, profileId: id };
+                    }
                 }
             }
+            return { winner: localWinner, removed: localRemoved };
+        };
+
+        let overallWinner = null;
+        let totalRemoved = 0;
+
+        for (const pid of profilesToTry) {
+            const { winner: pWinner, removed: pRemoved } = await tryProfile(pid);
+            totalRemoved += pRemoved;
+            if (pWinner && (!overallWinner || pWinner.confidence > overallWinner.confidence)) {
+                overallWinner = pWinner;
+            }
         }
+
+        winner = overallWinner;
+        removedCounter = totalRemoved;
 
         if (!winner) {
             // No watermark detected with high enough confidence
             return {
                 buffer: buffer, // Return original buffer
                 detection: 'none',
-                confidence: '0%',
+                confidence: 0.0,
                 removedCount: 0
             };
         }
+
+        // v1.9.5: Apply the removal! (Fixing the 'disaster' where it detected but didn't remove)
+        removeWatermark(imageData, winner.alphaMap, winner.pos);
 
         const format = options.format || 'png';
         const outImg = sharp(imageData.data, {
@@ -117,9 +137,10 @@ class Engine {
         return {
             buffer: outputBuffer,
             detection: winner.config.isOfficial ? 'catalog' : 'heuristic',
-            confidence: (winner.confidence * 100).toFixed(0) + '%',
+            confidence: winner.confidence, // Return raw float for better JSON consumers
             config: winner.config,
-            removedCount: removedCounter
+            removedCount: removedCounter,
+            profileId: winner.profileId
         };
     }
 }
@@ -177,7 +198,8 @@ export async function runRemoveCommand(args, io) {
         const stats = statSync(input);
         if (stats.isDirectory()) {
             const files = readdirSync(input).filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
-            const outDir = opts.outDir || join(input, 'output');
+            // v1.9.6: fallback to opts.output if opts.outDir is not provided (for GUI compatibility)
+            const outDir = opts.outDir || opts.output || join(input, 'output');
             if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
 
             if (!opts.json) io.stdout.write(`🚀 Batch processing ${files.length} images (Profile: ${opts.profile})...\n`);
@@ -195,7 +217,13 @@ export async function runRemoveCommand(args, io) {
             }
             if (!opts.json) io.stdout.write(`\n✅ Done! Processed ${count} images in ${((performance.now() - startTime)/1000).toFixed(2)}s\n`);
         } else {
-            const outputPath = opts.output || `${basename(input, extname(input))}_removed.${opts.format}`;
+            let outputPath = opts.output || `${basename(input, extname(input))}_removed.${opts.format}`;
+            
+            // v1.9.6: If output is a directory, append the original filename
+            if (existsSync(outputPath) && statSync(outputPath).isDirectory()) {
+                outputPath = join(outputPath, `${basename(input, extname(input))}_removed.${opts.format}`);
+            }
+
             const buffer = readFileSync(input);
             const result = await engine.processBuffer(buffer, opts);
             writeFileSync(outputPath, result.buffer);
@@ -209,7 +237,8 @@ export async function runRemoveCommand(args, io) {
                     ...logInfo
                 }) + '\n');
             } else {
-                io.stdout.write(`✅ Watermark removed (${result.removedCount} markers): ${outputPath} (${result.detection}, ${result.confidence})\n`);
+                const confPercent = (result.confidence * 100).toFixed(0) + '%';
+                io.stdout.write(`✅ Watermark removed (${result.removedCount} markers): ${outputPath} (${result.detection}, ${confPercent})\n`);
             }
         }
         return 0;

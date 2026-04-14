@@ -1,8 +1,8 @@
 [English Document](README.md)
 
-# Gemini & Doubao 无损去水印 (v1.8.0)
+# Gemini & Doubao 无损去水印 (v1.9.8)
 
-一款高性能、100% 纯客户端运行的 Gemini 与 豆包 (Doubao) AI 去水印工具。现已集成至 **@pilio** 生态系统，原生支持 AI Agent 协作。
+一款高性能、100% 纯客户端运行的 Gemini 与 豆包 (Doubao) AI 去水印工具。v1.9.8 引入了**全量架构审计套件**、生产级 Node-Python 桥接加固以及 CORS 跨域安全策略。
 
 <p align="center">
   <img src="https://count.getloli.com/@gemini-watermark-remover?name=gemini-watermark-remover&theme=minecraft&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400">
@@ -14,14 +14,12 @@
 - ✅ **自动探测与滑动寻优** - 主动相关性引擎自动锁定水印，并修正 AI 生成导致的位置抖动 (±4px)。
 - ✅ **梯度探测加固 (Gradient Probing)** - 针对豆包等半透明/深色框水印的硬核识别技术。
 - ✅ **100% 纯客户端** - 无后端、零延迟、隐私数据绝不出本地。
-- ✅ **生产级加固 (v1.8)** - 支持多模型编排、多锚点探测以及完全非硬编码的参数协议。
-- ✅ **批量与目录模型** - 支持多文件上传及本地全目录自动化处理。
-- ✅ **PWA (Progressive Web App) 支持** - 支持将应用安装至桌面或手机，离线可用。
-- ✅ **高级 UI / 磨砂玻璃设计** - Premium 视觉风格与丝滑微动画。
-- ✅ **键盘快捷键** - `←/→` 切换对比、`Esc` 重置、`Ctrl+S` 保存。
+- ✅ **全量审计套件 (v1.9.8)** - 自动化矩阵测试覆盖 100% 目录条目。
+- ✅ **Node-Python 桥接加固** - 修复 CLI 路径、变量及 JSON 类型一致性问题。
+- ✅ **CORS 预取策略** - 完美解决远程图片处理时的 “Tainted Canvas” 安全拦截。
 - ✅ **多语言支持** - 已内置 **中、英、日、俄、法、德、西** 七国语言。
 
-## 🛡️ 生产级加固保障 (v1.8.0)
+## 🛡️ 生产级加固保障 (v1.9.1)
 
 为了确保在处理万级图片或超高分辨率（4K/8K）时的绝对稳定性与精确度，v1.8.0 引入了以下硬核技术：
 

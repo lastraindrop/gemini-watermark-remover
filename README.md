@@ -1,8 +1,8 @@
 [中文文档](README_zh.md)
 
-# Gemini & Doubao Lossless Watermark Remover (v1.9.0)
+# Gemini & Doubao Lossless Watermark Remover (v1.9.8)
 
-A production-grade, high-performance, 100% client-side tool for removing AI watermarks. v1.9.0 introduces a Professional Audit Suite including a Magnifier Lens, real-time detection statistics, and enhanced jitter tolerance.
+A production-grade, high-performance, 100% client-side tool for removing AI watermarks. v1.9.8 introduces an **Exhaustive Architectural Audit Suite**, professional-grade Node-Python bridge stability, and enhanced cross-origin security.
 
 <p align="center">
   <img src="https://count.getloli.com/@gemini-watermark-remover?name=gemini-watermark-remover&theme=minecraft&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400">
@@ -24,8 +24,9 @@ A production-grade, high-performance, 100% client-side tool for removing AI wate
 - ✅ **Gradient-Based Probing** - Hardened detection for transparent/dark watermarks (like Doubao).
 - ✅ **Modular Template System** - Dynamic registry for multi-platform support (Gemini, Doubao).
 - ✅ **Keyboard Shortcuts** - `←/→` sliders, `Esc` reset, `Ctrl+S` save.
-- ✅ **Production Hardened (v1.9)** - Multi-anchor support, multi-profile orchestration, and non-hardcoded architecture.
-- ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation.
+- ✅ ✅ **Exhaustive Audit Suite (v1.9.8)** - 100% catalog coverage validation via automated mathematical matrices.
+- ✅ **Python / GUI Bridge** - Robust Python integration with high-performance Node.js backend.
+- ✅ **CORS Fetch-First** - Resilient image loading strategy to bypass cross-origin "Tainted Canvas" errors.
 
 ## 🛡️ Production Hardened (v1.8.0)
 

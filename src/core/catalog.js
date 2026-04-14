@@ -19,6 +19,9 @@ export const CATALOGS = {
         { width: 2364, height: 1773, logoWidth: 348, logoHeight: 151, marginRight: 10, marginBottom: 4, anchor: 'bottom-right' },
         { width: 1536, height: 2727, logoWidth: 221, logoHeight: 109, marginLeft: 16, marginTop: 16, anchor: 'top-left' },
         { width: 1536, height: 2727, logoWidth: 276, logoHeight: 125, marginRight: 10, marginBottom: 2, anchor: 'bottom-right' }
+    ],
+    dalle3: [
+        { width: 1024, height: 1024, logoWidth: 120, logoHeight: 40, marginLeft: 20, marginBottom: 20, anchor: 'bottom-left' }
     ]
 };
 
@@ -33,6 +36,7 @@ CATALOGS.gemini.push(...GEMINI_ADDITIONAL);
 // Auto-register built-in catalogs
 registry.addCatalogEntries('gemini', CATALOGS.gemini);
 registry.addCatalogEntries('doubao', CATALOGS.doubao);
+registry.addCatalogEntries('dalle3', CATALOGS.dalle3);
 
 export const GEMINI_SIZE_CATALOG = CATALOGS.gemini;
 

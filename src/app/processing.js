@@ -25,7 +25,7 @@ export async function processSingle(item, options, callbacks = {}) {
         }
 
         const startTime = performance.now();
-        const { canvas, confidence, config, removedCount } = await state.engine.removeWatermarkFromImage(img, options);
+        const { canvas, confidence, config, removedCount, profileId } = await state.engine.removeWatermarkFromImage(img, options);
         const endTime = performance.now();
         
         const latency = (endTime - startTime).toFixed(0);
@@ -37,7 +37,7 @@ export async function processSingle(item, options, callbacks = {}) {
         item.status = 'success';
 
         if (callbacks.onSuccess) {
-            callbacks.onSuccess({ item, removedCount, confidence: confPercent, latency, config });
+            callbacks.onSuccess({ item, removedCount, confidence: confPercent, latency, config, profileId });
         }
 
         if (options.autoDownload) {

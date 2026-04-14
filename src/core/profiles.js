@@ -59,12 +59,38 @@ export const PROFILES = {
                 };
             }
         }
+    },
+    dalle3: {
+        id: 'dalle3',
+        name: 'OpenAI DALL-E 3',
+        brandColor: '#10a37f', // OpenAI Green
+        icon: 'dalle-brush',
+        logoValue: 255.0,
+        anchors: ['bottom-left'],
+        assets: {
+            'bottom-left': 'dalle3_bl'
+        },
+        tiers: {
+            '1k_bl': { logoWidth: 120, logoHeight: 40, marginLeft: 20, marginBottom: 20, anchor: 'bottom-left' }
+        },
+        getHeuristicConfig: (width, height) => {
+            const scale = width / 1024;
+            return {
+                logoWidth: Math.round(120 * scale),
+                logoHeight: Math.round(40 * scale),
+                marginLeft: Math.round(20 * scale),
+                marginBottom: Math.round(20 * scale),
+                anchor: 'bottom-left',
+                isOfficial: false
+            };
+        }
     }
 };
 
 // Auto-register built-in profiles
 registry.registerProfile(PROFILES.gemini);
 registry.registerProfile(PROFILES.doubao);
+registry.registerProfile(PROFILES.dalle3);
 
 export const DEFAULT_PROFILE = PROFILES.gemini;
 export const GEMINI_PROFILE = PROFILES.gemini;

@@ -11,8 +11,9 @@ import { test, describe, before } from 'node:test';
 import assert from 'node:assert';
 import { registry } from '../src/core/templates/registry.js';
 // Trigger registrations
-import '../src/core/profiles.js';
-import '../src/core/catalog.js';
+import { PROFILES } from '../src/core/profiles.js';
+import { CATALOGS } from '../src/core/catalog.js';
+import { calculateWatermarkPosition } from '../src/core/config.js';
 
 import { WatermarkEngine } from '../src/core/watermarkEngine.js';
 import { state, objectUrlManager } from '../src/app/state.js';
@@ -28,7 +29,8 @@ import {
     setupMemoryMocks,
     alphaToRGBA
 } from './test_utils.js';
-import { calculateWatermarkPosition } from '../src/core/config.js';
+import { RestorationMetrics } from '../src/core/restorationMetrics.js';
+
 
 describe('GWR Ultimate Product Audit', () => {
     let engine;
@@ -94,7 +96,10 @@ describe('GWR Ultimate Product Audit', () => {
                 w = h = parseInt(key);
             } else if (key.includes('doubao')) {
                 // Heuristic doubao assets
-                w = 401; h = 173; 
+                if (key.includes('_tl')) { w = 307; h = 167; }
+                else { w = 401; h = 173; }
+            } else if (key.includes('dalle3')) {
+                w = 120; h = 40;
             }
 
             const alpha = createMockAlphaMap(w, h);
@@ -111,6 +116,7 @@ describe('GWR Ultimate Product Audit', () => {
             const ids = profiles.map(p => p.id);
             assert.ok(ids.includes('gemini'), 'Missing Gemini profile');
             assert.ok(ids.includes('doubao'), 'Missing Doubao profile');
+            assert.ok(ids.includes('dalle3'), 'Missing DALL-E 3 profile');
         });
 
         test('Catalog entries should exist for all profiles', () => {
@@ -122,14 +128,13 @@ describe('GWR Ultimate Product Audit', () => {
     });
 
     describe('2. Comprehensive Parameter Matrix', () => {
-        test('Exhaustive probe across all catalogs & anchors', async () => {
+        test('Exhaustive probe across ALL catalog entries & profiles', async () => {
             const profiles = registry.getAllProfiles();
             for (const profile of profiles) {
                 const catalog = registry.getCatalog(profile.id);
-                // Test TOP, BOTTOM and MID entries for each profile
-                const samples = [catalog[0], catalog[Math.floor(catalog.length/2)], catalog[catalog.length-1]];
                 
-                for (const entry of samples) {
+                // v1.9.8 Rule: Exhaustive Audit (No sampling, test EVERYTHING)
+                for (const entry of catalog) {
                     const { width: w, height: h } = entry;
                     const rawData = createMockImageData(w, h, 'grid', 100);
                     const originalSnapshot = new Uint8ClampedArray(rawData.data);
@@ -139,22 +144,59 @@ describe('GWR Ultimate Product Audit', () => {
                     applyWatermark(rawData, pos.x, pos.y, pos.width, pos.height, alpha, profile.logoValue);
 
                     const mockImg = createMockImageElement(w, h, rawData.data);
-                    const result = await engine.removeWatermarkFromImage(mockImg, { profileId: profile.id });
-
-                    assert.ok(result.removedCount >= 0, `Fail: ${profile.id} @ ${w}x${h}`);
                     
-                    if (result.removedCount > 0) {
+                    // Test both normal and deepScan
+                    for (const deepScan of [true, false]) {
+                        const result = await engine.removeWatermarkFromImage(mockImg, { 
+                            profileId: profile.id,
+                            deepScan 
+                        });
+
+                        assert.ok(result.removedCount >= 1, `Detection Fault: [${profile.id}] at ${w}x${h} (DeepScan:${deepScan})`);
+                        // v1.9.8: 0.45 is a safe lower bound for mock noise in small 0.5k resolutions
+                        assert.ok(result.confidence > 0.45, `Precision Loss: [${profile.id}] at ${w}x${h} confidence=${result.confidence}`);
+                        
+                        // Fidelity Audit
                         const ctx = result.canvas.getContext('2d');
                         const final = ctx.getImageData(pos.x, pos.y, pos.width, pos.height).data;
-                        let errorSum = 0;
-                        for(let i=0; i<final.length; i+=4) {
-                            errorSum += Math.abs(final[i] - originalSnapshot[((pos.y + Math.floor((i/4) / pos.width)) * w + pos.x + (i/4) % pos.width) * 4]);
+                        
+                        const subOriginal = new Uint8ClampedArray(pos.width * pos.height * 4);
+                        for(let r=0; r<pos.height; r++) {
+                            for(let c=0; c<pos.width; c++) {
+                                const idx = (r * pos.width + c) << 2;
+                                const oIdx = ((pos.y + r) * w + (pos.x + c)) << 2;
+                                subOriginal[idx] = originalSnapshot[oIdx];
+                                subOriginal[idx+1] = originalSnapshot[oIdx+1];
+                                subOriginal[idx+2] = originalSnapshot[oIdx+2];
+                                subOriginal[idx+3] = originalSnapshot[oIdx+3];
+                            }
                         }
-                        const avgError = errorSum / (pos.width * pos.height);
-                        assert.ok(avgError < 15, `Fidelity loss too high for ${profile.id}: ${avgError}`);
+                        
+                        const psnr = RestorationMetrics.calculatePSNR(final, subOriginal);
+                        // Rule: Minimal PSNR for math restoration should be > 25dB in mock environment
+                        assert.ok(psnr > 25, `Mathematical Regression! ${profile.id}@${w}x${h} Fidelity: ${psnr}dB`);
                     }
                 }
             }
+        });
+
+        test('Auto-detect mode should correctly identify profile', async () => {
+            const w = 1024;
+            const h = 1024;
+            const rawData = createMockImageData(w, h, 'grid', 100);
+            
+            // Inject Gemini watermark but call with 'auto'
+            const profile = PROFILES.gemini;
+            const entry = CATALOGS.gemini.find(e => e.width === w && e.height === h) || CATALOGS.gemini[1];
+            const pos = calculateWatermarkPosition(w, h, entry);
+            const alpha = createMockAlphaMap(pos.width, pos.height, 0); // Deterministic-ish
+            applyWatermark(rawData, pos.x, pos.y, pos.width, pos.height, alpha, profile.logoValue);
+            
+            const img = createMockImageElement(w, h, rawData.data);
+            const { canvas: _, profileId, confidence } = await engine.removeWatermarkFromImage(img, { profileId: 'auto' });
+            
+            assert.strictEqual(profileId, 'gemini', 'Auto-detect failed to identify Gemini');
+            assert.ok(confidence > 0.5, 'Low confidence in auto-detection');
         });
     });
 

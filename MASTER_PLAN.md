@@ -1,8 +1,8 @@
 # GWR Master Plan — 全面分析、设计方案与落地执行
 
-> 版本: v1.9.1 - Test Suite Hardening  
+> 版本: v1.9.8 - Production Hardened  
 > 日期: 2026-04-15  
-> 状态: ✅ **173/173 Tests Pass** — 测试套件全面加固，MockCanvas/Doubao检测/NCC回退全部修复。
+> 状态: ✅ **180/180 Tests Pass** — 已完成全量矩阵审计、跨域安全加固及 Node-Python 桥接稳定性修复。
 
 ---
 
@@ -273,10 +273,10 @@ v1.8.5 之后，建议通过注册表动态添加：
 - ✅ 新增 product_audit.test.js 全面审计（架构、fidelity、状态契约）
 - ✅ 新增 parameter_matrix.test.js 深度参数矩阵回归测试
 
-### v1.9.1 (2026 Q2) — Quality & Intelligence
-- `restorationMetrics.js`: 添加 PSNR/SSIM 评分到 JSON 输出
-- 智能 Profile 自动识别（EXIF + 视觉特征）
-- 融合上游 `candidateSelector.js` 解耦 Stage 3 排名
+### v1.9.8 ✅ (已完成) — Production Hardening
+- ✅ **全量矩阵审计**: `product_audit.test.js` 覆盖 100% Catalog 条目。
+- ✅ **Node-Python 桥接修复**: 解决 CLI 变量未定义、EISDIR 文件夹报错及 JSON 类型不对齐问题。
+- ✅ **前端深度加固**: 动态 Footer、Efficiency-First 标签优化及 CORS 跨域安全策略。
 
 ### v2.0.0 (2026 Q3) — Performance
 - Rust/WASM 像素核心（alphaMap + blendModes）
