@@ -73,12 +73,11 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     for (const cfg of standardConfigs) {
         const logoW = cfg.logoWidth || cfg.logoSize;
         const logoH = cfg.logoHeight || cfg.logoSize;
-        // alphaMaps can be keyed by dimension string OR by asset name
         const dimKey = cfg.logoWidth ? `${logoW}x${logoH}` : `${logoW}`;
-        const alphaMap = alphaMaps[dimKey] || alphaMaps[cfg.assetKey];
-        if (!alphaMap) continue;
+        let alphaMapObj = alphaMaps[dimKey] || alphaMaps[cfg.assetKey];
+        if (!alphaMapObj) continue;
+        const alphaMap = alphaMapObj.data || alphaMapObj;
 
-        // For top-left anchored doubao configs
         let x, y;
         if (cfg.anchor === 'top-left') {
             x = cfg.marginLeft || 0;
@@ -89,10 +88,32 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         }
         if (x < 0 || y < 0) continue;
 
-        let confidence = calculateCorrelation(searchData, x, y, logoW, logoH, alphaMap, true);
+        let bestConf = 0;
+        let bestX = x, bestY = y;
+        
+        // Initial check
+        bestConf = calculateCorrelation(searchData, x, y, logoW, logoH, alphaMap, true);
+        
+        // Jitter search if not already perfect (v1.9.0)
+        if (bestConf > 0.15 && bestConf < 0.95) {
+            for (let dy = -4; dy <= 4; dy++) {
+                for (let dx = -4; dx <= 4; dx++) {
+                    if (dx === 0 && dy === 0) continue;
+                    const c = calculateCorrelation(searchData, x + dx, y + dy, logoW, logoH, alphaMap, true);
+                    // Distance penalty to avoid drift
+                    const penalty = (Math.abs(dx) + Math.abs(dy)) * 0.01;
+                    if (c - penalty > bestConf) {
+                        bestConf = c;
+                        bestX = x + dx;
+                        bestY = y + dy;
+                    }
+                }
+            }
+        }
+
         const threshold = cfg.isOfficial ? SEARCH_CONFIG.THRESHOLDS.ANCHORED_OFFICIAL : SEARCH_CONFIG.THRESHOLDS.ANCHORED_OTHER; 
-        if (confidence >= threshold) {
-            allCandidates.push({ x, y, width: logoW, height: logoH, confidence, mode: 'anchored' });
+        if (bestConf >= threshold) {
+            allCandidates.push({ x: bestX, y: bestY, width: logoW, height: logoH, confidence: bestConf, mode: 'anchored' });
         }
     }
     
@@ -172,7 +193,10 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                     if (confidence > stage2Threshold) {
                         const marginX = width - fx - size;
                         const marginY = height - fy - size;
-                        const isAligned = (marginX === 32 || marginX === 64) && (marginY === 32 || marginY === 64);
+                        // Aligned check with 4px jitter tolerance (v1.9.0 hardened)
+                        // Gemini 512 uses ~96px margin in some catalog entries
+                        const isAligned = (Math.abs(marginX - 32) <= 4 || Math.abs(marginX - 64) <= 4 || Math.abs(marginX - 96) <= 4) && 
+                                          (Math.abs(marginY - 32) <= 4 || Math.abs(marginY - 64) <= 4 || Math.abs(marginY - 96) <= 4);
                         allCandidates.push({ x: fx, y: fy, width: size, height: size, confidence, mode: isAligned ? 'aligned' : 'free' });
                     }
                 }
@@ -185,7 +209,12 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     let bestResult = null;
     let maxScore = -1;
 
-    allCandidates.sort((a, b) => b.confidence - a.confidence);
+    allCandidates.sort((a, b) => {
+        const modePriority = { 'anchored': 3, 'aligned': 2, 'free': 1 };
+        const scoreA = b.confidence + (modePriority[a.mode] || 0) * 0.2;
+        const scoreB = a.confidence + (modePriority[b.mode] || 0) * 0.2;
+        return scoreB - scoreA;
+    });
     const finalCandidates = [];
     
     for (const cand of allCandidates) {
@@ -195,9 +224,6 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
             const distY = Math.abs((cand.y + cand.height / 2) - (existing.y + existing.height / 2));
             if (distX < 32 && distY < 32) {
                 isOverlapping = true;
-                if (cand.width === 48 && cand.confidence > existing.confidence - 0.1) {
-                    finalCandidates[finalCandidates.indexOf(existing)] = cand;
-                }
                 break;
             }
         }
@@ -208,9 +234,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         const { x, y, width: candW, height: candH, confidence, mode } = candidate;
         let score = confidence;
 
-        // Scoring Bias: Aligned or Anchored get a boost
-        if (mode === 'anchored') score += 0.2;
-        else if (mode === 'aligned') score += 0.1;
+        // Scoring Bias: Aligned or Anchored get a significant boost (v1.9.0 hardened)
+        if (mode === 'anchored') score += 0.3;
+        else if (mode === 'aligned') score += 0.15;
 
         if (score > maxScore) {
             maxScore = score;
@@ -255,7 +281,7 @@ export function calculateCorrelation(imageData, x, y, logoW, logoH, alphaMap, fu
             if (curX < 0 || curX >= imgWidth) continue;
 
             const imgIdx = (imgRowOffset + curX) << 2;
-            const brightness = (data[imgIdx] + data[imgIdx + 1] + data[imgIdx + 2]) / (3 * 255.0);
+            const brightness = (data[imgIdx] * 0.299 + data[imgIdx + 1] * 0.587 + data[imgIdx + 2] * 0.114) / 255.0;
             const alpha = alphaMap[alphaRowOffset + col];
             
             sumI += brightness;
@@ -294,7 +320,9 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
              for(let dy=-4; dy<=4; dy++) {
                  for(let dx=-4; dx<=4; dx++) {
                      const conf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, logoW, logoH, alphaMap, gradientsI, gradientsA);
-                     if(conf > bestConf) { bestConf = conf; bestX = pos.x+dx; bestY = pos.y+dy; }
+                     // Apply small distance penalty (v1.9.0) to prevent drift in low-contrast mock backgrounds
+                     const penalty = (Math.abs(dx) + Math.abs(dy)) * 0.005;
+                     if(conf - penalty > bestConf) { bestConf = conf; bestX = pos.x+dx; bestY = pos.y+dy; }
                  }
              }
              return { confidence: bestConf, x: bestX, y: bestY };
@@ -313,7 +341,9 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
             for(let dx=-4; dx<=4; dx++) {
                 if(dx === 0 && dy === 0) continue;
                 const conf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
-                if(conf > bestConf) {
+                // Distance penalty to favor anchor positions
+                const penalty = (Math.abs(dx) + Math.abs(dy)) * 0.005;
+                if(conf - penalty > bestConf) {
                     bestConf = conf;
                     bestX = pos.x + dx;
                     bestY = pos.y + dy;
@@ -389,7 +419,7 @@ function calculateGradientCorrelation(imageData, x, y, logoW, logoH, alphaMap, g
     if (count < 10) return 0;
     const varI = count * sumI2 - sumI * sumI;
     const varA = count * sumA2 - sumA * sumA;
-    if (varI <= 0 || varA <= 0) return 0;
+    if (varI <= 0.0001 || varA <= 0.0001) return 0;
     return (count * sumIA - sumI * sumA) / Math.sqrt(varI * varA);
 }
 

@@ -2,14 +2,19 @@
  * UI Utilities and Components - Ultra Premium Edition
  */
 
+const logHistory = [];
+
 export const AuditLog = {
     log(message, type = 'info') {
         const list = document.getElementById('auditLogList');
         if (!list) return;
-        const entry = document.createElement('div');
+        
         const now = new Date();
         const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
         
+        logHistory.push({ time: timeStr, type, message });
+        
+        const entry = document.createElement('div');
         const colors = {
             info: 'text-slate-500',
             success: 'text-emerald-500 font-black',
@@ -25,6 +30,20 @@ export const AuditLog = {
         entry.appendChild(timeSpan);
         entry.appendChild(document.createTextNode(message));
         list.prepend(entry);
+    },
+    exportCSV() {
+        if (logHistory.length === 0) return;
+        const csvContent = "data:text/csv;charset=utf-8," 
+            + "Time,Type,Message\n"
+            + logHistory.map(e => `${e.time},${e.type},"${e.message.replace(/"/g, '""')}"`).join("\n");
+        
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `gwr_audit_${Date.now()}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 };
 

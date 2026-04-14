@@ -25,7 +25,7 @@ describe('Detector Mode Labeling Accuracy', () => {
 
     test('Candidate in standard margin (but mismatched logo size) should be labeled as "aligned"', () => {
         const w = 1024, h = 1024;
-        const img = createMockImageData(w, h, 'solid', 128);
+        const img = createMockImageData(w, h, 'gradient');
         const size = 48; 
         const alphaMap = alphaMaps[size];
         

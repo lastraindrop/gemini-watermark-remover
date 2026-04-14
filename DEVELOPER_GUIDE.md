@@ -1,4 +1,4 @@
-# GWR Developer Guide (v1.8.5)
+# GWR Developer Guide (v1.9.0 Hardened)
 
 本文档旨在帮助开发者了解 Gemini Watermark Remover 的项目架构、核心设计模式及开发规范。
 
@@ -8,7 +8,7 @@
 
 ### 1. 核心算法层 (`src/core/`) - 纯 JS，无依赖
 - **`templates/registry.js`**: **模板注册表系统**。这是 v1.8.5 的核心。它解耦了品牌配置与引擎逻辑，支持运行时动态注册水印 Profile（如 Gemini, Doubao）。
-- **`detector.js`**: **梯度探测引擎**。通过 NCC（归一化相关性）与 Sobel 梯度匹配算法，在像素级别定位水印位置。
+- **`detector.js`**: **梯度探测引擎 (v1.9.0加固)**。引入 +/- 4px 滑动窗口抖动搜寻与距离惩罚机制，解决由于图像剪裁或宿主环境缩放带来的亚像素偏移问题。新增多模态评分系统（Anchored/Aligned/Free）。
 - **`blendModes.js`**: **数学复原层**。使用反向 Alpha 混合模型，通过双线性插值实现亚像素级的无损复原。
 - **`worker.js`**: Web Worker 封装，确保耗时的像素计算不阻塞主线程。
 

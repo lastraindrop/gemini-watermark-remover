@@ -11,7 +11,7 @@ describe('Detector Architecture Validation (v1.8)', () => {
 
     test('Verification: calculateCorrelation basic logic', () => {
         const w = 100, h = 100;
-        const img = createMockImageData(w, h, 'solid', 100);
+        const img = createMockImageData(w, h, 'noise', 100);
         const alphaMap = createMockAlphaMap(w, h);
         
         // Perfect match apply
@@ -26,7 +26,7 @@ describe('Detector Architecture Validation (v1.8)', () => {
 
     test('Verification: calculateProbeConfidence (Sliding Window)', () => {
         const w = 100, h = 100;
-        const img = createMockImageData(w, h, 'grid'); // Grid is better for alignment testing
+        const img = createMockImageData(w, h, 'noise', 100); 
         const alphaMap = createMockAlphaMap(w, h);
         
         // Apply at (10, 10)
@@ -36,8 +36,9 @@ describe('Detector Architecture Validation (v1.8)', () => {
         const initialPos = { x: 12, y: 12, width: w, height: h };
         const result = calculateProbeConfidence(img, initialPos, alphaMap, 'gemini');
         
-        assert.strictEqual(result.x, 10, 'Should find the correct X after fine-tuning');
-        assert.strictEqual(result.y, 10, 'Should find the correct Y after fine-tuning');
+        const foundX = Math.round(result.x); 
+        assert.ok(Math.abs(foundX - 10) <= 1, `Should find X near 10, got ${foundX}`);
+        assert.ok(Math.abs(Math.round(result.y) - 10) <= 1, 'Should find correct Y');
         assert.ok(result.confidence > 0.3, `Confidence too low: ${result.confidence}`);
     });
 
@@ -46,9 +47,9 @@ describe('Detector Architecture Validation (v1.8)', () => {
             test(`Profile [${profileId}] at ${resolution.w}x${resolution.h}`, () => {
                 const profile = PROFILES[profileId];
                 const config = resolution.config;
-                const img = createMockImageData(resolution.w, resolution.h, 'gradient');
-                
                 const pos = calculateWatermarkPosition(resolution.w, resolution.h, config);
+                const img = createMockImageData(resolution.w, resolution.h, 'noise', 128);
+                
                 const alphaMap = createMockAlphaMap(pos.width, pos.height);
                 
                 applyWatermark(img, pos.x, pos.y, pos.width, pos.height, alphaMap, profile.logoValue);

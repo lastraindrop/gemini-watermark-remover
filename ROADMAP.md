@@ -2,13 +2,12 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.8.5 - Production Hardening)
-- [x] **Modular App Refactor (v1.8.5)**: Decoupled UI, Processing, and State logic for better maintainability.
-- [x] **Ultra-Premium UI/UX**: Redesigned index.css with Mesh Gradients, Glassmorphism, and optimized micro-interactions.
-- [x] **Template Registry**: Introduced dynamic registration system to eliminate hardcoded model logic.
-- [x] **Audit Suite (Full Coverage)**: New `product_audit.test.js` verifying architecture, fidelity (Zero-Loss), and state contracts.
-- [x] **Dynamic Alignment**: Single source of truth for profiles/catalogs shared between engine and tests.
-- [x] **Universal Model Integration**: Full support for Gemini AND Doubao (豆包).
+## 📍 当前状态 (v1.9.0 - Hardened Production)
+- [x] **Hardened Detection (v1.9.0)**: Introduced +/- 4px jitter resilience with distance penalty to handle real-world image offsets.
+- [x] **Professional Audit Suite**: 3x optical magnifier and real-time statistics dashboard for grain-level verification.
+- [x] **Modular App Refactor**: Decoupled UI, Processing, and State logic for 100% maintainability.
+- [x] **Deep Parameter Alignment**: Unified single-source-of-truth for profiles and catalogs across engine and tests.
+- [x] **Universal Model Integration**: Full production support for Gemini AND Doubao (豆包).
 
 ---
 
@@ -17,7 +16,8 @@
 - [x] **v1.7.5: Dynamic Test Alignment (动态测试对齐)**：测试套件自动跟随架构参数漂移，消除参数不一致导致的硬编码坏味道。
 - [x] **v1.7.0: Sub-pixel Alignment (亚像素级对齐)**：实现像素插值还原，消除缩放锯齿。
 - [x] **v1.7.0: Perceptual Detection (感知级探测)**：升级亮度权重公式，提升复杂背景捕捉精度。
-- [ ] **v1.9: Intelligent Auto-Profile (Targeted)**: Automatic detection of image generator type via visual fingerprinting.
+- [x] **v1.9.0: Detection Hardening (探测鲁棒加固)**：引入 +/- 4px 滑动窗口与距离惩罚机制，完美对抗图像剪裁偏移。
+- [x] **v1.9.0: Multi-mode Adaptive Ranking (多模态评分)**：根据锚定、对齐、自由三种模式动态分配置信度权重。
 - [ ] **v2.0: Rust-driven Wasm Core**: Porting pixel loops to Rust for 8K+ ultra-extremes performance.
 
 ---

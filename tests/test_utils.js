@@ -30,6 +30,8 @@ export function createMockImageData(width, height, type = 'solid', baseColor = 1
             } else if (type === 'grid') {
                 val = ((x >> 4) + (y >> 4)) % 2 === 0 ? 200 : 50;
             }
+            // Add tiny jitter to avoid pure zero variance (v1.9.0 stability fix)
+            val = Math.max(0, Math.min(255, val + (Math.random() - 0.5) * 4));
             data[idx] = data[idx + 1] = data[idx + 2] = val;
             data[idx + 3] = 255;
         }
@@ -53,15 +55,18 @@ export function addNoise(imageData, level) {
 /**
  * Inject watermark into image data (Simulating alpha blending)
  */
-export function applyWatermark(imageData, x, y, sizeW, sizeH, alphaMap, logoValue = 255) {
+export function applyWatermark(imageData, x, y, sizeW, sizeH, alphaMap, logoValue = 255, jitter = { x: 0, y: 0 }) {
     const { data, width: imgWidth, height: imgHeight } = imageData;
     const realSizeH = sizeH || sizeW;
 
+    const startX = x + (jitter.x || 0);
+    const startY = y + (jitter.y || 0);
+
     for (let r = 0; r < realSizeH; r++) {
-        const curY = Math.floor(y + r);
+        const curY = Math.floor(startY + r);
         if (curY < 0 || curY >= imgHeight) continue;
         for (let c = 0; c < sizeW; c++) {
-            const curX = Math.floor(x + c);
+            const curX = Math.floor(startX + c);
             if (curX < 0 || curX >= imgWidth) continue;
             const alpha = alphaMap[r * sizeW + c];
             if (alpha < 0.001) continue;
@@ -91,8 +96,11 @@ export function createMockAlphaMap(w, h) {
             const dy = i - centerY;
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist < radius) {
-                // Smooth radial gradient for non-zero image gradients
-                alphaMap[i * w + j] = 0.5 * (1 - dist / radius);
+                // Non-constant gradient magnitude for NCC alignment (v1.8.6 tuning)
+                const ratio = 1 - dist / radius;
+                const val = Math.fround(Math.pow(ratio, 0.5));
+                // Cap alpha to ensure numerical stability during reverse calculation
+                alphaMap[i * w + j] = Math.min(0.95, val);
             }
         }
     }
@@ -118,7 +126,7 @@ export function alphaToRGBA(alphaMap, width, height) {
  * combinations: Profiles x Anchors x Flags
  */
 
-export function generateCartesianMatrix() {
+export function generateParameterMatrix() {
     const flags = [
         { deepScan: true, noiseReduction: false },
         { deepScan: false, noiseReduction: false }
@@ -168,10 +176,34 @@ export class MockCanvas {
     getContext(type) {
         if (type !== '2d') return null;
         return {
-            drawImage: (img, dx, dy) => {
-                if (img._data) {
-                    const len = Math.min(this.data.length, img._data.length);
-                    this.data.set(img._data.subarray(0, len));
+            clearRect: (x, y, w, h) => {
+                for (let r = 0; r < h; r++) {
+                    const rowOff = ((y + r) * this._width + x) * 4;
+                    if (rowOff >= 0 && rowOff < this.data.length) {
+                        this.data.fill(0, rowOff, rowOff + w * 4);
+                    }
+                }
+            },
+            drawImage: (img, sx, sy, sw, sh, dx, dy, dw, dh) => {
+                // If only 3 args, they are img, dx, dy
+                // If 5 args, they are img, dx, dy, dw, dh
+                // If 9 args, they are img, sx, sy, sw, sh, dx, dy, dw, dh
+                let finalData = img._data;
+                if (!finalData) return;
+                
+                // Simplified mock: just copy data to the target area if same size
+                // or just fill if different size (since we are mocking)
+                if (dw === this._width && dh === this._height) {
+                    const len = Math.min(this.data.length, finalData.length);
+                    this.data.set(finalData.subarray(0, len));
+                } else {
+                    // Fill with first pixel as an approximation for mock background
+                    for(let i=0; i<this.data.length; i+=4) {
+                        this.data[i] = finalData[0];
+                        this.data[i+1] = finalData[1];
+                        this.data[i+2] = finalData[2];
+                        this.data[i+3] = 255;
+                    }
                 }
             },
             getImageData: (x, y, w, h) => {
@@ -183,10 +215,13 @@ export class MockCanvas {
                 }
                 // Otherwise do a proper crop simulation (needed for asset extraction)
                 for (let r = 0; r < h; r++) {
-                    const srcOff = ((y + r) * this._width + x) * 4;
+                    const srcY = y + r;
+                    if (srcY < 0 || srcY >= this._height) continue;
+                    const srcOff = (srcY * this._width + x) * 4;
                     const dstOff = (r * w) * 4;
                     if (srcOff >= 0 && srcOff < this.data.length) {
-                        buffer.set(this.data.subarray(srcOff, srcOff + w * 4), dstOff);
+                        const copyLen = Math.min(w * 4, this.data.length - srcOff);
+                        buffer.set(this.data.subarray(srcOff, srcOff + copyLen), dstOff);
                     }
                 }
                 return { width: w, height: h, data: buffer };
@@ -205,9 +240,17 @@ export class MockImageElement {
     constructor() {
         this.width = 0;
         this.height = 0;
-        this.src = '';
+        this._src = '';
         this._data = null;
     }
+    set src(val) {
+        this._src = val;
+        // Simulate async load
+        setTimeout(() => {
+            if (this.onload) this.onload();
+        }, 1);
+    }
+    get src() { return this._src; }
 }
 
 export function createMockImageElement(width, height, data) {

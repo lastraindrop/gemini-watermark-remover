@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert';
 import { WatermarkEngine } from '../src/core/watermarkEngine.js';
-import { createMockImageData } from './test_utils.js';
+import { createMockImageData, MockCanvas } from './test_utils.js';
 
 const savedGlobals = {};
 
@@ -34,16 +34,7 @@ before(() => {
         global.document = {
             createElement: (tag) => {
                 if (tag === 'canvas') {
-                    const canvas = {
-                        width: 0,
-                        height: 0,
-                        getContext: () => ({
-                            drawImage: () => {},
-                            getImageData: (x, y, w, h) => createMockImageData(w || canvas.width, h || canvas.height, 'solid', 128),
-                            putImageData: () => {}
-                        })
-                    };
-                    return canvas;
+                    return new MockCanvas(100, 100);
                 }
                 return {};
             }
@@ -115,8 +106,6 @@ describe('WatermarkEngine Coordination & Cache', () => {
     });
 
     test('Protocol Compliance: Engine has asset cache and alphaMaps', async () => {
-        // Warm up the cache via a getAlphaMap call so we can inspect state
-        // (In test environment, loading from DOM image will fail gracefully)
         assert.strictEqual(typeof engine.alphaMaps, 'object', 'Should have alphaMaps map');
         assert.strictEqual(typeof engine._assetCache, 'object', 'Should have assetCache map');
     });

@@ -15,7 +15,7 @@ export function detectWatermarkConfig(imageWidth, imageHeight, profileId = 'gemi
     // 1. Try Catalog-based matching (Highly precise)
     // For non-Gemini, there might be multiple (TL, BR). Return the official ones.
     const catalogMatches = getAllCatalogConfigs(imageWidth, imageHeight, profileId);
-    if (catalogMatches.length > 0) return catalogMatches[0]; // Default to first
+    if (catalogMatches.length > 0) return { ...catalogMatches[0], isOfficial: true };
 
     // 2. Profile-based Heuristic fallback
     const profile = PROFILES[profileId] || PROFILES.gemini;

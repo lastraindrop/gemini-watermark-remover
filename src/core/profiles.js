@@ -4,6 +4,8 @@ export const PROFILES = {
     gemini: {
         id: 'gemini',
         name: 'Google Gemini',
+        brandColor: '#10b981', // Emerald
+        icon: 'gemini-spark',
         logoValue: 255.0,
         anchors: ['bottom-right'],
         defaultAsset: '96',
@@ -12,11 +14,18 @@ export const PROFILES = {
             '1k': { logoSize: 96, marginRight: 64, marginBottom: 64 },
             '2k': { logoSize: 96, marginRight: 64, marginBottom: 64 },
             '4k': { logoSize: 96, marginRight: 64, marginBottom: 64 }
+        },
+        getHeuristicConfig: (w, h) => {
+            const shortSide = Math.min(w, h);
+            const tier = shortSide <= 1024 ? '0.5k' : '1k';
+            return { ...PROFILES.gemini.tiers[tier], isOfficial: false };
         }
     },
     doubao: {
         id: 'doubao',
         name: 'ByteDance Doubao (豆包)',
+        brandColor: '#4f46e5', // Indigo
+        icon: 'doubao-cube',
         logoValue: 255.0,
         anchors: ['bottom-right', 'top-left'],
         assets: {
@@ -36,7 +45,8 @@ export const PROFILES = {
                     logoHeight: Math.round(167 * scale),
                     marginLeft: Math.round(38 * scale),
                     marginTop: Math.round(25 * scale),
-                    anchor: 'top-left'
+                    anchor: 'top-left',
+                    isOfficial: false
                 };
             } else {
                 return {
@@ -44,7 +54,8 @@ export const PROFILES = {
                     logoHeight: Math.round(173 * scale),
                     marginRight: Math.round(24 * scale),
                     marginBottom: Math.round(10 * scale),
-                    anchor: 'bottom-right'
+                    anchor: 'bottom-right',
+                    isOfficial: false
                 };
             }
         }

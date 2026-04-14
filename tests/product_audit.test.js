@@ -78,15 +78,25 @@ describe('GWR Ultimate Product Audit', () => {
         assert.ok(registry.getAllProfiles().length > 0, 'Registry not initialized');
         
         engine = await WatermarkEngine.create();
+        state.engine = engine;
         
-        // Mock Asset Loading (v1.8.6: Dynamic dimension matching)
+        // Mock Asset Loading (v1.9.0: Universal dimension parser)
         const assetCache = new Map();
         engine._loadAsset = async (key) => {
             if (assetCache.has(key)) return assetCache.get(key);
-            // key format: "512_512_bl" or similar from watermarkEngine
-            const parts = key.split('_');
-            const w = parseInt(parts[0]) || 120;
-            const h = parseInt(parts[1]) || w;
+            
+            let w = 96, h = 96;
+            if (key.includes('x')) {
+                const parts = key.split('x');
+                w = parseInt(parts[0]) || 96;
+                h = parseInt(parts[1]) || 96;
+            } else if (!isNaN(parseInt(key))) {
+                w = h = parseInt(key);
+            } else if (key.includes('doubao')) {
+                // Heuristic doubao assets
+                w = 401; h = 173; 
+            }
+
             const alpha = createMockAlphaMap(w, h);
             const rgba = alphaToRGBA(alpha, w, h);
             const img = createMockImageElement(w, h, rgba);
@@ -166,6 +176,7 @@ describe('GWR Ultimate Product Audit', () => {
             
             const mockImg = createMockImageElement(w, h, rawData.data);
             const result = await engine.removeWatermarkFromImage(mockImg, { profileId: 'gemini' });
+            assert.ok(result.status === 'success', 'Detection failed, cannot audit fidelity');
             
             const ctx = result.canvas.getContext('2d');
             const restored = ctx.getImageData(0, 0, w, h).data;

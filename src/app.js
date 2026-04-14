@@ -12,18 +12,13 @@ import { processSingle, processQueue, downloadImage } from './app/processing.js'
 const elements = {
     uploadArea: document.getElementById('uploadArea'),
     fileInput: document.getElementById('fileInput'),
-    profileSelect: document.getElementById('profileSelect'),
-    singlePreview: document.getElementById('singlePreview'),
-    multiPreview: document.getElementById('multiPreview'),
-    imageList: document.getElementById('imageList'),
-    downloadBtn: document.getElementById('downloadBtn'),
-    downloadAllBtn: document.getElementById('downloadAllBtn'),
-    resetAreaBtn: document.getElementById('resetAreaBtn'),
-    clearAllBtn: document.getElementById('clearAllBtn'),
-    comparisonSlider: document.getElementById('comparisonSlider'),
-    sideBySideView: document.getElementById('sideBySideView'),
     modeSliderBtn: document.getElementById('modeSliderBtn'),
     modeSideBtn: document.getElementById('modeSideBtn'),
+    modeStatsBtn: document.getElementById('modeStatsBtn'),
+    comparisonSlider: document.getElementById('comparisonSlider'),
+    sideBySideView: document.getElementById('sideBySideView'),
+    statsView: document.getElementById('statsView'),
+    magnifierLens: document.getElementById('magnifierLens'),
     tierBadge: document.getElementById('tierBadge'),
     lastLatency: document.getElementById('lastLatency')
 };
@@ -43,6 +38,8 @@ async function init() {
             });
             elements.profileSelect.addEventListener('change', () => {
                 saveSettings();
+                const p = getAllProfiles().find(x => x.id === elements.profileSelect.value);
+                if (p) applyProfileTheme(p);
                 AuditLog.log(`Switched to ${elements.profileSelect.value} profile`, 'info');
             });
         }
@@ -88,12 +85,15 @@ function setupEventListeners() {
 
     elements.resetAreaBtn?.addEventListener('click', resetWorkspace);
     elements.clearAllBtn?.addEventListener('click', resetWorkspace);
+    document.getElementById('exportLogBtn')?.addEventListener('click', () => AuditLog.exportCSV());
 
     elements.modeSliderBtn?.addEventListener('click', () => switchViewMode('slider'));
     elements.modeSideBtn?.addEventListener('click', () => switchViewMode('side'));
+    elements.modeStatsBtn?.addEventListener('click', () => switchViewMode('stats'));
 
     document.addEventListener('keydown', handleKeyDown);
     setupSlider();
+    setupMagnifier();
 }
 
 function handleFiles(files) {
@@ -162,6 +162,7 @@ function updateSingleUI(item, removedCount, confidence, latency, config) {
     if (config && elements.tierBadge) {
         elements.tierBadge.textContent = `${config.tier || 'AUTO'} • ${config.anchor || 'BR'}`;
         elements.tierBadge.classList.remove('hidden');
+        updateStatsUI(config, latency, confidence);
     }
 
     if (elements.lastLatency) elements.lastLatency.textContent = `Latency: ${latency}ms`;
@@ -217,17 +218,71 @@ function updateCardUI(item, removedCount, confidence, latency, config) {
 }
 
 function switchViewMode(mode) {
+    const btns = [elements.modeSliderBtn, elements.modeSideBtn, elements.modeStatsBtn];
+    const views = [elements.comparisonSlider, elements.sideBySideView, elements.statsView];
+    
+    btns.forEach(b => b?.classList.remove('bg-white', 'dark:bg-slate-800', 'text-emerald-500', 'shadow-sm'));
+    views.forEach(v => v?.classList.add('hidden'));
+
     if (mode === 'slider') {
-        elements.comparisonSlider?.classList.remove('hidden');
-        elements.sideBySideView?.classList.add('hidden');
         elements.modeSliderBtn?.classList.add('bg-white', 'dark:bg-slate-800', 'text-emerald-500', 'shadow-sm');
-        elements.modeSideBtn?.classList.remove('bg-white', 'dark:bg-slate-800', 'text-emerald-500', 'shadow-sm');
-    } else {
-        elements.comparisonSlider?.classList.add('hidden');
-        elements.sideBySideView?.classList.remove('hidden');
+        elements.comparisonSlider?.classList.remove('hidden');
+    } else if (mode === 'side') {
         elements.modeSideBtn?.classList.add('bg-white', 'dark:bg-slate-800', 'text-emerald-500', 'shadow-sm');
-        elements.modeSliderBtn?.classList.remove('bg-white', 'dark:bg-slate-800', 'text-emerald-500', 'shadow-sm');
+        elements.sideBySideView?.classList.remove('hidden');
+    } else {
+        elements.modeStatsBtn?.classList.add('bg-white', 'dark:bg-slate-800', 'text-emerald-500', 'shadow-sm');
+        elements.statsView?.classList.remove('hidden');
     }
+}
+
+function updateStatsUI(config, latency, confidence) {
+    document.getElementById('statAnchor').textContent = (config.anchor || 'BOTTOM-RIGHT').toUpperCase();
+    document.getElementById('statCoord').textContent = config.x !== undefined ? `${config.x}, ${config.y}` : 'AUTO';
+    document.getElementById('statScale').textContent = config.scale !== undefined ? `${config.scale.toFixed(3)}x` : '1.000x';
+    document.getElementById('statAlgo').textContent = confidence > 0.8 ? 'INVERSE-ALPHA' : 'HEURISTIC-FILL';
+}
+
+function applyProfileTheme(profile) {
+    document.documentElement.style.setProperty('--primary', profile.brandColor);
+    document.documentElement.style.setProperty('--primary-glow', `${profile.brandColor}66`);
+}
+
+function setupMagnifier() {
+    const slider = elements.comparisonSlider;
+    const lens = elements.magnifierLens;
+    const processedImg = document.getElementById('sliderProcessed');
+    
+    if (!slider || !lens) return;
+
+    const moveLens = (e) => {
+        if (elements.comparisonSlider.classList.contains('hidden')) return;
+        
+        const rect = slider.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        
+        if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+            lens.classList.add('hidden');
+            return;
+        }
+
+        lens.classList.remove('hidden');
+        lens.style.left = `${x - 75}px`;
+        lens.style.top = `${y - 75}px`;
+        
+        const zoom = 3;
+        lens.style.backgroundImage = `url(${processedImg.src})`;
+        lens.style.backgroundSize = `${rect.width * zoom}px ${rect.height * zoom}px`;
+        lens.style.backgroundPosition = `-${x * zoom - 75}px -${y * zoom - 75}px`;
+    };
+
+    slider.addEventListener('mousemove', moveLens);
+    slider.addEventListener('mouseenter', () => lens.classList.remove('hidden'));
+    slider.addEventListener('mouseleave', () => lens.classList.add('hidden'));
 }
 
 function resetWorkspace(clearQueue = true) {

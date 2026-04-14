@@ -16,7 +16,9 @@ export class TemplateRegistry {
     registerProfile(profile) {
         if (!profile.id) throw new Error('Profile must have an id');
         this.profiles.set(profile.id, profile);
-        this.catalogs.set(profile.id, []);
+        if (!this.catalogs.has(profile.id)) {
+            this.catalogs.set(profile.id, []);
+        }
     }
 
     /**
@@ -54,7 +56,8 @@ export class TemplateRegistry {
         return catalog.filter(entry => {
             const scaleX = width / entry.width;
             const scaleY = height / entry.height;
-            return Math.abs(scaleX - scaleY) < MAX_SCALE_MISMATCH && Math.abs(scaleX - 1) < MAX_SCALE_MISMATCH;
+            const match = Math.abs(scaleX - scaleY) < MAX_SCALE_MISMATCH && Math.abs(scaleX - 1) < MAX_SCALE_MISMATCH;
+            return match;
         }).map(entry => ({ ...entry, isOfficial: true }));
     }
 }

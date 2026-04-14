@@ -102,11 +102,12 @@ export class WatermarkEngine {
     }
 
     /**
-     * Get alpha map for a specific asset
+     * Get alpha map for a specific asset with optional resizing
      */
-    async getAlphaMap(assetKey) {
+    async getAlphaMap(assetKey, targetW, targetH) {
         assetKey = String(assetKey);
-        if (this.alphaMaps[assetKey]) return this.alphaMaps[assetKey];
+        const cacheKey = targetW ? `${assetKey}_${targetW}x${targetH}` : assetKey;
+        if (this.alphaMaps[cacheKey]) return this.alphaMaps[cacheKey];
 
         const img = await this._loadAsset(assetKey);
         
@@ -115,15 +116,19 @@ export class WatermarkEngine {
             this._reusableCtx = this._reusableCanvas.getContext('2d', { willReadFrequently: true });
         }
         
-        this._reusableCanvas.width = img.width;
-        this._reusableCanvas.height = img.height;
-        this._reusableCtx.drawImage(img, 0, 0);
+        const finalW = targetW || img.width;
+        const finalH = targetH || img.height;
+        
+        this._reusableCanvas.width = finalW;
+        this._reusableCanvas.height = finalH;
+        this._reusableCtx.clearRect(0, 0, finalW, finalH);
+        this._reusableCtx.drawImage(img, 0, 0, img.width, img.height, 0, 0, finalW, finalH);
 
-        const imageData = this._reusableCtx.getImageData(0, 0, img.width, img.height);
+        const imageData = this._reusableCtx.getImageData(0, 0, finalW, finalH);
         const alphaMap = calculateAlphaMap(imageData);
         
-        this.alphaMaps[assetKey] = { data: alphaMap, width: img.width, height: img.height };
-        return this.alphaMaps[assetKey];
+        this.alphaMaps[cacheKey] = { data: alphaMap, width: finalW, height: finalH };
+        return this.alphaMaps[cacheKey];
     }
 
     /**
@@ -151,7 +156,7 @@ export class WatermarkEngine {
         for (const config of potentialConfigs) {
             const pos = calculateWatermarkPosition(canvas.width, canvas.height, config);
             const assetKey = (profile.assets && profile.assets[pos.anchor]) || config.logoSize || '96';
-            const alphaMap = await this.getAlphaMap(assetKey);
+            const alphaMap = await this.getAlphaMap(assetKey, pos.width, pos.height);
             probes.push({ config, pos, alphaMap });
         }
 

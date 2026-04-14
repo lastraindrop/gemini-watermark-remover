@@ -1,8 +1,8 @@
 [中文文档](README_zh.md)
 
-# Gemini & Doubao Lossless Watermark Remover (v1.8.5)
+# Gemini & Doubao Lossless Watermark Remover (v1.9.0)
 
-A production-hardened, high-performance, 100% client-side tool for removing AI watermarks. v1.8.5 introduces a modular architecture and a comprehensive audit suite for mathematical verification.
+A production-grade, high-performance, 100% client-side tool for removing AI watermarks. v1.9.0 introduces a Professional Audit Suite including a Magnifier Lens, real-time detection statistics, and enhanced jitter tolerance.
 
 <p align="center">
   <img src="https://count.getloli.com/@gemini-watermark-remover?name=gemini-watermark-remover&theme=minecraft&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400">
@@ -10,7 +10,12 @@ A production-hardened, high-performance, 100% client-side tool for removing AI w
 
 ## Features
 
+- ✅ **Professional Magnifier** - Sub-pixel verification of recovery quality with 3x optical-style zoom.
+- ✅ **Real-time Stats Dashboard** - Deep visibility into detection confidence, anchor points, and algorithm types.
+- ✅ **Dynamic Brand Theming** - Adaptive UI that morphs its design language based on the detected AI profile.
+- ✅ **Audit Log Export** - Professional CSV export for batch processing reports and verification.
 - ✅ **Multi-Model Support** - Now supports **Gemini** and **Doubao (豆包)** AI watermarks via the Profile System.
+- ✅ **Enhanced Jitter Tolerance** - Phase 1 local search (+/- 4px) to handle slightly cropped or scaled photos.
 - ✅ **Sub-pixel Alignment** - Bilinear interpolation for both image and alpha mask, eliminating artifacts.
 - ✅ **Modular CLI Engine** - High-speed batch processing with a flexible command-line interface.
 - ✅ **PWA (Progressive Web App)** - Installable on desktop/mobile, offline ready.
@@ -19,9 +24,7 @@ A production-hardened, high-performance, 100% client-side tool for removing AI w
 - ✅ **Gradient-Based Probing** - Hardened detection for transparent/dark watermarks (like Doubao).
 - ✅ **Modular Template System** - Dynamic registry for multi-platform support (Gemini, Doubao).
 - ✅ **Keyboard Shortcuts** - `←/→` sliders, `Esc` reset, `Ctrl+S` save.
-- ✅ **100% Client-side** - No backend, zero latency, maximum privacy.
-- ✅ **Multi-language** - Support for **EN, ZH, JP, RU, FR, ES, DE**.
-- ✅ **Production Hardened (v1.8)** - Multi-anchor support, multi-profile orchestration, and non-hardcoded architecture.
+- ✅ **Production Hardened (v1.9)** - Multi-anchor support, multi-profile orchestration, and non-hardcoded architecture.
 - ✅ **Batch & Directory Mode** - Support for multiple file uploads and full local directory automation.
 
 ## 🛡️ Production Hardened (v1.8.0)
