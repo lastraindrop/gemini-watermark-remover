@@ -1,8 +1,8 @@
-# GWR Developer Guide (v1.9.0 Hardened)
+# GWR Developer Guide (v1.9.1 Hardened)
 
 本文档旨在帮助开发者了解 Gemini Watermark Remover 的项目架构、核心设计模式及开发规范。
 
-## 🏗 代码架构 (v1.8.5 Hardened)
+## 🏗 代码架构 (v1.9.1 Hardened)
 
 项目遵循“核心与外壳分离”的模块化设计，将核心算法与环境实现彻底解耦：
 

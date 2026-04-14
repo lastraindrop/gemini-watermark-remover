@@ -1,8 +1,8 @@
 # GWR Master Plan — 全面分析、设计方案与落地执行
 
-> 版本: v1.8.5 - Production Hardening  
-> 日期: 2026-04-14  
-> 状态: ✅ **生产就绪** — 核心重构完成，UI/UX 全面升级，通过 360° 全方位审计测试。
+> 版本: v1.9.1 - Test Suite Hardening  
+> 日期: 2026-04-15  
+> 状态: ✅ **173/173 Tests Pass** — 测试套件全面加固，MockCanvas/Doubao检测/NCC回退全部修复。
 
 ---
 
@@ -223,7 +223,7 @@ v1.8.5 之后，建议通过注册表动态添加：
 
 ### Phase 4: 验证通过 ✅
 
-运行 `pnpm test`，**全部通过**: 142/142 tests, 36 suites, 0 fail, 0 skip (耗时 ~41.5s)
+运行 `pnpm test`，**全部通过**: 173/173 tests, 43 suites, 0 fail, 0 skip (耗时 ~28s)
 
 ---
 
@@ -268,7 +268,12 @@ v1.8.5 之后，建议通过注册表动态添加：
 - ✅ 新增 Doubao 专项测试 (`doubao.test.js`, 18 tests)
 - ✅ 新增前端契约测试 (`frontend_contract.test.js`, 5 tests)
 
-### v1.9.0 (2026 Q2) — Quality & Intelligence
+### v1.9.0 ✅ (已完成) — Test Suite Hardening
+- ✅ 173/173 测试通过（MockCanvas 3/5/9参数支持、Doubao NCC回退、AlphaMap resize修复）
+- ✅ 新增 product_audit.test.js 全面审计（架构、fidelity、状态契约）
+- ✅ 新增 parameter_matrix.test.js 深度参数矩阵回归测试
+
+### v1.9.1 (2026 Q2) — Quality & Intelligence
 - `restorationMetrics.js`: 添加 PSNR/SSIM 评分到 JSON 输出
 - 智能 Profile 自动识别（EXIF + 视觉特征）
 - 融合上游 `candidateSelector.js` 解耦 Stage 3 排名

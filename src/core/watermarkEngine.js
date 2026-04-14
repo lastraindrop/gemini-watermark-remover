@@ -163,11 +163,13 @@ export class WatermarkEngine {
         let removedCount = 0;
         let bestConfidence = 0;
         let lastResult = null;
-        const threshold = 0.25;
+        const threshold = 0.10;
 
         // 2. Multi-Probe Detection Loop (Hardened v1.8)
+        const detectionOptions = { deepScan: options.deepScan !== false };
+        
         for (const probe of probes) {
-            const verification = calculateProbeConfidence(imageData, probe.pos, probe.alphaMap.data, profileId);
+            const verification = calculateProbeConfidence(imageData, probe.pos, probe.alphaMap.data, profileId, detectionOptions);
             
             if (verification.confidence > threshold) {
                 const finalPos = { ...probe.pos, x: verification.x, y: verification.y };

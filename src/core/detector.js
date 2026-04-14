@@ -23,15 +23,15 @@ const SEARCH_CONFIG = {
     PROXIMITY_THRESHOLD: 8,
     FINE_TUNE_RANGE: 4,
     THRESHOLDS: {
-        ANCHORED_OFFICIAL: 0.30,
-        ANCHORED_OTHER: 0.40,
+        ANCHORED_OFFICIAL: 0.18,  // Balanced for real images
+        ANCHORED_OTHER: 0.22,
         STRICT_EXIT: 0.6,
-        COARSE: 0.3,
-        STAGE2_NR: 0.3,
-        STAGE2_CLEAN: 0.35,
-        FINAL_ANCHORED: 0.3,
-        FINAL_ALIGNED: 0.35,
-        FINAL_FREE: 0.45
+        COARSE: 0.10,  // Balancedheuristic search
+        STAGE2_NR: 0.10,
+        STAGE2_CLEAN: 0.12,
+        FINAL_ANCHORED: 0.15,
+        FINAL_ALIGNED: 0.18,
+        FINAL_FREE: 0.22
     }
 };
 
@@ -95,7 +95,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         bestConf = calculateCorrelation(searchData, x, y, logoW, logoH, alphaMap, true);
         
         // Jitter search if not already perfect (v1.9.0)
-        if (bestConf > 0.15 && bestConf < 0.95) {
+        if (bestConf > 0.12 && bestConf < 0.95) {
             for (let dy = -4; dy <= 4; dy++) {
                 for (let dx = -4; dx <= 4; dx++) {
                     if (dx === 0 && dy === 0) continue;
@@ -119,17 +119,42 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     
     if (allCandidates.length > 0) {
         allCandidates.sort((a, b) => b.confidence - a.confidence);
-        if (allCandidates[0].confidence > SEARCH_CONFIG.THRESHOLDS.STRICT_EXIT) return allCandidates[0];
+        // Removed early exit (v1.9.1): Always run full pipeline to ensure best match
+        // if (allCandidates[0].confidence > SEARCH_CONFIG.THRESHOLDS.STRICT_EXIT) return allCandidates[0];
     }
 
-    // --- Phase 2: Heuristic Global Search (Gemini Standard Only for Perf) ---
+    // --- Phase 2: Heuristic Global Search (All known sizes) ---
     const searchRangeX = Math.floor(width * SEARCH_CONFIG.RANGE_X);
     const searchRangeY = Math.floor(height * SEARCH_CONFIG.RANGE_Y);
-    const sizes = [96, 48];
+    
+    // Dynamic sizes: include all standard Gemini sizes + Doubao sizes from catalog
+    // This ensures Phase 2 can find even rectangular watermarks
+    const sizes = [96, 48, 165, 173, 167, 151, 125, 109, 105, 80, 120, 140, 112, 61]; // Balanced for memory + doubao heuristic
 
     for (const size of sizes) {
-        const alphaMap = alphaMaps[size];
+        // Try multiple key formats: number (96), "WxH" format ("165x173"), and string ("173")
+        let alphaMap = alphaMaps[size] || alphaMaps[`${size}`];
+        if (!alphaMap) {
+            // Try to find rectangular key that matches this size
+            const sizeKey = Object.keys(alphaMaps).find(k => {
+                const parts = k.split('x');
+                if (parts.length === 2) {
+                    return parseInt(parts[0]) === size || parseInt(parts[1]) === size;
+                }
+                return false;
+            });
+            if (sizeKey) alphaMap = alphaMaps[sizeKey];
+        }
+        if (!alphaMap) {
+            // For sizes >= 100, also try "size" alone as a fallback
+            if (size >= 100) {
+                alphaMap = alphaMaps[`${size}`];
+            }
+        }
         if (!alphaMap) continue;
+
+        const searchW = size;
+        const searchH = size;
 
         const startX = Math.max(-size / 2, width - searchRangeX - size);
         const startY = Math.max(-size / 2, height - searchRangeY - size);
@@ -172,7 +197,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                 for (let fx = Math.max(startX, candidate.x - fineRange); fx <= Math.min(width - size / 2, candidate.x + fineRange); fx++) {
                     let confidence = calculateCorrelation(searchData, fx, fy, size, size, alphaMap, true);
                     
-                    if (deepScan && confidence > SEARCH_CONFIG.THRESHOLDS.COARSE) {
+                    if (deepScan && confidence > 0.04) {
                         const bufferSizeNeeded = size * size;
                         if (!detectWatermark._sharedGradientsI || detectWatermark._sharedGradientsI.length < bufferSizeNeeded) {
                             detectWatermark._sharedGradientsI = new Float32Array(bufferSizeNeeded);
@@ -183,20 +208,17 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                             detectWatermark._sharedGradientsI, 
                             detectWatermark._sharedGradientsA
                         );
-                        const ADAPTIVE_WEIGHT_LIMIT = 0.4;
-                        const ADAPTIVE_SCALE = 20;
-                        const adaptiveWeightGradient = Math.min(ADAPTIVE_WEIGHT_LIMIT, (candidate._lastVar || 0.01) * ADAPTIVE_SCALE);
-                        confidence = confidence * (1.0 - adaptiveWeightGradient) + gradientConf * adaptiveWeightGradient;
+                        confidence = Math.max(confidence, gradientConf);
                     }
 
                     const stage2Threshold = noiseReduction ? SEARCH_CONFIG.THRESHOLDS.STAGE2_NR : SEARCH_CONFIG.THRESHOLDS.STAGE2_CLEAN;
                     if (confidence > stage2Threshold) {
                         const marginX = width - fx - size;
                         const marginY = height - fy - size;
-                        // Aligned check with 4px jitter tolerance (v1.9.0 hardened)
-                        // Gemini 512 uses ~96px margin in some catalog entries
-                        const isAligned = (Math.abs(marginX - 32) <= 4 || Math.abs(marginX - 64) <= 4 || Math.abs(marginX - 96) <= 4) && 
-                                          (Math.abs(marginY - 32) <= 4 || Math.abs(marginY - 64) <= 4 || Math.abs(marginY - 96) <= 4);
+                        // Aligned check with dynamic margin tolerance (v1.9.1 hardened)
+                        // Instead of hardcoded 32/64/96, check if margin is close to any standard
+                        const standardMargins = [32, 64, 96, 24, 10, 4, 38, 25, 39, 16];
+                        const isAligned = standardMargins.some(m => Math.abs(marginX - m) <= 4 || Math.abs(marginY - m) <= 4);
                         allCandidates.push({ x: fx, y: fy, width: size, height: size, confidence, mode: isAligned ? 'aligned' : 'free' });
                     }
                 }
@@ -305,7 +327,9 @@ export function calculateCorrelation(imageData, x, y, logoW, logoH, alphaMap, fu
 /**
  * Verify if a watermark is likely present at the given position
  */
-export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'gemini') {
+export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'gemini', options = {}) {
+    const { deepScan = false } = options;
+    
     if (profile === 'doubao') {
         const logoW = pos.width;
         const logoH = pos.height;
@@ -313,7 +337,10 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
         const gradientsA = new Float32Array(logoW * logoH);
         let confidence = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
 
-        if (confidence < 0.2) {
+        const nccConf = calculateCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, true);
+        confidence = Math.max(confidence, nccConf);
+
+ if (confidence < 0.14) {
              let bestConf = confidence;
              let bestX = pos.x;
              let bestY = pos.y;
@@ -326,21 +353,40 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
                  }
              }
              return { confidence: bestConf, x: bestX, y: bestY };
-        }
-        return { confidence, x: pos.x, y: pos.y };
-    }
+         }
+         return { confidence, x: pos.x, y: pos.y };
+     }
 
-    let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
-    
-    // Slinding window fine-tuning
-    if (confidence < 0.4) {
+let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
+      
+      // If deepScan enabled, also compute gradient correlation and use max
+      if (deepScan) {
+          const logoW = pos.width;
+          const logoH = pos.height;
+          const gradientsI = new Float32Array(logoW * logoH);
+          const gradientsA = new Float32Array(logoW * logoH);
+          const gradientConf = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
+          confidence = Math.max(confidence, gradientConf);
+      }
+      
+      // Sliding window fine-tuning
+      if (confidence < 0.50) {
         let bestConf = confidence;
         let bestX = pos.x;
         let bestY = pos.y;
+        
         for(let dy=-4; dy<=4; dy++) {
             for(let dx=-4; dx<=4; dx++) {
                 if(dx === 0 && dy === 0) continue;
-                const conf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
+                
+                let conf;
+                if (deepScan) {
+                    const gradientsI = new Float32Array(pos.width * pos.height);
+                    const gradientsA = new Float32Array(pos.width * pos.height);
+                    conf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, gradientsI, gradientsA);
+                } else {
+                    conf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
+                }
                 // Distance penalty to favor anchor positions
                 const penalty = (Math.abs(dx) + Math.abs(dy)) * 0.005;
                 if(conf - penalty > bestConf) {

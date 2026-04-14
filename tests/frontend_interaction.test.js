@@ -27,11 +27,30 @@ describe('Frontend Interaction & Deep API Probe', () => {
         global.Image = MockImageElement;
         
         engine = await WatermarkEngine.create();
+        
+        // Define assetCache in the test scope
+        const assetCache = new Map();
         engine._loadAsset = async (key) => {
-            const size = parseInt(key) || 96;
-            const alpha = createMockAlphaMap(size);
-            const rgba = alphaToRGBA(alpha, size, size);
-            return createMockImageElement(size, size, rgba);
+            if (assetCache.has(key)) return assetCache.get(key);
+            
+            let w = 96, h = 96;
+            // Handle string keys like "doubao_br", "doubao_tl", "48", "96"
+            if (key.includes('doubao')) {
+                w = 401; h = 173; // Default doubao BR size
+                if (key.includes('tl')) { w = 307; h = 167; }
+            } else if (key.includes('x')) {
+                const parts = key.split('x');
+                w = parseInt(parts[0]) || 96;
+                h = parseInt(parts[1]) || 96;
+            } else if (!isNaN(parseInt(key))) {
+                w = h = parseInt(key);
+            }
+
+            const alpha = createMockAlphaMap(w, h);
+            const rgba = alphaToRGBA(alpha, w, h);
+            const img = createMockImageElement(w, h, rgba);
+            assetCache.set(key, img);
+            return img;
         };
     });
 

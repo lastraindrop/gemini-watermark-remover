@@ -88,7 +88,7 @@ export function createMockAlphaMap(w, h) {
     const alphaMap = new Float32Array(w * realH).fill(0);
     const centerX = w / 2;
     const centerY = realH / 2;
-    const radius = Math.min(w, realH) / 3;
+    const radius = Math.min(w, realH) / 2.5;
     
     for (let i = 0; i < realH; i++) {
         for (let j = 0; j < w; j++) {
@@ -96,11 +96,11 @@ export function createMockAlphaMap(w, h) {
             const dy = i - centerY;
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist < radius) {
-                // Non-constant gradient magnitude for NCC alignment (v1.8.6 tuning)
                 const ratio = 1 - dist / radius;
-                const val = Math.fround(Math.pow(ratio, 0.5));
-                // Cap alpha to ensure numerical stability during reverse calculation
+                const val = Math.pow(ratio, 0.3);
                 alphaMap[i * w + j] = Math.min(0.95, val);
+            } else {
+                alphaMap[i * w + j] = 0.01;
             }
         }
     }
@@ -184,25 +184,42 @@ export class MockCanvas {
                     }
                 }
             },
-            drawImage: (img, sx, sy, sw, sh, dx, dy, dw, dh) => {
-                // If only 3 args, they are img, dx, dy
-                // If 5 args, they are img, dx, dy, dw, dh
-                // If 9 args, they are img, sx, sy, sw, sh, dx, dy, dw, dh
-                let finalData = img._data;
+            drawImage: (img, ...args) => {
+                let srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH;
+                if (args.length === 2) {
+                    dstX = args[0]; dstY = args[1];
+                    dstW = img.width; dstH = img.height;
+                    srcX = 0; srcY = 0; srcW = img.width; srcH = img.height;
+                } else if (args.length === 4) {
+                    dstX = args[0]; dstY = args[1]; dstW = args[2]; dstH = args[3];
+                    srcX = 0; srcY = 0; srcW = img.width; srcH = img.height;
+                } else if (args.length === 8) {
+                    srcX = args[0]; srcY = args[1]; srcW = args[2]; srcH = args[3];
+                    dstX = args[4]; dstY = args[5]; dstW = args[6]; dstH = args[7];
+                } else {
+                    return;
+                }
+                
+                const finalData = img._data;
                 if (!finalData) return;
                 
-                // Simplified mock: just copy data to the target area if same size
-                // or just fill if different size (since we are mocking)
-                if (dw === this._width && dh === this._height) {
+                if (srcW === dstW && srcH === dstH && dstW === this._width && dstH === this._height) {
                     const len = Math.min(this.data.length, finalData.length);
                     this.data.set(finalData.subarray(0, len));
                 } else {
-                    // Fill with first pixel as an approximation for mock background
-                    for(let i=0; i<this.data.length; i+=4) {
-                        this.data[i] = finalData[0];
-                        this.data[i+1] = finalData[1];
-                        this.data[i+2] = finalData[2];
-                        this.data[i+3] = 255;
+                    for (let r = 0; r < dstH; r++) {
+                        const srcRow = Math.floor(r * srcH / dstH);
+                        for (let c = 0; c < dstW; c++) {
+                            const srcCol = Math.floor(c * srcW / dstW);
+                            const srcIdx = ((srcY + srcRow) * img.width + (srcX + srcCol)) * 4;
+                            const dstIdx = ((dstY + r) * this._width + (dstX + c)) * 4;
+                            if (dstIdx >= 0 && dstIdx + 3 < this.data.length) {
+                                this.data[dstIdx] = finalData[srcIdx] || 0;
+                                this.data[dstIdx + 1] = finalData[srcIdx + 1] || 0;
+                                this.data[dstIdx + 2] = finalData[srcIdx + 2] || 0;
+                                this.data[dstIdx + 3] = 255;
+                            }
+                        }
                     }
                 }
             },

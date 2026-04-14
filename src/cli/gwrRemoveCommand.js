@@ -117,7 +117,7 @@ class Engine {
         return {
             buffer: outputBuffer,
             detection: winner.config.isOfficial ? 'catalog' : 'heuristic',
-            confidence: winner.config.isOfficial ? '100%' : '85%',
+            confidence: (winner.confidence * 100).toFixed(0) + '%',
             config: winner.config,
             removedCount: removedCounter
         };

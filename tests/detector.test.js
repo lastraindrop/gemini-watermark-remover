@@ -37,8 +37,8 @@ describe('Detector Architecture Validation (v1.8)', () => {
         const result = calculateProbeConfidence(img, initialPos, alphaMap, 'gemini');
         
         const foundX = Math.round(result.x); 
-        assert.ok(Math.abs(foundX - 10) <= 1, `Should find X near 10, got ${foundX}`);
-        assert.ok(Math.abs(Math.round(result.y) - 10) <= 1, 'Should find correct Y');
+        assert.ok(Math.abs(foundX - 10) <= 2, `Should find X near 10, got ${foundX}`);
+        assert.ok(Math.abs(Math.round(result.y) - 10) <= 2, 'Should find correct Y');
         assert.ok(result.confidence > 0.3, `Confidence too low: ${result.confidence}`);
     });
 

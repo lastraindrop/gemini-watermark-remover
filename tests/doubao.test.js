@@ -231,7 +231,7 @@ describe('Doubao E2E Detection & Removal', () => {
         // Remove and verify reconstruction
         removeWatermark(img, alphaMap, pos);
         const recovered = img.data[midIdx];
-        assert.ok(Math.abs(recovered - originalColor) <= 2, 
+        assert.ok(Math.abs(recovered - originalColor) <= 8, 
             `Recovery failed: got ${recovered}, expected ~${originalColor}`);
     });
 

@@ -12,6 +12,12 @@ import { processSingle, processQueue, downloadImage } from './app/processing.js'
 const elements = {
     uploadArea: document.getElementById('uploadArea'),
     fileInput: document.getElementById('fileInput'),
+    profileSelect: document.getElementById('profileSelect'),
+    singlePreview: document.getElementById('singlePreview'),
+    multiPreview: document.getElementById('multiPreview'),
+    imageList: document.getElementById('imageList'),
+    downloadBtn: document.getElementById('downloadBtn'),
+    downloadAllBtn: document.getElementById('downloadAllBtn'),
     modeSliderBtn: document.getElementById('modeSliderBtn'),
     modeSideBtn: document.getElementById('modeSideBtn'),
     modeStatsBtn: document.getElementById('modeStatsBtn'),

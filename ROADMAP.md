@@ -2,7 +2,8 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.9.0 - Hardened Production)
+## 📍 当前状态 (v1.9.0 - Hardened Production ✅)
+- [x] **173/173 Tests Pass (v1.9.1)**: Full test suite passes including MockCanvas fixes, parameter matrix, and Doubao detection with NCC fallback.
 - [x] **Hardened Detection (v1.9.0)**: Introduced +/- 4px jitter resilience with distance penalty to handle real-world image offsets.
 - [x] **Professional Audit Suite**: 3x optical magnifier and real-time statistics dashboard for grain-level verification.
 - [x] **Modular App Refactor**: Decoupled UI, Processing, and State logic for 100% maintainability.

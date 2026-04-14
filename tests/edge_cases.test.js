@@ -14,9 +14,11 @@ describe('Edge Cases & Stress Tests', () => {
     const cfg = profile.getHeuristicConfig(w, h, 'top-left');
     const alphaMap = createMockAlphaMap(cfg.logoWidth, cfg.logoHeight);
     
+    // Key format should match detector's expectation: either size or "WxH"
+    const mapKey = cfg.logoWidth + 'x' + cfg.logoHeight;
     applyWatermark(img, cfg.marginLeft, cfg.marginTop, cfg.logoWidth, cfg.logoHeight, alphaMap);
 
-    const result = detectWatermark(img, { [cfg.logoWidth + 'x' + cfg.logoHeight]: alphaMap }, 'doubao');
+    const result = detectWatermark(img, { [mapKey]: alphaMap }, { deepScan: true });
     assert.ok(result, 'Should detect Doubao watermark at adaptive TL position');
   });
 
