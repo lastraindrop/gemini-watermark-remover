@@ -19,8 +19,8 @@ export function calculateAlphaMap(bgCaptureImageData) {
         const g = data[idx + 1];
         const b = data[idx + 2];
 
-        // Use perceptual luminance (0.299R + 0.587G + 0.114B) to determine the alpha value
-        const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+        // Use perceptual luminance BT.709 (0.2126R + 0.7152G + 0.0722B) to determine the alpha value
+        const brightness = (r * 0.2126 + g * 0.7152 + b * 0.0722);
 
         // Normalize to [0, 1] range
         alphaMap[i] = brightness / 255.0;

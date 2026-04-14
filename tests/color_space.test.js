@@ -10,10 +10,10 @@ describe('Perceptual Color Space Tests (v1.7.0)', () => {
         const greenImg = new Uint8ClampedArray([0, 255, 0, 255]);
         const blueImg = new Uint8ClampedArray([0, 0, 255, 255]);
         
-        // v1.7 Formulas:
-        // Red: 255 * 0.299 = 76.245
-        // Green: 255 * 0.587 = 149.685
-        // Blue: 255 * 0.114 = 29.07
+        // v1.9.8 Formulas (BT.709):
+        // Red: 255 * 0.2126 = 54.213
+        // Green: 255 * 0.7152 = 182.376
+        // Blue: 255 * 0.0722 = 18.411
         
         const alphaMap = new Float32Array([1]);
         const alphaMaps = { 1: alphaMap };
@@ -34,11 +34,11 @@ describe('Perceptual Color Space Tests (v1.7.0)', () => {
     });
 
     test('Luminance calculation check (Manual)', () => {
-        // Red (255, 0, 0) should be ~76 / 255 = 0.298
-        // green (0, 255, 0) should be ~150 / 255 = 0.588
+        // Red (255, 0, 0) should be ~54 / 255 = 0.212
+        // green (0, 255, 0) should be ~182 / 255 = 0.715
         
         const r = 255, g = 100, b = 50;
-        const expected = (r * 0.299 + g * 0.587 + b * 0.114) / 255.0;
+        const expected = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 255.0;
         
         // We can't directly call calculateCorrelation as it's not exported,
         // but we know it's used internally.

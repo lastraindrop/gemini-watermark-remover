@@ -61,5 +61,7 @@
   "original.pass": "✅ Gemini で生成された画像です。無劣化処理に対応しています。",
   "settings.deepScan": "ディープスキャン (Deep Scan)",
   "settings.noiseReduction": "ノイズリダクション (Noise Reduction)",
-  "loading.subtext": "AIが水印の縁を精密に除去中..."
+  "loading.subtext": "AIが水印の縁を精密に除去中...",
+  "view.stats": "統計データ",
+  "hint.shortcuts": "ショートカット: [1] スライダー [2] 左右比較 [3] 統計 [Esc] リセット"
 }

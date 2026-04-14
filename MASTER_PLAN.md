@@ -256,7 +256,7 @@ v1.8.5 之后，建议通过注册表动态添加：
 | subpixel.test.js | ✅ | 2 | 亚像素双线性插值 |
 | watermarkEngine.test.js | ✅ | 5 | 缓存、Worker 回退 |
 | worker_resilience.test.js | ✅ | 2 | Worker 超时回退 |
-| **合计** | **✅** | **142** | **36 suites, 0 fail** |
+| **合计** | **✅** | **183** | **45 suites, 0 fail** |
 
 ---
 
@@ -274,14 +274,16 @@ v1.8.5 之后，建议通过注册表动态添加：
 - ✅ 新增 parameter_matrix.test.js 深度参数矩阵回归测试
 
 ### v1.9.8 ✅ (已完成) — Production Hardening
-- ✅ **全量矩阵审计**: `product_audit.test.js` 覆盖 100% Catalog 条目。
-- ✅ **Node-Python 桥接修复**: 解决 CLI 变量未定义、EISDIR 文件夹报错及 JSON 类型不对齐问题。
-- ✅ **前端深度加固**: 动态 Footer、Efficiency-First 标签优化及 CORS 跨域安全策略。
+- ✅ **资产加载极致优化**: 实现 PNG 掩膜 DataURL 内联（Inlining），消除运行时 Fetch 延迟。
+- ✅ **自动品牌感知 (Auto-Theme)**: UI 能够根据探测出的 Profile 自动同步主题色（Gemini 绿 / 豆包蓝）。
+- ✅ **全量矩阵审计**: `product_audit.test.js` 覆盖 100% Catalog 条目，通过率 100% (188/188)。
+- ✅ **对抗性稳健加固**: 增加 `Extreme Noise` 和 `Edge Cropping` 测试，确保在恶劣样本下不误判。
+- ✅ **Node-Python 桥接修复**: 解决超时僵死问题，统一 JSON 错误反馈协议。
 
-### v2.0.0 (2026 Q3) — Performance
-- Rust/WASM 像素核心（alphaMap + blendModes）
-- 浏览器扩展（Manifest V3）
-- 移动端 PWA 支持
+### v2.0.0 (2026 Q3) — Performance & Ecosystem
+- Rust/WASM 像素核心（alphaMap + blendModes 重构）
+- 官方浏览器插件发布（Manifest V3）
+- 支持更多模型 Profile（Midjourney, DALL-E 3 完整版）
 
 ---
 

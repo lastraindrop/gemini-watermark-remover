@@ -61,5 +61,7 @@
   "original.pass": "✅ This image made with Gemini. Lossless processing supported.",
   "settings.deepScan": "Deep Scan",
   "settings.noiseReduction": "Noise Reduction",
-  "loading.subtext": "AI Precision Edge Removal..."
+  "loading.subtext": "AI Precision Edge Removal...",
+  "view.stats": "Statistics",
+  "hint.shortcuts": "Keyboard: [1] Slider [2] Side [3] Stats [Esc] Reset"
 }

@@ -346,4 +346,32 @@ describe('Doubao Edge Cases', () => {
         const configs = getAllPotentialConfigs(3000, 2000, 'doubao');
         assert.ok(configs.length >= 1, 'Should always return at least 1 config');
     });
+
+    test('Adversarial: Dual-anchor overlay with heavy noise', async () => {
+        const w = 1536, h = 2727; // Doubao standard tall resolution
+        const img = createMockImageData(w, h, 'grid', 128);
+        const configs = getAllCatalogConfigs(w, h, 'doubao');
+        
+        // Apply both TL and BR watermarks
+        for (const cfg of configs) {
+            const pos = calculateWatermarkPosition(w, h, cfg);
+            const alpha = createMockAlphaMap(pos.width, pos.height);
+            applyWatermark(img, pos.x, pos.y, pos.width, pos.height, alpha);
+        }
+
+        // Add heavy quantization noise (simulating poor JPEG)
+        for (let i = 0; i < img.data.length; i += 4) {
+            for (let c = 0; c < 3; c++) {
+                img.data[i + c] = Math.round(img.data[i + c] / 32) * 32;
+            }
+        }
+
+        // Verify detection for both anchors remains stable
+        for (const cfg of configs) {
+            const pos = calculateWatermarkPosition(w, h, cfg);
+            const alpha = createMockAlphaMap(pos.width, pos.height);
+            const result = calculateProbeConfidence(img, pos, alpha, 'doubao', { deepScan: true });
+            assert.ok(result.confidence > 0.12, `Detection failed for anchor ${cfg.anchor} under heavy noise: ${result.confidence}`);
+        }
+    });
 });

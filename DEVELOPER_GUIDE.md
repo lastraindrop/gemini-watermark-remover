@@ -24,8 +24,15 @@
 ## 💎 设计哲学：动态对齐 (Dynamic Alignment)
 
 为了消除“硬编码坏味道”，GWR 采用**单元测试驱动的参数矩阵**。
-- **Single Source of Truth**: 开发者只需在注册表中添加新分辨率或锚点。
-- **Auto-Regression**: `tests/product_audit.test.js` 会自动扫描注册表，针对每一个已注册的条目生成虚拟图片进行端到端测试。
+- **Single Source of Truth**: 开发者只需在 `src/core/templates/` 中添加新分辨率或锚点。
+- **Auto-Regression**: `tests/product_audit.test.js` 会自动扫描注册表，针对每一个已注册的条目生成虚拟图片进行端到端测试。这确保了新添加的水印模板能够立即获得 100% 的覆盖验证。
+- **Adversarial Hardening**: 引入了极端噪声（Extreme Noise）与边缘截断（Edge Cropping）测试，验证引擎在面对“坏样本”时的稳定性。
+
+## 🚀 性能优化：资产内联 (Inlining)
+
+v1.9.8 引入了构建期内联机制：
+- **原理**: `build.js` 会在打包时扫描 `src/assets/*.png`，将其转换为 Base64 并注入 `window.GWR_INLINED_ASSETS`。
+- **优势**: 核心引擎 `_loadAsset` 优先读取内存 DataURL，完全消除了浏览器端的 HTTP 并发限制，解决了 PWA 环境下的静态资源丢失问题。
 
 ## 🛠 开发流程
 1. **安装**: `npm install`

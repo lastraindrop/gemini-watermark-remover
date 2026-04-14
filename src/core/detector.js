@@ -421,7 +421,7 @@ function calculateGradientCorrelation(imageData, x, y, logoW, logoH, alphaMap, g
 
     const getB = (r, c) => {
         const i = ((y + r) * imgWidth + (x + c)) << 2;
-        return data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+        return data[i] * 0.2126 + data[i+1] * 0.7152 + data[i+2] * 0.0722;
     };
     const getA = (r, c) => alphaMap[r * logoW + c];
 

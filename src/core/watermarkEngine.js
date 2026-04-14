@@ -86,9 +86,13 @@ export class WatermarkEngine {
         // Determine path based on asset name (v1.8 naming convention)
         const assetName = assetKey.startsWith('bg_') ? assetKey : `bg_${assetKey}`;
         
-        // In modern bundler (Esbuild/Vite), we use dynamic imports or URL
-        // For project local structure, we assume assets are in /assets/
-        const src = `assets/${assetName}.png`;
+        // v1.9.8 Inlining Optimization: Check for pre-loaded assets
+        let src;
+        if (typeof window !== 'undefined' && window.GWR_INLINED_ASSETS && window.GWR_INLINED_ASSETS[assetName]) {
+            src = window.GWR_INLINED_ASSETS[assetName];
+        } else {
+            src = `assets/${assetName}.png`;
+        }
 
         const img = await new Promise((resolve, reject) => {
             const i = new Image();

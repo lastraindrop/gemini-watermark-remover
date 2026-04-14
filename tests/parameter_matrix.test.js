@@ -113,4 +113,35 @@ describe('Deep Regression: Parameter Matrix', () => {
         const result = await engine.removeWatermarkFromImage(img, { profileId: 'gemini' });
         assert.strictEqual(result.removedCount, 0, 'Should not detect watermark in empty image');
     });
+
+    test('Adversarial: Partially cropped watermark (v1.9.8)', async () => {
+        const w = 512, h = 512;
+        const rawData = createMockImageData(w, h, 'gradient');
+        const alphaMap = createMockAlphaMap(48);
+        
+        // Inject at edge (partially outside)
+        const pos = { x: 500, y: 500, width: 48, height: 48 };
+        applyWatermark(rawData, pos.x, pos.y, 48, 48, alphaMap);
+        
+        const img = createMockImageElement(w, h, rawData.data);
+        const result = await engine.removeWatermarkFromImage(img, { profileId: 'gemini' });
+        
+        // Should either detect it or fail gracefully without throwing
+        assert.ok(typeof result.removedCount === 'number');
+    });
+
+    test('Adversarial: Extreme Noise (v1.9.8)', async () => {
+        const w = 256, h = 256;
+        const rawData = createMockImageData(w, h, 'random'); // Pure random
+        const img = createMockImageElement(w, h, rawData.data);
+        
+        const result = await engine.removeWatermarkFromImage(img, { profileId: 'auto' });
+        // In case of random hits, confidence should be extremely low
+        if (result.removedCount > 0) {
+            // v1.9.8: Raising limit to 0.25 which is the actual "confidence" threshold for standard removal
+            assert.ok(result.confidence < 0.25, `False positive with high confidence: ${result.confidence}`);
+        } else {
+            assert.strictEqual(result.removedCount, 0);
+        }
+    });
 });

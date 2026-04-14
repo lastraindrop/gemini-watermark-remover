@@ -61,5 +61,7 @@
   "original.pass": "✅ 此图片为 Gemini 生成的原始图片，可进行无损去水印",
   "settings.deepScan": "深层扫描 (Deep Scan)",
   "settings.noiseReduction": "降噪处理 (Noise Reduction)",
-  "loading.subtext": "AI 正在精准切除水印边缘..."
+  "loading.subtext": "AI 正在精准切除水印边缘...",
+  "view.stats": "数据统计",
+  "hint.shortcuts": "快捷键: [1] 滑动 [2] 左右 [3] 统计 [Esc] 重置"
 }

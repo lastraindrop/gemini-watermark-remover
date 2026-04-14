@@ -4,9 +4,9 @@ import { calculateAlphaMap } from '../src/core/alphaMap.js';
 
 describe('Alpha Map Precision - Perceptual Luminance', () => {
     test('Perceptual weights for RGB channels', () => {
-        // Red: (255, 0, 0) -> 255 * 0.299 = 76.245
-        // Green: (0, 255, 0) -> 255 * 0.587 = 149.685
-        // Blue: (0, 0, 255) -> 255 * 0.114 = 29.07
+        // Red: (255, 0, 0) -> 255 * 0.2126 = 54.213
+        // Green: (0, 255, 0) -> 255 * 0.7152 = 182.376
+        // Blue: (0, 0, 255) -> 255 * 0.0722 = 18.411
         const data = new Uint8ClampedArray([
             255, 0, 0, 255,
             0, 255, 0, 255,
@@ -15,9 +15,9 @@ describe('Alpha Map Precision - Perceptual Luminance', () => {
         
         const alphaMap = calculateAlphaMap({ width: 3, height: 1, data });
         
-        const expectedRed = 76.245 / 255.0;
-        const expectedGreen = 149.685 / 255.0;
-        const expectedBlue = 29.07 / 255.0;
+        const expectedRed = 54.213 / 255.0;
+        const expectedGreen = 182.376 / 255.0;
+        const expectedBlue = 18.411 / 255.0;
         
         assert.ok(Math.abs(alphaMap[0] - expectedRed) < 0.001, `Red: got ${alphaMap[0]}, expected ${expectedRed}`);
         assert.ok(Math.abs(alphaMap[1] - expectedGreen) < 0.001, `Green: got ${alphaMap[1]}, expected ${expectedGreen}`);
@@ -28,7 +28,8 @@ describe('Alpha Map Precision - Perceptual Luminance', () => {
         const data = new Uint8ClampedArray([100, 150, 200, 255]);
         const alphaMap = calculateAlphaMap({ width: 1, height: 1, data });
         
-        const expected = (100 * 0.299 + 150 * 0.587 + 200 * 0.114) / 255.0;
+        const expected = (100 * 0.2126 + 150 * 0.7152 + 200 * 0.0722) / 255.0;
         assert.ok(Math.abs(alphaMap[0] - expected) < 0.0001);
     });
 });
+

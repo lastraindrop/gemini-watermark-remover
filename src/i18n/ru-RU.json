@@ -61,5 +61,7 @@
   "original.pass": "✅ Изображение из Gemini. Поддерживается обработка без потерь.",
   "settings.deepScan": "Глубокое сканирование (Deep Scan)",
   "settings.noiseReduction": "Шумоподавление (Noise Reduction)",
-  "loading.subtext": "ИИ выполняет точное удаление краев водяных знаков..."
+  "loading.subtext": "ИИ выполняет точное удаление краев водяных знаков...",
+  "view.stats": "Статистика",
+  "hint.shortcuts": "Клавиши: [1] Слайдер [2] Рядом [3] Стат [Esc] Сброс"
 }

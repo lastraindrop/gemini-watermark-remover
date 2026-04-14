@@ -61,5 +61,7 @@
   "original.pass": "✅ Image faite avec Gemini. Traitement sans perte pris en charge.",
   "settings.deepScan": "Analyse approfondie (Deep Scan)",
   "settings.noiseReduction": "Réduction du bruit (Noise Reduction)",
-  "loading.subtext": "L'IA retire précisément les bords du filigrane..."
+  "loading.subtext": "L'IA retire précisément les bords du filigrane...",
+  "view.stats": "Statistiques",
+  "hint.shortcuts": "Clavier: [1] Slider [2] Side [3] Stats [Esc] Reset"
 }

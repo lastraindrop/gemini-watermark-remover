@@ -13,9 +13,9 @@ describe('Detector Mode Labeling Accuracy', () => {
         const alphaMap = alphaMaps[size];
         
         // Place watermark at a position that is NOT in standard margins
-        // Use x=200, y=200 (far from corners)
-        const targetX = 200;
-        const targetY = 200;
+        // but within the search window (bottom-right 45%)
+        const targetX = 700;
+        const targetY = 700;
         applyWatermark(img, targetX, targetY, size, size, alphaMap);
 
         const result = detectWatermark(img, alphaMaps, { deepScan: true });

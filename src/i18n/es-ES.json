@@ -61,5 +61,7 @@
   "original.pass": "✅ Esta imagen está hecha con Gemini. Procesamiento sin pérdida soportado.",
   "settings.deepScan": "Escaneo profundo",
   "settings.noiseReduction": "Reducción de ruido",
-  "loading.subtext": "Eliminación de bordes de precisión de IA..."
+  "loading.subtext": "Eliminación de bordes de precision de IA...",
+  "view.stats": "Estadísticas",
+  "hint.shortcuts": "Teclado: [1] Slider [2] Side [3] Stats [Esc] Reset"
 }

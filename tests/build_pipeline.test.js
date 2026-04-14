@@ -31,6 +31,16 @@ describe('Build Pipeline & Assets Verification', () => {
         );
     });
 
+    test('Production bundle should inline core assets as window.GWR_INLINED_ASSETS', () => {
+        const appJsPath = resolve(process.cwd(), 'dist/app.js');
+        if (!existsSync(appJsPath)) return;
+
+        const content = readFileSync(appJsPath, 'utf8');
+        // Check for our new inlining mechanism
+        assert.ok(content.includes('window.GWR_INLINED_ASSETS ='), 'Inlining Regression: window.GWR_INLINED_ASSETS not found');
+        assert.ok(content.includes('data:image/png;base64,'), 'Inlining Regression: Base64 data missing');
+    });
+
     test('UI static assets should be copied to dist', () => {
         const i18nPath = resolve(process.cwd(), 'dist/i18n/zh-CN.json');
         if (!existsSync(i18nPath)) {

@@ -220,16 +220,20 @@ async function handleDataTransferItems(items) {
     }
 }
 
-function updateSingleUI(item, removedCount, confidence, latency, config) {
+function updateSingleUI(item, removedCount, confidence, latency, config, profileId) {
     document.getElementById('sliderOriginal').src = item.originalUrl;
     document.getElementById('sliderProcessed').src = item.processedUrl;
     document.getElementById('sideOriginal').src = item.originalUrl;
     document.getElementById('sideProcessed').src = item.processedUrl;
 
     if (config && elements.tierBadge) {
-        const profileName = profileId ? (getAllProfiles().find(p=>p.id===profileId)?.id.toUpperCase() || 'AUTO') : 'AUTO';
-        elements.tierBadge.textContent = `${profileName} • ${config.tier || 'MOCK'} • ${config.anchor || 'BR'}`;
+        const profile = getAllProfiles().find(p => p.id === profileId) || { id: 'AUTO' };
+        const detectionType = config.isOfficial ? 'OFFICIAL' : 'HEURISTIC';
+        elements.tierBadge.textContent = `${profile.id.toUpperCase()} • ${config.tier || detectionType} • ${config.anchor || 'BR'}`;
         elements.tierBadge.classList.remove('hidden');
+        
+        // v1.9.8: Auto-sync theme with detected profile
+        if (profile.brandColor) applyProfileTheme(profile);
         updateStatsUI(config, latency, confidence, profileId);
     }
 
@@ -453,7 +457,12 @@ function loadSettings() {
 
 function handleKeyDown(e) {
     if (e.key === 'Escape') resetWorkspace();
-    // Comparison shortcut
+    // v1.9.8: Enhanced Shortcuts
+    if (e.key === '1') switchViewMode('slider');
+    if (e.key === '2') switchViewMode('side');
+    if (e.key === '3') switchViewMode('stats');
+    
+    // Comparison shortcut (legacy support)
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         switchViewMode(e.key === 'ArrowRight' ? 'side' : 'slider');
     }

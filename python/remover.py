@@ -55,32 +55,33 @@ class GeminiWatermarkRemover:
         try:
             # We use a wrapper if cli_path is a JS file, or direct execution if it's a binary/link
             exec_cmd = ["node", self.cli_path] if self.cli_path.endswith(".js") else [self.cli_path]
-            final_cmd = exec_cmd + ["--input", input_path, "--output", output_path, "--json", "--profile", profile]
+            final_cmd = exec_cmd + ["remove", input_path, "--output", output_path, "--json", "--profile", profile]
             
             if not deep_scan: final_cmd.append("--no-deepScan")
             if noise_reduction: final_cmd.append("--noiseReduction")
             
-            result = subprocess.run(final_cmd, capture_output=True, text=True, check=True)
+            # v1.9.8 Enhancement: Use explicit timeout and capture all output
+            result = subprocess.run(final_cmd, capture_output=True, text=True, check=False, timeout=60)
+            
             results = []
-            for line in result.stdout.splitlines():
+            combined_output = (result.stdout or "") + (result.stderr or "")
+            
+            for line in combined_output.splitlines():
                 line = line.strip()
-                # Enhanced check: must be a JSON object containing the expected 'status' field
-                if '"status"' in line and line.startswith('{') and line.endswith('}'):
+                if line.startswith('{') and line.endswith('}') and '"status"' in line:
                     try:
                         results.append(json.loads(line))
                     except json.JSONDecodeError:
                         continue
+            
+            if not results and result.returncode != 0:
+                return [{"status": "error", "message": f"CLI Exit {result.returncode}: {result.stderr.strip() or 'Unknown error'}"}]
+                
             return results
-        except subprocess.CalledProcessError as e:
-            error_msg = (e.stderr or e.stdout).strip()
-            # Try to find JSON in the error message
-            for line in error_msg.splitlines():
-                if line.strip().startswith('{'):
-                    try:
-                        return [json.loads(line)]
-                    except Exception:
-                        pass
-            return [{"status": "error", "message": error_msg}]
+        except subprocess.TimeoutExpired:
+            return [{"status": "error", "message": "Processing timed out after 60s"}]
+        except Exception as e:
+            return [{"status": "error", "message": str(e)}]
 
     def remove_watermark_pipe(self, image_bytes: bytes, deep_scan: bool = True, noise_reduction: bool = False) -> bytes:
         """

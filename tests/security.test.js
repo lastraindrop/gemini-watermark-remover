@@ -43,4 +43,18 @@ describe('Security & Input Validation', () => {
     // Should not crash; result depends on behavior, but usually it should be null or return what it found safely
     assert.ok(result === null || result.size !== undefined);
   });
+
+  describe('Extreme Corruptions (v1.9.8)', () => {
+    test('detectWatermark should not throw on 1x1 image', () => {
+        const img = { width: 1, height: 1, data: new Uint8ClampedArray([0,0,0,255]) };
+        assert.doesNotThrow(() => detectWatermark(img, { 48: new Float32Array(48*48) }));
+    });
+
+    test('removeWatermark should not throw on out-of-bounds position', () => {
+        const img = createMockImageData(10, 10);
+        const alphaMap = new Float32Array(100);
+        const pos = { x: 1000, y: 1000, width: 10, height: 10 };
+        assert.doesNotThrow(() => removeWatermark(img, alphaMap, pos));
+    });
+  });
 });

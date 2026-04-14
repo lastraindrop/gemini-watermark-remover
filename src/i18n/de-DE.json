@@ -61,5 +61,7 @@
   "original.pass": "✅ Dieses Bild wurde mit Gemini erstellt. Verlustfreie Verarbeitung unterstützt.",
   "settings.deepScan": "Tiefenscan",
   "settings.noiseReduction": "Rauschunterdrückung",
-  "loading.subtext": "KI-Präzisions-Kantenentfernung..."
+  "loading.subtext": "KI-Präzisions-Kantenentfernung...",
+  "view.stats": "Statistiken",
+  "hint.shortcuts": "Tastatur: [1] Slider [2] Side [3] Stats [Esc] Reset"
 }
