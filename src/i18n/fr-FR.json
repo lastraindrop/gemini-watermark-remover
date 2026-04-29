@@ -63,5 +63,17 @@
   "settings.noiseReduction": "Réduction du bruit (Noise Reduction)",
   "loading.subtext": "L'IA retire précisément les bords du filigrane...",
   "view.stats": "Statistiques",
-  "hint.shortcuts": "Clavier: [1] Slider [2] Side [3] Stats [Esc] Reset"
+  "hint.shortcuts": "Clavier: [1] Slider [2] Side [3] Stats [Esc] Reset",
+  "settings.autoDetect": "DÉTECTION AUTO (Lent)",
+  "stats.anchor": "Point d'ancrage",
+  "stats.coordinate": "Coordonnée",
+  "stats.scale": "Facteur d'échelle",
+  "stats.algorithm": "Algorithme",
+  "badge.original": "ORIGINAL",
+  "badge.result": "RÉSULTAT",
+  "hero.badge": "Traitement côté navigateur",
+  "batch.engine": "Moteur de traitement concurrent",
+  "status.dewatermarked": "FILIGRANE SUPPRIMÉ",
+  "status.noWatermark": "PAS DE FILIGRANE",
+  "audit.title": "Audit Core v2"
 }

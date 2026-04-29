@@ -63,5 +63,17 @@
   "settings.noiseReduction": "降噪处理 (Noise Reduction)",
   "loading.subtext": "AI 正在精准切除水印边缘...",
   "view.stats": "数据统计",
-  "hint.shortcuts": "快捷键: [1] 滑动 [2] 左右 [3] 统计 [Esc] 重置"
+  "hint.shortcuts": "快捷键: [1] 滑动 [2] 左右 [3] 统计 [Esc] 重置",
+  "settings.autoDetect": "自动检测 (较慢)",
+  "stats.anchor": "锚点位置",
+  "stats.coordinate": "坐标",
+  "stats.scale": "缩放系数",
+  "stats.algorithm": "算法",
+  "badge.original": "原图",
+  "badge.result": "结果",
+  "hero.badge": "纯浏览器端处理",
+  "batch.engine": "并发处理引擎",
+  "status.dewatermarked": "已去水印",
+  "status.noWatermark": "未检测到水印",
+  "audit.title": "审计核心 v2"
 }

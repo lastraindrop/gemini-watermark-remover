@@ -1,6 +1,6 @@
 [English Document](README.md)
 
-# Gemini & Doubao 无损去水印 (v1.9.8)
+# Gemini & Doubao 无损去水印 (v1.9.9)
 
 一款高性能、100% 纯客户端运行的 Gemini 与 豆包 (Doubao) AI 去水印工具。v1.9.8 引入了**全量架构审计套件**、生产级 Node-Python 桥接加固以及 CORS 跨域安全策略。
 

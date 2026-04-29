@@ -127,11 +127,28 @@ describe('CLI Integration Tests', () => {
         const result = spawnSync('node', ['src/cli.js', '-i', batchInputDir, '-o', batchOutputDir]);
         
         assert.strictEqual(result.status, 0);
-        // Verify 3 output files created (original name, no prefix)
         for (let i = 1; i <= 3; i++) {
             const expectedName = `img_${i}.png`;
             assert.ok(existsSync(join(batchOutputDir, expectedName)), `Batch output ${expectedName} missing`);
         }
+    });
+
+    test('Doubao profile processing via CLI', () => {
+        const input = join(TMP_DIR, 'input.png');
+        const output = join(TMP_DIR, 'output_doubao.png');
+        
+        const result = spawnSync('node', ['src/cli.js', '-i', input, '-o', output, '--profile', 'doubao', '--json']);
+        
+        assert.strictEqual(result.status, 0, `Doubao profile CLI failed: ${result.stderr.toString()}`);
+        assert.ok(existsSync(output), 'Doubao output should be created');
+    });
+
+    test('Version flag outputs correct version', () => {
+        const result = spawnSync('node', ['src/cli.js', '--version']);
+        
+        assert.strictEqual(result.status, 0);
+        const output = result.stdout.toString().trim();
+        assert.ok(output.includes('1.9.8'), `Version should contain 1.9.8, got: ${output}`);
     });
 });
 

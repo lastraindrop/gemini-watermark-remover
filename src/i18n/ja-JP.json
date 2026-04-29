@@ -63,5 +63,17 @@
   "settings.noiseReduction": "ノイズリダクション (Noise Reduction)",
   "loading.subtext": "AIが水印の縁を精密に除去中...",
   "view.stats": "統計データ",
-  "hint.shortcuts": "ショートカット: [1] スライダー [2] 左右比較 [3] 統計 [Esc] リセット"
+  "hint.shortcuts": "ショートカット: [1] スライダー [2] 左右比較 [3] 統計 [Esc] リセット",
+  "settings.autoDetect": "自動検出 (低速)",
+  "stats.anchor": "アンカーポイント",
+  "stats.coordinate": "座標",
+  "stats.scale": "スケール係数",
+  "stats.algorithm": "アルゴリズム",
+  "badge.original": "オリジナル",
+  "badge.result": "結果",
+  "hero.badge": "ブラウザ内処理",
+  "batch.engine": "並列処理エンジン",
+  "status.dewatermarked": "透かし除去済み",
+  "status.noWatermark": "透かしなし",
+  "audit.title": "監査コア v2"
 }

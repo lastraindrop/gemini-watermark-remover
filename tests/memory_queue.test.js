@@ -118,4 +118,43 @@ describe('Concurrency Queue Logic (Sliding Window)', () => {
         assert.strictEqual(processed, total, 'All found files should be processed');
         assert.ok(maxActive <= concurrency, 'Should respect concurrency');
     });
+
+    test('Queue recovers from exceptions without deadlocking', async () => {
+        const tasks = Array.from({ length: 8 }, (_, i) => i);
+        let activeCount = 0;
+        const concurrency = 3;
+        const completed = [];
+        let maxActive = 0;
+
+        await new Promise((resolve) => {
+            let index = 0;
+            const next = async () => {
+                while (activeCount < concurrency && index < tasks.length) {
+                    const taskId = tasks[index++];
+                    activeCount++;
+                    maxActive = Math.max(maxActive, activeCount);
+
+                    (async () => {
+                        try {
+                            await new Promise(res => setTimeout(res, 5));
+                            if (taskId === 2 || taskId === 5) {
+                                throw new Error('Simulated processing failure');
+                            }
+                            completed.push(taskId);
+                        } catch {
+                            // Error swallowed, task not added to completed
+                        } finally {
+                            activeCount--;
+                            next();
+                        }
+                    })();
+                }
+                if (index >= tasks.length && activeCount === 0) resolve();
+            };
+            next();
+        });
+
+        assert.strictEqual(completed.length, 6, 'Should complete 6 of 8 tasks (2 failed)');
+        assert.ok(maxActive <= concurrency, `Max active ${maxActive} should not exceed ${concurrency}`);
+    });
 });

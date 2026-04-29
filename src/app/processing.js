@@ -66,18 +66,20 @@ export async function processQueue(options, callbacks = {}) {
         active++;
         const item = queue.shift();
         
-        await processSingle(item, options, {
-            ...callbacks,
-            onSuccess: (data) => {
-                state.processedCount++;
-                updateProgress(state.processedCount, total);
-                if (callbacks.onItemSuccess) callbacks.onItemSuccess(data);
+        try {
+            await processSingle(item, options, {
+                ...callbacks,
+                onSuccess: (data) => {
+                    state.processedCount++;
+                    updateProgress(state.processedCount, total);
+                    if (callbacks.onItemSuccess) callbacks.onItemSuccess(data);
+                }
+            });
+        } finally {
+            active--;
+            if (queue.length > 0) {
+                await next();
             }
-        });
-        
-        active--;
-        if (queue.length > 0) {
-            await next();
         }
     };
 

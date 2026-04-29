@@ -1,6 +1,6 @@
 # Gemini Watermark Remover - 使用指南
 
-本工具是针对 Gemini AI 生成图像的一个专用去水印增强版。通过 **反向 Alpha 混合 (Reverse Alpha Blending)** 算法，实现 100% 无损的原始像素还原。
+本工具是针对 Gemini AI 和豆包 (Doubao) 生成图像的专用去水印工具。通过 **反向 Alpha 混合 (Reverse Alpha Blending)** 算法，实现 100% 无损的原始像素还原。
 
 ## 🌟 核心特性
 1. **100% 无损还原**：非 AI 补全，而是通过数学逆运算还原被遮挡的原始像素。
@@ -40,9 +40,10 @@ node src/cli.js -i ./images -o ./processed_images
   1. 将 Gemini 生成的图片拖入上传区。
   2. 程序会自动识别（优先使用 **v1.5 分级混合探测：官方目录 + 降噪 NCC + 边缘恢复**）。
   3. **高级引擎设置**: 
-     - **Deep Scan (v1.4)**: 默认开启，通过 Sobel 梯度特征增强复杂背景下的匹配精度。
-     - **Noise Reduction (v1.5)**: 针对 JPEG 高压缩产生的噪声，在探测前进行快速 Box Blur 预处理。
-     - **高性能并发 (v1.5.5)**: 网页版现在采用**滑动窗口 (Sliding Window)** 队列，支持极高并发处理而不崩溃内存。
+      - **Deep Scan (v1.4)**: 默认开启，通过 Sobel 梯度特征增强复杂背景下的匹配精度。
+      - **Noise Reduction (v1.5)**: 针对 JPEG 高压缩产生的噪声，在探测前进行快速 Box Blur 预处理。
+      - **高性能并发 (v1.5.5)**: 网页版现在采用**滑动窗口 (Sliding Window)** 队列，支持极高并发处理而不崩溃内存。
+      - **多模型 Profile 支持**: 支持 Gemini（绿）和豆包/Doubao（蓝）双品牌，UI 自动同步品牌色。
   4. **探测勋章 (Tier Badge) v1.5.5**: 
      - 当引擎精准匹配到官方分辨率（如 1k Tier）时，界面展示 **Official Tier Badge**。
      - **勋章回显**：代表该图片已通过分级混合探测系统的最高置换验证 (100% 还原)。

@@ -32,14 +32,19 @@ export const RestorationMetrics = {
     },
 
     /**
-     * Simplified SSIM (Structural Similarity Index)
-     * Focuses on luminance and contrast comparison
+     * Simplified quality estimate derived from PSNR (not a true SSIM implementation)
+     * Maps PSNR range [20dB, 50dB] to [0.0, 1.0] as a rough quality indicator.
+     * For production use, consider implementing a proper sliding-window SSIM.
+     */
+    estimateQualityFromPSNR(buffer1, buffer2) {
+        const psnr = this.calculatePSNR(buffer1, buffer2);
+        return Math.max(0, Math.min(1, (psnr - 20) / 30));
+    },
+
+    /**
+     * @deprecated Use estimateQualityFromPSNR instead. This is not a real SSIM calculation.
      */
     calculateSSIM(buffer1, buffer2) {
-        // Full SSIM is expensive for JS, but we can implement a simplified version
-        // if needed. For now, PSNR is the primary metric for mathematical restoration.
-        const psnr = this.calculatePSNR(buffer1, buffer2);
-        // Normalize 20dB-50dB to 0.0-1.0 roughly
-        return Math.max(0, Math.min(1, (psnr - 20) / 30));
+        return this.estimateQualityFromPSNR(buffer1, buffer2);
     }
 };

@@ -1,4 +1,4 @@
-# GWR Developer Guide (v1.9.1 Hardened)
+# GWR Developer Guide (v1.9.9 Final)
 
 本文档旨在帮助开发者了解 Gemini Watermark Remover 的项目架构、核心设计模式及开发规范。
 
@@ -10,6 +10,7 @@
 - **`templates/registry.js`**: **模板注册表系统**。这是 v1.8.5 的核心。它解耦了品牌配置与引擎逻辑，支持运行时动态注册水印 Profile（如 Gemini, Doubao）。
 - **`detector.js`**: **梯度探测引擎 (v1.9.0加固)**。引入 +/- 4px 滑动窗口抖动搜寻与距离惩罚机制，解决由于图像剪裁或宿主环境缩放带来的亚像素偏移问题。新增多模态评分系统（Anchored/Aligned/Free）。
 - **`blendModes.js`**: **数学复原层**。使用反向 Alpha 混合模型，通过双线性插值实现亚像素级的无损复原。
+- **`restorationMetrics.js`**: **质量评估层**。提供 MSE、PSNR 等量化指标用于还原质量验证。
 - **`worker.js`**: Web Worker 封装，确保耗时的像素计算不阻塞主线程。
 
 ### 2. 应用逻辑层 (`src/app/`) - 浏览器端调度
@@ -30,14 +31,14 @@
 
 ## 🚀 性能优化：资产内联 (Inlining)
 
-v1.9.8 引入了构建期内联机制：
+v1.9.9 引入了前端国际化完整性与快捷键上下文感知：
 - **原理**: `build.js` 会在打包时扫描 `src/assets/*.png`，将其转换为 Base64 并注入 `window.GWR_INLINED_ASSETS`。
 - **优势**: 核心引擎 `_loadAsset` 优先读取内存 DataURL，完全消除了浏览器端的 HTTP 并发限制，解决了 PWA 环境下的静态资源丢失问题。
 
 ## 🛠 开发流程
-1. **安装**: `npm install`
+1. **安装**: `pnpm install`
 2. **开发**: 修改 `src/` 中的模块化文件。
-3. **编译**: `node build.js` 将 ESM 模块打包为浏览器可用的单文件。
+3. **编译**: `pnpm build` 将 ESM 模块打包为浏览器可用的单文件。
 4. **测试**: `pnpm test` (或 `node --test tests/*.js`) 运行全量审计套件。
 
 ## 📍 路线图 (Roadmap)

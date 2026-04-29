@@ -21,7 +21,7 @@ import { PROFILES, getProfile } from '../src/core/profiles.js';
 import { CATALOGS, getAllCatalogConfigs, getCatalogConfig } from '../src/core/catalog.js';
 import { getAllPotentialConfigs, calculateWatermarkPosition, detectWatermarkConfig } from '../src/core/config.js';
 import { removeWatermark } from '../src/core/blendModes.js';
-import { calculateProbeConfidence } from '../src/core/detector.js';
+import { calculateProbeConfidence, detectWatermark } from '../src/core/detector.js';
 import { createMockImageData, createMockAlphaMap, applyWatermark } from './test_utils.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -373,5 +373,41 @@ describe('Doubao Edge Cases', () => {
             const result = calculateProbeConfidence(img, pos, alpha, 'doubao', { deepScan: true });
             assert.ok(result.confidence > 0.12, `Detection failed for anchor ${cfg.anchor} under heavy noise: ${result.confidence}`);
         }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. Rectangular Watermark Phase 2 Search
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Doubao Rectangular Phase 2 Detection', () => {
+
+    test('Non-catalog rectangular doubao watermark found via Phase 2 (BR)', () => {
+        const w = 500, h = 500;
+        const profile = getProfile('doubao');
+        const cfg = profile.getHeuristicConfig(w, h, 'bottom-right');
+        const alphaMap = createMockAlphaMap(cfg.logoWidth, cfg.logoHeight);
+
+        const img = createMockImageData(w, h, 'gradient', 100);
+        const pos = calculateWatermarkPosition(w, h, cfg);
+        applyWatermark(img, pos.x, pos.y, cfg.logoWidth, cfg.logoHeight, alphaMap);
+
+        const mapKey = `${cfg.logoWidth}x${cfg.logoHeight}`;
+        const result = detectWatermark(img, { [mapKey]: alphaMap }, { deepScan: true });
+        assert.ok(result, `Phase 2 should find ${cfg.logoWidth}x${cfg.logoHeight} rectangular watermark`);
+    });
+
+    test('Non-catalog rectangular doubao watermark found via Phase 2 (TL)', () => {
+        const w = 600, h = 400;
+        const profile = getProfile('doubao');
+        const cfg = profile.getHeuristicConfig(w, h, 'top-left');
+        const alphaMap = createMockAlphaMap(cfg.logoWidth, cfg.logoHeight);
+
+        const img = createMockImageData(w, h, 'gradient', 120);
+        const pos = calculateWatermarkPosition(w, h, cfg);
+        applyWatermark(img, pos.x, pos.y, cfg.logoWidth, cfg.logoHeight, alphaMap);
+
+        const mapKey = `${cfg.logoWidth}x${cfg.logoHeight}`;
+        const result = detectWatermark(img, { [mapKey]: alphaMap }, { deepScan: true });
+        assert.ok(result, `Phase 2 should find TL ${cfg.logoWidth}x${cfg.logoHeight} rectangular watermark`);
     });
 });

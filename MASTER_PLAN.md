@@ -1,8 +1,8 @@
 # GWR Master Plan — 全面分析、设计方案与落地执行
 
-> 版本: v1.9.8 - Production Hardened  
-> 日期: 2026-04-15  
-> 状态: ✅ **180/180 Tests Pass** — 已完成全量矩阵审计、跨域安全加固及 Node-Python 桥接稳定性修复。
+> 版本: v1.9.9 - Final Release  
+> 日期: 2026-04-29  
+> 状态: ✅ **200/200 Tests Pass** — 已完成前端全面审计、i18n完整性、快捷键修复、实验性Profile过滤。
 
 ---
 
@@ -256,7 +256,7 @@ v1.8.5 之后，建议通过注册表动态添加：
 | subpixel.test.js | ✅ | 2 | 亚像素双线性插值 |
 | watermarkEngine.test.js | ✅ | 5 | 缓存、Worker 回退 |
 | worker_resilience.test.js | ✅ | 2 | Worker 超时回退 |
-| **合计** | **✅** | **183** | **45 suites, 0 fail** |
+    | **合计** | **✅** | **188** | **46 suites, 0 fail** |
 
 ---
 

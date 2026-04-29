@@ -62,10 +62,11 @@ export const PROFILES = {
     },
     dalle3: {
         id: 'dalle3',
-        name: 'OpenAI DALL-E 3',
-        brandColor: '#10a37f', // OpenAI Green
+        name: 'OpenAI DALL-E 3 (Experimental)',
+        brandColor: '#10a37f',
         icon: 'dalle-brush',
         logoValue: 255.0,
+        experimental: true,
         anchors: ['bottom-left'],
         assets: {
             'bottom-left': 'dalle3_bl'

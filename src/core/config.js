@@ -1,5 +1,5 @@
-import { getCatalogConfig, getAllCatalogConfigs } from './catalog.js';
-import { PROFILES } from './profiles.js';
+import { getAllCatalogConfigs } from './catalog.js';
+import { getProfile } from './profiles.js';
 
 export const ENGINE_LIMITS = {
     MAX_PIXELS: 8000 * 8000, // 64MP
@@ -18,7 +18,7 @@ export function detectWatermarkConfig(imageWidth, imageHeight, profileId = 'gemi
     if (catalogMatches.length > 0) return { ...catalogMatches[0], isOfficial: true };
 
     // 2. Profile-based Heuristic fallback
-    const profile = PROFILES[profileId] || PROFILES.gemini;
+    const profile = getProfile(profileId);
     if (profile.getHeuristicConfig) {
         return profile.getHeuristicConfig(imageWidth, imageHeight);
     }
@@ -41,10 +41,10 @@ export function getAllPotentialConfigs(imageWidth, imageHeight, profileId = 'gem
     const catalogMatches = getAllCatalogConfigs(imageWidth, imageHeight, profileId);
     if (catalogMatches.length > 0) return catalogMatches;
 
-    const profile = PROFILES[profileId] || PROFILES.gemini;
-    // For heuristic, check all possible anchors
+    const profile = getProfile(profileId);
     if (profile.getHeuristicConfig) {
-        return profile.anchors.map(anchor => profile.getHeuristicConfig(imageWidth, imageHeight, anchor));
+        const anchors = profile.anchors || ['bottom-right'];
+        return anchors.map(anchor => profile.getHeuristicConfig(imageWidth, imageHeight, anchor));
     }
     
     return [detectWatermarkConfig(imageWidth, imageHeight, profileId)];

@@ -26,7 +26,9 @@ const elements = {
     statsView: document.getElementById('statsView'),
     magnifierLens: document.getElementById('magnifierLens'),
     tierBadge: document.getElementById('tierBadge'),
-    lastLatency: document.getElementById('lastLatency')
+    lastLatency: document.getElementById('lastLatency'),
+    resetAreaBtn: document.getElementById('resetAreaBtn'),
+    clearAllBtn: document.getElementById('clearAllBtn')
 };
 
 async function init() {
@@ -35,7 +37,7 @@ async function init() {
         
         // Populate Profiles (Fix code-review issue: letting users choose)
         if (elements.profileSelect) {
-            getAllProfiles().forEach(p => {
+            getAllProfiles().filter(p => !p.experimental).forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id;
                 opt.textContent = p.name;
@@ -44,7 +46,7 @@ async function init() {
 
             const autoOpt = document.createElement('option');
             autoOpt.value = 'auto';
-            autoOpt.textContent = 'AUTO DETECT (Slow)';
+            autoOpt.textContent = i18n.t('settings.autoDetect');
             elements.profileSelect.appendChild(autoOpt);
 
             elements.profileSelect.value = 'gemini';
@@ -150,13 +152,13 @@ function handleFiles(files) {
         elements.singlePreview.style.display = 'block';
         elements.multiPreview.style.display = 'none';
         
-        // Visual cue: start processing
         document.getElementById('resultContainer')?.classList.add('scan-active');
         
         processSingle(state.imageQueue[0], getEngineOptions(), {
             onSuccess: ({ item, removedCount, confidence, latency, config, profileId }) => {
                 updateSingleUI(item, removedCount, confidence, latency, config, profileId);
                 document.getElementById('resultContainer')?.classList.remove('scan-active');
+                elements.singlePreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
             },
             onError: () => document.getElementById('resultContainer')?.classList.remove('scan-active')
         });
@@ -281,7 +283,7 @@ function updateCardUI(item, removedCount, confidence, latency, config) {
         img.src = item.processedUrl;
         img.classList.remove('opacity-0');
     }
-    if (status) status.textContent = confidence > 0 ? 'DE-WATERMARKED' : 'CLEAN';
+     if (status) status.textContent = confidence > 0 ? i18n.t('status.dewatermarked') : i18n.t('status.noWatermark');
     if (meta) meta.textContent = `${latency}ms`;
     if (dlBtn) {
         dlBtn.classList.remove('hidden');
@@ -310,7 +312,7 @@ function switchViewMode(mode) {
 
 function updateStatsUI(config, latency, confidence, profileId) {
     document.getElementById('statAnchor').textContent = (config.anchor || 'BOTTOM-RIGHT').toUpperCase();
-    document.getElementById('statCoord').textContent = config.x !== undefined ? `${config.x}, ${config.y}` : 'AUTO';
+    document.getElementById('statCoord').textContent = config.pos ? `${Math.round(config.pos.x)}, ${Math.round(config.pos.y)}` : 'AUTO';
     document.getElementById('statScale').textContent = config.scale !== undefined ? `${config.scale.toFixed(3)}x` : '1.000x';
     document.getElementById('statAlgo').textContent = (profileId || 'AUTO').toUpperCase();
 }
@@ -456,15 +458,22 @@ function loadSettings() {
 }
 
 function handleKeyDown(e) {
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
     if (e.key === 'Escape') resetWorkspace();
-    // v1.9.8: Enhanced Shortcuts
     if (e.key === '1') switchViewMode('slider');
     if (e.key === '2') switchViewMode('side');
     if (e.key === '3') switchViewMode('stats');
     
-    // Comparison shortcut (legacy support)
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         switchViewMode(e.key === 'ArrowRight' ? 'side' : 'slider');
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        const item = state.imageQueue.find(i => i.status === 'success');
+        if (item) downloadImage(item);
     }
 }
 

@@ -63,5 +63,17 @@
   "settings.noiseReduction": "Шумоподавление (Noise Reduction)",
   "loading.subtext": "ИИ выполняет точное удаление краев водяных знаков...",
   "view.stats": "Статистика",
-  "hint.shortcuts": "Клавиши: [1] Слайдер [2] Рядом [3] Стат [Esc] Сброс"
+  "hint.shortcuts": "Клавиши: [1] Слайдер [2] Рядом [3] Стат [Esc] Сброс",
+  "settings.autoDetect": "АВТО ОПРЕДЕЛЕНИЕ (Медленно)",
+  "stats.anchor": "Точка привязки",
+  "stats.coordinate": "Координата",
+  "stats.scale": "Коэффициент масштаба",
+  "stats.algorithm": "Алгоритм",
+  "badge.original": "ОРИГИНАЛ",
+  "badge.result": "РЕЗУЛЬТАТ",
+  "hero.badge": "Обработка в браузере",
+  "batch.engine": "Многопоточная обработка",
+  "status.dewatermarked": "ОБРАБОТАНО",
+  "status.noWatermark": "БЕЗ ВОДЯНОГО ЗНАКА",
+  "audit.title": "Аудит v2"
 }

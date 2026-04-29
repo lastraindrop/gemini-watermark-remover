@@ -12,8 +12,10 @@
  */
 
 import { getCatalogConfig, getAllCatalogConfigs } from './catalog.js';
+import { registry } from './templates/registry.js';
 
-// Shared state for variance tracking during coarse search
+// Module-scoped state for variance tracking during coarse search
+// Used internally by calculateCorrelation to communicate variance info to Phase 2
 let _lastVar = 0;
 
 const SEARCH_CONFIG = {
@@ -127,46 +129,65 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     const searchRangeX = Math.floor(width * SEARCH_CONFIG.RANGE_X);
     const searchRangeY = Math.floor(height * SEARCH_CONFIG.RANGE_Y);
     
-    // Dynamic sizes: include all standard Gemini sizes + Doubao sizes from catalog
-    // This ensures Phase 2 can find even rectangular watermarks
-    const sizes = [96, 48, 165, 173, 167, 151, 125, 109, 105, 80, 120, 140, 112, 61]; // Balanced for memory + doubao heuristic
+    // Dynamic sizes: derive from catalog entries (supports rectangular watermarks)
+    const dynamicSizes = new Map();
+    for (const profile of registry.getAllProfiles()) {
+        for (const entry of registry.getCatalog(profile.id)) {
+            const w = entry.logoWidth || entry.logoSize;
+            const h = entry.logoHeight || entry.logoSize;
+            dynamicSizes.set(`${w}x${h}`, { w, h });
+        }
+    }
+    // Add standard square fallbacks
+    for (const s of [96, 48]) {
+        if (!dynamicSizes.has(`${s}x${s}`)) dynamicSizes.set(`${s}x${s}`, { w: s, h: s });
+    }
+    // Add sizes from any alphaMaps keys passed by caller (heuristic sizes)
+    for (const key of Object.keys(alphaMaps)) {
+        const parts = key.split('x');
+        if (parts.length === 2) {
+            const kw = parseInt(parts[0]);
+            const kh = parseInt(parts[1]);
+            if (kw > 0 && kh > 0 && !dynamicSizes.has(key)) {
+                dynamicSizes.set(key, { w: kw, h: kh });
+            }
+        } else if (/^\d+$/.test(key)) {
+            const s = parseInt(key);
+            if (s > 0 && !dynamicSizes.has(`${s}x${s}`)) {
+                dynamicSizes.set(`${s}x${s}`, { w: s, h: s });
+            }
+        }
+    }
+    const sizes = Array.from(dynamicSizes.values());
 
-    for (const size of sizes) {
-        // Try multiple key formats: number (96), "WxH" format ("165x173"), and string ("173")
-        let alphaMap = alphaMaps[size] || alphaMaps[`${size}`];
+    for (const { w: sizeW, h: sizeH } of sizes) {
+        let alphaMap = alphaMaps[`${sizeW}x${sizeH}`] || alphaMaps[sizeW] || alphaMaps[sizeH];
         if (!alphaMap) {
-            // Try to find rectangular key that matches this size
+            alphaMap = alphaMaps[`${sizeW}`] || alphaMaps[`${sizeH}`];
+        }
+        if (!alphaMap) {
             const sizeKey = Object.keys(alphaMaps).find(k => {
                 const parts = k.split('x');
                 if (parts.length === 2) {
-                    return parseInt(parts[0]) === size || parseInt(parts[1]) === size;
+                    return parseInt(parts[0]) === sizeW && parseInt(parts[1]) === sizeH;
                 }
                 return false;
             });
             if (sizeKey) alphaMap = alphaMaps[sizeKey];
         }
-        if (!alphaMap) {
-            // For sizes >= 100, also try "size" alone as a fallback
-            if (size >= 100) {
-                alphaMap = alphaMaps[`${size}`];
-            }
-        }
         if (!alphaMap) continue;
 
-        const searchW = size;
-        const searchH = size;
-
-        const startX = Math.max(-size / 2, width - searchRangeX - size);
-        const startY = Math.max(-size / 2, height - searchRangeY - size);
+        const startX = Math.max(-sizeW / 2, width - searchRangeX - sizeW);
+        const startY = Math.max(-sizeH / 2, height - searchRangeY - sizeH);
         const sizeCandidates = [];
 
-        for (let y = startY; y < height - size / 2; y += 2) {
-            for (let x = startX ; x < width - size / 2; x += 2) {
-                const confidence = calculateCorrelation(searchData, x, y, size, size, alphaMap);
+        for (let y = startY; y < height - sizeH / 2; y += 2) {
+            for (let x = startX ; x < width - sizeW / 2; x += 2) {
+                const confidence = calculateCorrelation(searchData, x, y, sizeW, sizeH, alphaMap);
                 const currentVar = _lastVar;
                 
                 if (confidence > SEARCH_CONFIG.THRESHOLDS.COARSE) {
-                    const candidate = { x, y, size, confidence, mode: 'heuristic', _lastVar: currentVar };
+                    const candidate = { x, y, width: sizeW, height: sizeH, confidence, mode: 'heuristic', _lastVar: currentVar };
                     let tooClose = false;
                     for (let i = 0; i < sizeCandidates.length; i++) {
                         const dist = Math.abs(sizeCandidates[i].x - x) + Math.abs(sizeCandidates[i].y - y);
@@ -193,18 +214,18 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
 
         for (const candidate of sizeCandidates) {
             const fineRange = SEARCH_CONFIG.FINE_TUNE_RANGE;
-            for (let fy = Math.max(startY, candidate.y - fineRange); fy <= Math.min(height - size / 2, candidate.y + fineRange); fy++) {
-                for (let fx = Math.max(startX, candidate.x - fineRange); fx <= Math.min(width - size / 2, candidate.x + fineRange); fx++) {
-                    let confidence = calculateCorrelation(searchData, fx, fy, size, size, alphaMap, true);
+            for (let fy = Math.max(startY, candidate.y - fineRange); fy <= Math.min(height - sizeH / 2, candidate.y + fineRange); fy++) {
+                for (let fx = Math.max(startX, candidate.x - fineRange); fx <= Math.min(width - sizeW / 2, candidate.x + fineRange); fx++) {
+                    let confidence = calculateCorrelation(searchData, fx, fy, sizeW, sizeH, alphaMap, true);
                     
                     if (deepScan && confidence > 0.04) {
-                        const bufferSizeNeeded = size * size;
+                        const bufferSizeNeeded = sizeW * sizeH;
                         if (!detectWatermark._sharedGradientsI || detectWatermark._sharedGradientsI.length < bufferSizeNeeded) {
                             detectWatermark._sharedGradientsI = new Float32Array(bufferSizeNeeded);
                             detectWatermark._sharedGradientsA = new Float32Array(bufferSizeNeeded);
                         }
                         const gradientConf = calculateGradientCorrelation(
-                            searchData, fx, fy, size, size, alphaMap, 
+                            searchData, fx, fy, sizeW, sizeH, alphaMap, 
                             detectWatermark._sharedGradientsI, 
                             detectWatermark._sharedGradientsA
                         );
@@ -213,13 +234,11 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
 
                     const stage2Threshold = noiseReduction ? SEARCH_CONFIG.THRESHOLDS.STAGE2_NR : SEARCH_CONFIG.THRESHOLDS.STAGE2_CLEAN;
                     if (confidence > stage2Threshold) {
-                        const marginX = width - fx - size;
-                        const marginY = height - fy - size;
-                        // Aligned check with dynamic margin tolerance (v1.9.1 hardened)
-                        // Instead of hardcoded 32/64/96, check if margin is close to any standard
+                        const marginX = width - fx - sizeW;
+                        const marginY = height - fy - sizeH;
                         const standardMargins = [32, 64, 96, 24, 10, 4, 38, 25, 39, 16];
                         const isAligned = standardMargins.some(m => Math.abs(marginX - m) <= 4 || Math.abs(marginY - m) <= 4);
-                        allCandidates.push({ x: fx, y: fy, width: size, height: size, confidence, mode: isAligned ? 'aligned' : 'free' });
+                        allCandidates.push({ x: fx, y: fy, width: sizeW, height: sizeH, confidence, mode: isAligned ? 'aligned' : 'free' });
                     }
                 }
             }
@@ -303,7 +322,7 @@ export function calculateCorrelation(imageData, x, y, logoW, logoH, alphaMap, fu
             if (curX < 0 || curX >= imgWidth) continue;
 
             const imgIdx = (imgRowOffset + curX) << 2;
-            const brightness = (data[imgIdx] * 0.299 + data[imgIdx + 1] * 0.587 + data[imgIdx + 2] * 0.114) / 255.0;
+            const brightness = (data[imgIdx] * 0.2126 + data[imgIdx + 1] * 0.7152 + data[imgIdx + 2] * 0.0722) / 255.0;
             const alpha = alphaMap[alphaRowOffset + col];
             
             sumI += brightness;

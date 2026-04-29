@@ -1,6 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { detectWatermarkConfig, calculateWatermarkPosition } from '../src/core/config.js';
+import { detectWatermarkConfig, calculateWatermarkPosition, getAllPotentialConfigs } from '../src/core/config.js';
+import { registry } from '../src/core/templates/registry.js';
 
 import { GEMINI_SIZE_CATALOG } from '../src/core/catalog.js';
 
@@ -61,6 +62,35 @@ describe('Watermark Config Logic - Priority & Fallback', () => {
             const config = detectWatermarkConfig(1024, 500);
             assert.strictEqual(config.isOfficial, false, 'Should not match catalog if height is too different');
             assert.strictEqual(config.logoSize, 48, '1024x500 both not > 1024 so 48px logo');
+        });
+    });
+
+    describe('Defensive: Profile without anchors', () => {
+        test('getAllPotentialConfigs handles profile with no anchors gracefully', () => {
+            const testProfile = {
+                id: 'test-no-anchors',
+                name: 'Test',
+                logoValue: 255.0,
+                getHeuristicConfig: (w, h, anchor) => ({
+                    logoSize: 48,
+                    marginRight: 20,
+                    marginBottom: 20,
+                    anchor: anchor || 'bottom-right',
+                    isOfficial: false
+                })
+            };
+            registry.registerProfile(testProfile);
+            const configs = getAllPotentialConfigs(500, 500, 'test-no-anchors');
+            assert.ok(configs.length >= 1, 'Should return at least 1 config even without anchors');
+            for (const c of configs) {
+                assert.ok(c.anchor, `Config must have anchor, got: ${JSON.stringify(c)}`);
+            }
+            registry.profiles.delete('test-no-anchors');
+        });
+
+        test('getAllPotentialConfigs handles profile with anchors', () => {
+            const configs = getAllPotentialConfigs(3000, 2000, 'doubao');
+            assert.ok(configs.length >= 2, 'Doubao heuristic should return configs for all anchors');
         });
     });
 });

@@ -1,8 +1,8 @@
 [中文文档](README_zh.md)
 
-# Gemini & Doubao Lossless Watermark Remover (v1.9.8)
+# Gemini & Doubao Lossless Watermark Remover (v1.9.9)
 
-A production-grade, high-performance, 100% client-side tool for removing AI watermarks. v1.9.8 introduces an **Exhaustive Architectural Audit Suite**, professional-grade Node-Python bridge stability, and enhanced cross-origin security.
+A production-grade, high-performance, 100% client-side tool for removing AI watermarks. v1.9.9 completes **Frontend Internationalization**, keyboard shortcut context-awareness, and experimental profile filtering.
 
 <p align="center">
   <img src="https://count.getloli.com/@gemini-watermark-remover?name=gemini-watermark-remover&theme=minecraft&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400">
@@ -23,8 +23,8 @@ A production-grade, high-performance, 100% client-side tool for removing AI wate
 - ✅ **Auto-Detection & Sliding-Window Alignment** - Proactive correlation engine automatically finds watermark and corrects positional jitter (+/- 4px).
 - ✅ **Gradient-Based Probing** - Hardened detection for transparent/dark watermarks (like Doubao).
 - ✅ **Modular Template System** - Dynamic registry for multi-platform support (Gemini, Doubao).
-- ✅ **Keyboard Shortcuts** - `←/→` sliders, `Esc` reset, `Ctrl+S` save.
-- ✅ ✅ **Exhaustive Audit Suite (v1.9.8)** - 100% catalog coverage validation via automated mathematical matrices.
+- ✅ **Keyboard Shortcuts** - `1/2/3` view switch, `←/→` sliders, `Esc` reset, `Ctrl+S` save (context-aware).
+- ✅ ✅ **Exhaustive Audit Suite (v1.9.9)** - 200 test coverage including i18n completeness and frontend interaction.
 - ✅ **Python / GUI Bridge** - Robust Python integration with high-performance Node.js backend.
 - ✅ **CORS Fetch-First** - Resilient image loading strategy to bypass cross-origin "Tainted Canvas" errors.
 
@@ -140,9 +140,13 @@ The engine uses a **Tiered Hybrid Detection Strategy (v1.5)**:
 | Standard resolution tier | Logo Size | Default Margins | Support |
 | :--- | :--- | :--- | :--- |
 | 0.5k (e.g. 512x512) | 48×48 | 32px | Included |
-| 1.0k (e.g. 1024x1024 / 1536x672) | 96×96 | 64px | Included |
+| 1.0k (e.g. 1024x1024 / 1376x768) | 96×96 | 64px | Included |
 | 2.0k (e.g. 2048x2048) | 96×96 | 64px | Included |
 | 4.0k (e.g. 4096x4096) | 96×96 | 64px | Included |
+| Doubao 2k (2730x1535) | 401×173 | 24px | Included |
+| Doubao 2k TL (2730x1535) | 307×167 | 38px | Included |
+| Doubao 2k (2730x1535) | 401×173 | 24px | Included |
+| Doubao 2k TL (2730x1535) | 307×167 | 38px | Included |
 
 ## Project Structure
 
@@ -163,7 +167,7 @@ The engine uses a **Tiered Hybrid Detection Strategy (v1.5)**:
 │   ├── i18n.js            # i18n Engine
 │   └── utils.js           # Shared utilities
 ├── python/                # Python integration with cross-platform GUI
-├── tests/                 # Standardized Test Suite (130+ cases)
+├── tests/                 # Standardized Test Suite (188+ cases)
 │   ├── security.test.js    # Security: XSS and Overflow protection
 │   ├── edge_cases.test.js  # Boundaries: 8K+, corrupted files, empty images
 │   ├── consistency.test.js # Core: Parameter protocol verification

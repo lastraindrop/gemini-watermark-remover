@@ -63,5 +63,17 @@
   "settings.noiseReduction": "Rauschunterdrückung",
   "loading.subtext": "KI-Präzisions-Kantenentfernung...",
   "view.stats": "Statistiken",
-  "hint.shortcuts": "Tastatur: [1] Slider [2] Side [3] Stats [Esc] Reset"
+  "hint.shortcuts": "Tastatur: [1] Slider [2] Side [3] Stats [Esc] Reset",
+  "settings.autoDetect": "AUTO-ERKENNUNG (Langsam)",
+  "stats.anchor": "Ankerpunkt",
+  "stats.coordinate": "Koordinate",
+  "stats.scale": "Skalierungsfaktor",
+  "stats.algorithm": "Algorithmus",
+  "badge.original": "ORIGINAL",
+  "badge.result": "ERGEBNIS",
+  "hero.badge": "Browserseitige Verarbeitung",
+  "batch.engine": "Parallele Verarbeitungs-Engine",
+  "status.dewatermarked": "WASSERZEICHEN ENTFERNT",
+  "status.noWatermark": "KEIN WASSERZEICHEN",
+  "audit.title": "Audit Core v2"
 }

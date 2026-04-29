@@ -63,5 +63,17 @@
   "settings.noiseReduction": "Reducción de ruido",
   "loading.subtext": "Eliminación de bordes de precision de IA...",
   "view.stats": "Estadísticas",
-  "hint.shortcuts": "Teclado: [1] Slider [2] Side [3] Stats [Esc] Reset"
+  "hint.shortcuts": "Teclado: [1] Slider [2] Side [3] Stats [Esc] Reset",
+  "settings.autoDetect": "DETECCIÓN AUTO (Lento)",
+  "stats.anchor": "Punto de anclaje",
+  "stats.coordinate": "Coordenada",
+  "stats.scale": "Factor de escala",
+  "stats.algorithm": "Algoritmo",
+  "badge.original": "ORIGINAL",
+  "badge.result": "RESULTADO",
+  "hero.badge": "Procesamiento en el navegador",
+  "batch.engine": "Motor de procesamiento concurrente",
+  "status.dewatermarked": "MARCA ELIMINADA",
+  "status.noWatermark": "SIN MARCA DE AGUA",
+  "audit.title": "Auditoría Core v2"
 }

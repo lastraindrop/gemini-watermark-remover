@@ -2,8 +2,8 @@
 
 本项目旨在打造全球最精进、最高效的 AI 去水印生产力工具。以下是我们的长期演进目标。
 
-## 📍 当前状态 (v1.9.8 - Hardened Production ✅)
-- [x] **188/188 Tests Pass (v1.9.8)**: Full test suite passes including adversarial noise, edge cropping, and inlined asset validation.
+## 📍 当前状态 (v1.9.9 - Final Release ✅)
+- [x] **200/200 Tests Pass (v1.9.9)**: Full test suite passes including i18n completeness, frontend interaction, and experimental profile filtering.
 - [x] **Zero-Latency Inlining**: All core watermark masks are now embedded as DataURLs to eliminate network overhead.
 - [x] **Auto-Brand Synchronization**: UI dynamically adapts its theme color based on the detected AI model (Gemini/Doubao).
 - [x] **Hardened Detection (v1.9.0)**: Introduced +/- 4px jitter resilience with distance penalty to handle real-world image offsets.

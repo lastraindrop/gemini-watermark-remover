@@ -63,5 +63,17 @@
   "settings.noiseReduction": "Noise Reduction",
   "loading.subtext": "AI Precision Edge Removal...",
   "view.stats": "Statistics",
-  "hint.shortcuts": "Keyboard: [1] Slider [2] Side [3] Stats [Esc] Reset"
+  "hint.shortcuts": "Keyboard: [1] Slider [2] Side [3] Stats [Esc] Reset",
+  "settings.autoDetect": "AUTO DETECT (Slow)",
+  "stats.anchor": "Anchor Point",
+  "stats.coordinate": "Coordinate",
+  "stats.scale": "Scale Factor",
+  "stats.algorithm": "Algorithm",
+  "badge.original": "ORIGINAL",
+  "badge.result": "RESULT",
+  "hero.badge": "Pure Browser-Side Processing",
+  "batch.engine": "Concurrent Processing Engine",
+  "status.dewatermarked": "DE-WATERMARKED",
+  "status.noWatermark": "NO WATERMARK",
+  "audit.title": "Audit Core v2"
 }

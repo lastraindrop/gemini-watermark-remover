@@ -7,17 +7,24 @@
  */
 
 import { existsSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { main } from './cli/gwrCli.js';
+
+const require = createRequire(import.meta.url);
+const pkg = require('./../package.json');
 
 // Adapt old format (-i/-o) to new format (remove <input> --output <output>)
 const args = process.argv.slice(2);
 
-// If user is just calling it without 'remove' sub-command, we adapt it
+if (args.includes('--version') || args.includes('-v')) {
+    console.log(`Gemini Watermark Remover v${pkg.version}`);
+    process.exit(0);
+}
+
 if (args.length > 0 && args[0] !== 'remove' && !args[0].startsWith('-')) {
     // This is probably an old-style direct input path or version check
-    // We'll try to handle version check or just tell them to use the new CLI
     if (args.includes('--version') || args.includes('-v')) {
-        console.log('Gemini Watermark Remover v1.9.1 (Legacy Entry)');
+        console.log(`Gemini Watermark Remover v${pkg.version} (Legacy Entry)`);
         process.exit(0);
     }
 }

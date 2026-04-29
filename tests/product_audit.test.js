@@ -9,8 +9,10 @@
 
 import { test, describe, before } from 'node:test';
 import assert from 'node:assert';
+import { existsSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { registry } from '../src/core/templates/registry.js';
-// Trigger registrations
 import { PROFILES } from '../src/core/profiles.js';
 import { CATALOGS } from '../src/core/catalog.js';
 import { calculateWatermarkPosition } from '../src/core/config.js';
@@ -245,7 +247,6 @@ describe('GWR Ultimate Product Audit', () => {
                 originalUrl: 'blob:1' 
             };
             
-            // Mock FileReader and Image loading
             global.FileReader = class {
                 readAsDataURL() { this.onload({ target: { result: 'data:img' } }); }
             };
@@ -262,6 +263,31 @@ describe('GWR Ultimate Product Audit', () => {
                     }
                 });
             });
+        });
+    });
+
+    describe('5. Asset Integrity Verification', () => {
+        test('Non-experimental profiles must have asset files for all anchors', () => {
+            const __dirname = dirname(fileURLToPath(import.meta.url));
+            const assetsDir = resolve(__dirname, '../src/assets');
+            
+            for (const profile of registry.getAllProfiles()) {
+                if (profile.experimental) continue;
+                
+                if (profile.assets) {
+                    for (const [anchor, assetKey] of Object.entries(profile.assets)) {
+                        const assetPath = resolve(assetsDir, `bg_${assetKey}.png`);
+                        assert.ok(existsSync(assetPath), 
+                            `Missing asset for ${profile.id}/${anchor}: expected ${assetPath}`);
+                    }
+                }
+                
+                if (profile.defaultAsset) {
+                    const assetPath = resolve(assetsDir, `bg_${profile.defaultAsset}.png`);
+                    assert.ok(existsSync(assetPath), 
+                        `Missing default asset for ${profile.id}: expected ${assetPath}`);
+                }
+            }
         });
     });
 });

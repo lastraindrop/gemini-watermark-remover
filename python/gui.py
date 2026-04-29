@@ -84,9 +84,9 @@ class ModernGUI:
                                font=self.THEME["font_header"], fg=self.THEME["text"], bg=self.THEME["bg"])
         title_label.pack(side="left")
         
-        status_dot = tk.Canvas(header, width=10, height=10, bg=self.THEME["bg"], highlightthickness=0)
-        self.status_circle = status_dot.create_oval(2, 2, 8, 8, fill=self.THEME["primary"])
-        status_dot.pack(side="left", padx=10)
+        self.status_dot = tk.Canvas(header, width=10, height=10, bg=self.THEME["bg"], highlightthickness=0)
+        self.status_circle = self.status_dot.create_oval(2, 2, 8, 8, fill=self.THEME["primary"])
+        self.status_dot.pack(side="left", padx=10)
         
         # Content
         content = tk.Frame(self.root, bg=self.THEME["bg"])
@@ -113,7 +113,7 @@ class ModernGUI:
         # Profile Selector
         tk.Label(options_bar, text="Profile:", bg=self.THEME["bg"], fg="#94a3b8", font=self.THEME["font_main"]).pack(side="left", padx=(40, 5))
         profile_menu = ttk.Combobox(options_bar, textvariable=self.profile_var, state="readonly", width=15)
-        profile_menu['values'] = ("auto", "gemini", "doubao", "dalle3")
+        profile_menu['values'] = ("auto", "gemini", "doubao")
         profile_menu.pack(side="left")
 
         # Action Bar
@@ -248,8 +248,8 @@ class ModernGUI:
         thread.start()
 
     def status_dot_color(self, color):
-        if hasattr(self, 'status_canvas') and self.status_circle:
-             self.status_canvas.itemconfig(self.status_circle, fill=color)
+        if hasattr(self, 'status_dot') and self.status_circle:
+             self.status_dot.itemconfig(self.status_circle, fill=color)
 
     def run_process(self, src, dest):
         try:

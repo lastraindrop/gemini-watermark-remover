@@ -16,12 +16,34 @@ import { PROFILES } from '../core/profiles.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-const ASSETS = {
-    '48': resolve(__dirname, '../assets/bg_48.png'),
-    '96': resolve(__dirname, '../assets/bg_96.png'),
-    'doubao_br': resolve(__dirname, '../assets/bg_doubao_br.png'),
-    'doubao_tl': resolve(__dirname, '../assets/bg_doubao_tl.png')
-};
+function buildAssetMap() {
+    const assetsDir = resolve(__dirname, '../assets');
+    const map = {
+        '48': resolve(assetsDir, 'bg_48.png'),
+        '96': resolve(assetsDir, 'bg_96.png'),
+    };
+    if (!existsSync(assetsDir)) return map;
+    for (const profile of Object.values(PROFILES)) {
+        if (profile.experimental) continue;
+        if (profile.assets) {
+            for (const [anchor, key] of Object.entries(profile.assets)) {
+                const candidate = resolve(assetsDir, `bg_${key}.png`);
+                if (existsSync(candidate)) {
+                    map[key] = candidate;
+                }
+            }
+        }
+        if (profile.defaultAsset && !map[profile.defaultAsset]) {
+            const candidate = resolve(assetsDir, `bg_${profile.defaultAsset}.png`);
+            if (existsSync(candidate)) {
+                map[profile.defaultAsset] = candidate;
+            }
+        }
+    }
+    return map;
+}
+
+const ASSETS = buildAssetMap();
 
 class Engine {
     constructor() {
