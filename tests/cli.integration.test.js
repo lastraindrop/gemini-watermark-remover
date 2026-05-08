@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 
 const TMP_DIR = join(process.cwd(), 'tmp_test_cli');
+const PACKAGE_VERSION = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')).version;
 
 describe('CLI Integration Tests', () => {
 
@@ -148,7 +149,6 @@ describe('CLI Integration Tests', () => {
         
         assert.strictEqual(result.status, 0);
         const output = result.stdout.toString().trim();
-        assert.ok(output.includes('1.9.8'), `Version should contain 1.9.8, got: ${output}`);
+        assert.ok(output.includes(PACKAGE_VERSION), `Version should contain ${PACKAGE_VERSION}, got: ${output}`);
     });
 });
-

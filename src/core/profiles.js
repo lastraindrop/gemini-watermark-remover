@@ -74,7 +74,7 @@ export const PROFILES = {
         tiers: {
             '1k_bl': { logoWidth: 120, logoHeight: 40, marginLeft: 20, marginBottom: 20, anchor: 'bottom-left' }
         },
-        getHeuristicConfig: (width, height) => {
+        getHeuristicConfig: (width, _height) => {
             const scale = width / 1024;
             return {
                 logoWidth: Math.round(120 * scale),

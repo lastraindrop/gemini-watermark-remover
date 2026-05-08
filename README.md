@@ -24,7 +24,7 @@ A production-grade, high-performance, 100% client-side tool for removing AI wate
 - ✅ **Gradient-Based Probing** - Hardened detection for transparent/dark watermarks (like Doubao).
 - ✅ **Modular Template System** - Dynamic registry for multi-platform support (Gemini, Doubao).
 - ✅ **Keyboard Shortcuts** - `1/2/3` view switch, `←/→` sliders, `Esc` reset, `Ctrl+S` save (context-aware).
-- ✅ ✅ **Exhaustive Audit Suite (v1.9.9)** - 200 test coverage including i18n completeness and frontend interaction.
+- ✅ ✅ **Exhaustive Audit Suite (v1.9.9)** - 203/203 local test coverage including i18n completeness and frontend interaction.
 - ✅ **Python / GUI Bridge** - Robust Python integration with high-performance Node.js backend.
 - ✅ **CORS Fetch-First** - Resilient image loading strategy to bypass cross-origin "Tainted Canvas" errors.
 
@@ -167,7 +167,7 @@ The engine uses a **Tiered Hybrid Detection Strategy (v1.5)**:
 │   ├── i18n.js            # i18n Engine
 │   └── utils.js           # Shared utilities
 ├── python/                # Python integration with cross-platform GUI
-├── tests/                 # Standardized Test Suite (188+ cases)
+├── tests/                 # Standardized Test Suite (203+ cases)
 │   ├── security.test.js    # Security: XSS and Overflow protection
 │   ├── edge_cases.test.js  # Boundaries: 8K+, corrupted files, empty images
 │   ├── consistency.test.js # Core: Parameter protocol verification

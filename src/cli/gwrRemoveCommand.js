@@ -1,8 +1,7 @@
-import { resolve, join, basename, extname, dirname } from 'node:path';
+import { resolve, join, basename, extname } from 'node:path';
 import { readdirSync, statSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
-import os from 'node:os';
 import sharp from 'sharp';
 
 // Limit sharp internal concurrency
@@ -10,8 +9,8 @@ sharp.concurrency(1);
 
 import { calculateAlphaMap } from '../core/alphaMap.js';
 import { removeWatermark } from '../core/blendModes.js';
-import { detectWatermarkConfig, calculateWatermarkPosition, getAllPotentialConfigs } from '../core/config.js';
-import { detectWatermark, calculateProbeConfidence } from '../core/detector.js';
+import { calculateWatermarkPosition, getAllPotentialConfigs } from '../core/config.js';
+import { calculateProbeConfidence } from '../core/detector.js';
 import { PROFILES } from '../core/profiles.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -26,7 +25,7 @@ function buildAssetMap() {
     for (const profile of Object.values(PROFILES)) {
         if (profile.experimental) continue;
         if (profile.assets) {
-            for (const [anchor, key] of Object.entries(profile.assets)) {
+            for (const [, key] of Object.entries(profile.assets)) {
                 const candidate = resolve(assetsDir, `bg_${key}.png`);
                 if (existsSync(candidate)) {
                     map[key] = candidate;
@@ -80,7 +79,6 @@ class Engine {
 
     async processBuffer(buffer, options) {
         const image = sharp(buffer);
-        const metadata = await image.metadata();
         const { data, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
         const imageData = { 
             width: info.width, 
@@ -99,7 +97,7 @@ class Engine {
             const p = PROFILES[id] || PROFILES.gemini;
             const potentialConfigs = getAllPotentialConfigs(info.width, info.height, id);
             let localWinner = null;
-            let localRemoved = 0;
+            const localMatches = [];
 
             for (const config of potentialConfigs) {
                 const assetKey = p.assets ? p.assets[config.anchor] : (p.defaultAsset || '96');
@@ -113,28 +111,29 @@ class Engine {
                 const confidence = probeResult.confidence;
                 
                 if (confidence > THRESHOLD) {
-                    localRemoved++;
+                    const match = { config, pos: { ...pos, x: probeResult.x, y: probeResult.y }, alphaMap: alphaMap.data, confidence, profileId: id };
+                    localMatches.push(match);
                     if (!localWinner || confidence > localWinner.confidence) {
-                        localWinner = { config, pos: { ...pos, x: probeResult.x, y: probeResult.y }, alphaMap: alphaMap.data, confidence, profileId: id };
+                        localWinner = match;
                     }
                 }
             }
-            return { winner: localWinner, removed: localRemoved };
+            return { winner: localWinner, removed: localMatches.length, matches: localMatches };
         };
 
         let overallWinner = null;
-        let totalRemoved = 0;
+        let overallMatches = [];
 
         for (const pid of profilesToTry) {
-            const { winner: pWinner, removed: pRemoved } = await tryProfile(pid);
-            totalRemoved += pRemoved;
+            const { winner: pWinner, matches: pMatches } = await tryProfile(pid);
             if (pWinner && (!overallWinner || pWinner.confidence > overallWinner.confidence)) {
                 overallWinner = pWinner;
+                overallMatches = pMatches;
             }
         }
 
         winner = overallWinner;
-        removedCounter = totalRemoved;
+        removedCounter = overallMatches.length;
 
         if (!winner) {
             // No watermark detected with high enough confidence
@@ -146,8 +145,9 @@ class Engine {
             };
         }
 
-        // v1.9.5: Apply the removal! (Fixing the 'disaster' where it detected but didn't remove)
-        removeWatermark(imageData, winner.alphaMap, winner.pos);
+        for (const match of overallMatches) {
+            removeWatermark(imageData, match.alphaMap, match.pos);
+        }
 
         const format = options.format || 'png';
         const outImg = sharp(imageData.data, {
@@ -251,7 +251,8 @@ export async function runRemoveCommand(args, io) {
             writeFileSync(outputPath, result.buffer);
 
             if (opts.json) {
-                const { buffer: _, ...logInfo } = result;
+                const logInfo = { ...result };
+                delete logInfo.buffer;
                 io.stdout.write(JSON.stringify({
                     status: 'success',
                     output: resolve(outputPath),

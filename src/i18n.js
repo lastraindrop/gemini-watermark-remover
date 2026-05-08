@@ -49,18 +49,20 @@ const i18n = {
     localStorage.setItem('locale', locale);
   },
 
-  t(key) {
+  t(key, params = {}) {
     let text = this.translations[key] || translations['en-US'][key] || key;
     if (typeof text === 'string') {
-      text = text.replace('{{year}}', new Date().getFullYear());
+      const replacements = { year: new Date().getFullYear(), ...params };
+      Object.entries(replacements).forEach(([name, value]) => {
+        text = text.replaceAll(`{{${name}}}`, value);
+      });
     }
     return text;
   },
 
   applyTranslations() {
     document.documentElement.lang = this.locale;
-    const title = this.t('main.title') || this.t('title');
-    document.title = title + ' - Gemini Watermark Remover';
+    document.title = this.t('title');
 
     document.querySelectorAll('[data-i18n]').forEach(el => {
       const key = el.getAttribute('data-i18n');

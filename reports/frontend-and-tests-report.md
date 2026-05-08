@@ -19,10 +19,10 @@ Reviewed areas:
 
 Current verification status after fixes:
 
-- `tests/frontend_contract.test.js`: 5/5 passing
+- `tests/frontend_contract.test.js`: 6/6 passing
 - `tests/build_pipeline.test.js`: passing
 - `tests/i18n.test.js`: passing
-- full suite: 142/142 passing
+- full suite: 203/203 passing
 
 ---
 
@@ -47,7 +47,8 @@ The current UI clearly reflects the latest system structure:
 - profile selector for `gemini` / `doubao`
 - deep-scan and noise-reduction toggles
 - auto-download toggle
-- directory batch processing panel
+- separate image and directory upload entry points
+- directory batch processing flow
 - single-image preview and batch-processing preview
 - comparison slider and side-by-side comparison views
 - audit console / diagnostic status strip
@@ -97,7 +98,6 @@ The current UI is good visually, but several labels were mixed-language or hardc
 
 Remaining UX ideas that would help:
 
-- add explicit keyboard hints near the comparison modes
 - add `aria-label` text for the comparison controls
 - reduce developer diagnostics in production view
 - surface profile-specific tips when `doubao` is selected
@@ -122,10 +122,11 @@ That means the frontend is not tied to a fixed list of image sizes or a single d
 
 There were still a few hardcoded UI or contract issues:
 
-- the file input element was missing entirely from the HTML shell
-- some visible text was still raw keys, such as `settings.model` and `settings.autoDownload`
-- comparison mode buttons were hardcoded English labels
-- the build test was asserting a stale PNG-inlining contract that no longer matched the current architecture
+- the page title and header still presented the tool as Gemini-only / GWR PRO
+- the single-image picker and folder picker were coupled through one `webkitdirectory` input
+- batch status, toasts, export labels, and detection labels had hardcoded English strings
+- the stats view showed a fixed scale value while the engine had the actual detected position and confidence
+- the audit console used an inline `onclick` handler
 
 These are now corrected or retargeted to the current structure.
 
@@ -142,54 +143,51 @@ The frontend is flexible enough to support the current architecture, but the lon
 
 ## 5. Important Bugs Found and Fixed
 
-### 5.1 Missing File Input
+### 5.1 Coupled File and Folder Picker
 
-**Bug:** `src/app.js` wires `fileInput.addEventListener('change', ...)`, but `public/index.html` did not contain an element with `id="fileInput"`.
+**Bug:** The primary `fileInput` had `webkitdirectory directory`, so clicking the main upload area could open a directory picker instead of a normal image picker in Chromium-family browsers.
 
-**Effect:** The frontend failed during initialization with a null reference error, and the app could not reach normal interactive state.
+**Effect:** The default upload path was ambiguous and awkward for the common single-image workflow.
 
-**Fix:** Added a hidden file input to the HTML shell:
+**Fix:** Split the shell into two explicit inputs:
 
-- accepts `image/jpeg,image/png,image/webp`
-- supports multiple selection
-- remains hidden because upload is initiated via the upload area
+- `fileInput`: image files only
+- `folderInput`: directory selection with `webkitdirectory`
+- `chooseFileBtn` and `chooseFolderBtn`: explicit user actions
 
-This was the most important frontend bug because it broke app startup.
+The frontend contract test now locks this separation.
 
-### 5.2 Missing Locale Keys
+### 5.2 Unsafe Batch Card Rendering
 
-**Bug:** Visible labels such as `settings.model` and `settings.autoDownload` were not defined in all translation files, causing raw key text to appear in the UI.
+**Bug:** Batch cards rendered `item.name` through an `innerHTML` template.
 
-**Effect:** The interface looked partially unfinished and inconsistent in some locales.
+**Effect:** A crafted local filename could become DOM markup.
 
-**Fix:** Added the missing keys to all locale files, including:
+**Fix:** Rebuilt batch card creation with DOM APIs and `textContent`, and added a contract test preventing `${item.name}` interpolation inside `innerHTML`.
 
-- `en-US`
-- `zh-CN`
-- `fr-FR`
-- `ja-JP`
-- `ru-RU`
+### 5.3 Batch Error Progress
 
-### 5.3 Stale Build Test Contract
+**Bug:** `processQueue()` advanced progress only through `onSuccess`. `processSingle()` swallowed errors and called `onError`, so failed items did not increment the processed count.
 
-**Bug:** `tests/build_pipeline.test.js` expected `dist/app.js` to contain `data:image/png;base64,`, but the current frontend architecture does not inline PNG assets into the app bundle.
+**Effect:** A batch containing failures could leave the progress bar stuck and hide which item failed.
 
-**Effect:** The test was reporting a failure even though the build pipeline itself was healthy.
+**Fix:** Queue accounting now increments on success and error, the UI renders failed cards, and `Download All` only downloads successful outputs.
 
-**Fix:** Updated the test to validate what the current build actually guarantees:
+### 5.4 Missing Detection Coordinate
 
-- `dist/app.js` exists
-- `dist/worker.js` exists
-- `dist/index.html` references `app.js`
-- static assets are copied to `dist`
+**Bug:** The stats view read `config.pos`, but the engine returned `config` and dropped the detected `pos`.
 
-### 5.4 Error Banner Safety
+**Effect:** The coordinate field usually displayed `AUTO` even after a successful detection.
 
-**Bug:** The global error banner code appended directly to `document.body`.
+**Fix:** `removeWatermarkFromImage()` now returns `pos`; `processSingle()` forwards it; the stats view shows the rounded coordinate and confidence.
 
-**Effect:** An early failure before the body exists could have caused the error reporting itself to fail.
+### 5.5 Locale and Contract Drift
 
-**Fix:** The banner now falls back to `document.documentElement` when needed.
+**Bug:** Several visible labels and toast templates were hardcoded or missing from locale files.
+
+**Effect:** The UI could drift from the current architecture and expose stale English text.
+
+**Fix:** Added brand, upload, toast, batch, detection, and confidence keys across all locale files, and extended `i18n.t()` with general `{{param}}` interpolation.
 
 ---
 
@@ -202,7 +200,6 @@ These are the most practical improvements for the next iteration.
 - Collapse the audit console by default for normal users, or hide it behind an explicit debug toggle.
 - Add a compact “Advanced” disclosure around deep scan, noise reduction, and auto-download.
 - Add small inline guidance when `doubao` is selected, especially for the top-left and bottom-right variants.
-- Add keyboard shortcuts help near the slider and reset controls.
 - Add a clearer batch summary after processing finishes, including count, profile, and average latency.
 - Add a “copy processed image” fallback note for browsers that do not support `ClipboardItem`.
 
@@ -274,7 +271,7 @@ After the frontend fixes and test updates:
 - the app initializes without the previous null-reference crash
 - locale labels now render as text instead of raw keys
 - the build pipeline test now matches current bundle behavior
-- the full suite passes: `142/142`
+- the full suite passes: `203/203`
 
 That means the frontend is now structurally aligned with the current architecture, and the test suite is aligned with the actual application contract.
 
@@ -282,10 +279,13 @@ That means the frontend is now structurally aligned with the current architectur
 
 ## 9. Bottom Line
 
-The frontend is already strong in visual polish and workflow clarity, but it had two important contract-level problems:
+The frontend is already strong in visual polish and workflow clarity, but it had several important contract-level problems:
 
-- a missing file input element that broke startup
-- incomplete i18n coverage that exposed raw keys in the UI
+- single-image upload and directory upload were bound to the same input
+- batch card rendering interpolated filenames into HTML
+- failed batch items did not advance progress
+- detection coordinates were not returned to the stats view
+- incomplete i18n coverage exposed raw or stale labels in the UI
 
 Both are now fixed. The test suite has also been tightened so it now validates the real frontend contract instead of stale assumptions.
 

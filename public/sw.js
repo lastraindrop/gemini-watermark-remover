@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gwr-v1.9.8-cache';
+const CACHE_NAME = 'gwr-v1.9.9-cache';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

@@ -8,6 +8,7 @@ const enPath = resolve(process.cwd(), 'src/i18n/en-US.json');
 const zhPath = resolve(process.cwd(), 'src/i18n/zh-CN.json');
 
 const html = readFileSync(htmlPath, 'utf8');
+const appSource = readFileSync(resolve(process.cwd(), 'src/app.js'), 'utf8');
 const enUS = JSON.parse(readFileSync(enPath, 'utf8'));
 const zhCN = JSON.parse(readFileSync(zhPath, 'utf8'));
 
@@ -26,12 +27,17 @@ describe('Frontend Contract Verification', () => {
     test('critical DOM hooks are present in the HTML shell', () => {
         const requiredIds = [
             'fileInput',
+            'folderInput',
+            'chooseFileBtn',
+            'chooseFolderBtn',
             'uploadArea',
             'profileSelect',
             'deepScanToggle',
+            'noiseReductionToggle',
             'autoDownloadToggle',
             'singlePreview',
             'multiPreview',
+            'statConfidence',
             'comparisonSlider',
             'sideBySideView',
             'sideOriginal',
@@ -42,6 +48,7 @@ describe('Frontend Contract Verification', () => {
             'clearAllBtn',
             'downloadAllBtn',
             'auditConsole',
+            'auditConsoleToggle',
             'auditLogList',
             'loadingOverlay'
         ];
@@ -51,8 +58,21 @@ describe('Frontend Contract Verification', () => {
         });
     });
 
-    test('file picker is configured for image types', () => {
-        assert.ok(html.includes('accept="image/*"'), 'File input should accept images');
+    test('file and folder pickers are separated', () => {
+        const fileInput = html.match(/<input[^>]+id="fileInput"[^>]+>/)?.[0] || '';
+        const folderInput = html.match(/<input[^>]+id="folderInput"[^>]+>/)?.[0] || '';
+
+        assert.ok(fileInput.includes('accept="image/jpeg,image/png,image/webp"'), 'File input should accept supported image MIME types');
+        assert.ok(!fileInput.includes('webkitdirectory'), 'File input should not open the folder picker');
+        assert.ok(folderInput.includes('webkitdirectory'), 'Folder input should support directory selection');
+    });
+
+    test('HTML shell does not rely on inline click handlers', () => {
+        assert.ok(!html.includes('onclick='), 'Inline click handlers bypass the app event wiring');
+    });
+
+    test('batch card rendering does not interpolate filenames into HTML', () => {
+        assert.ok(!/innerHTML\s*=\s*`[\s\S]*\$\{item\.name\}/.test(appSource), 'Filenames should be rendered with textContent');
     });
 
     test('all data-i18n keys exist in locale files', () => {

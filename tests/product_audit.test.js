@@ -155,6 +155,9 @@ describe('GWR Ultimate Product Audit', () => {
                         });
 
                         assert.ok(result.removedCount >= 1, `Detection Fault: [${profile.id}] at ${w}x${h} (DeepScan:${deepScan})`);
+                        assert.ok(result.pos, `Detection position missing: [${profile.id}] at ${w}x${h}`);
+                        assert.ok(Math.abs(result.pos.x - pos.x) <= 1, `Position X drift: [${profile.id}] expected ${pos.x}, got ${result.pos.x}`);
+                        assert.ok(Math.abs(result.pos.y - pos.y) <= 1, `Position Y drift: [${profile.id}] expected ${pos.y}, got ${result.pos.y}`);
                         // v1.9.8: 0.40 is a safe lower bound for mock noise in small 0.5k resolutions
                         assert.ok(result.confidence > 0.40, `Precision Loss: [${profile.id}] at ${w}x${h} confidence=${result.confidence}`);
                         
@@ -199,6 +202,33 @@ describe('GWR Ultimate Product Audit', () => {
             
             assert.strictEqual(profileId, 'gemini', 'Auto-detect failed to identify Gemini');
             assert.ok(confidence > 0.5, 'Low confidence in auto-detection');
+        });
+
+        test('Doubao multi-anchor engine call removes every detected anchor', async () => {
+            const w = 2730, h = 1535;
+            const rawData = createMockImageData(w, h, 'grid', 96);
+            const originalData = new Uint8ClampedArray(rawData.data);
+            const configs = CATALOGS.doubao.filter(entry => entry.width === w && entry.height === h);
+            assert.ok(configs.length >= 2, 'Test requires TL and BR catalog entries');
+
+            for (const config of configs) {
+                const pos = calculateWatermarkPosition(w, h, config);
+                const alpha = createMockAlphaMap(pos.width, pos.height);
+                applyWatermark(rawData, pos.x, pos.y, pos.width, pos.height, alpha, PROFILES.doubao.logoValue);
+            }
+
+            const img = createMockImageElement(w, h, rawData.data);
+            const result = await engine.removeWatermarkFromImage(img, { profileId: 'doubao', deepScan: true });
+            assert.strictEqual(result.removedCount, configs.length, 'Engine should remove all detected Doubao anchors');
+
+            const restored = result.canvas.getContext('2d').getImageData(0, 0, w, h).data;
+            for (const config of configs) {
+                const pos = calculateWatermarkPosition(w, h, config);
+                const x = Math.floor(pos.x + pos.width / 2);
+                const y = Math.floor(pos.y + pos.height / 2);
+                const idx = (y * w + x) << 2;
+                assert.ok(Math.abs(restored[idx] - originalData[idx]) <= 50, `Anchor ${config.anchor} was not restored`);
+            }
         });
     });
 

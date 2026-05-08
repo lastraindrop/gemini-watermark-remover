@@ -6,7 +6,7 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const pkg = require('./package.json');
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = process.env.NODE_ENV === 'production' || process.argv.includes('--production');
 
 let _commitHash = null;
 const getCommitHash = () => {

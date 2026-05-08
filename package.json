@@ -26,10 +26,10 @@
   },
   "scripts": {
     "dev": "node build.js",
-    "build": "npx -y cross-env NODE_ENV=production node build.js",
+    "build": "node build.js --production",
     "serve": "npx serve dist",
-    "test": "npx -y cross-env NODE_ENV=test node --test --test-concurrency=4 \"tests/*.test.js\"",
-    "test:stress": "npx -y cross-env NODE_ENV=test STRESS_TEST=true node --test \"tests/memory_pressure.test.js\"",
+    "test": "node --test --test-concurrency=4 \"tests/*.test.js\"",
+    "test:stress": "node --import ./scripts/stress-env.mjs --test \"tests/memory_pressure.test.js\"",
     "cli": "node src/cli.js",
     "gui": "python python/gui.py",
     "lint": "eslint src",

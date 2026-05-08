@@ -14,7 +14,7 @@ export async function loadImage(input) {
                 const blob = await response.blob();
                 return _createImageFromBlob(blob);
             }
-        } catch (e) {
+        } catch {
             // Fallback to traditional <img> loading
         }
         

@@ -1,132 +1,114 @@
 # Gemini Watermark Remover - 使用指南
 
-本工具是针对 Gemini AI 和豆包 (Doubao) 生成图像的专用去水印工具。通过 **反向 Alpha 混合 (Reverse Alpha Blending)** 算法，实现 100% 无损的原始像素还原。
+本工具面向 Gemini 和 Doubao 生成图像的可见水印分析与移除。当前实现不是靠固定分辨率硬编码，而是通过 profile、catalog、heuristic 三层动态对齐来决定检测与恢复流程。
 
-## 🌟 核心特性
-1. **100% 无损还原**：非 AI 补全，而是通过数学逆运算还原被遮挡的原始像素。
-2. **极速性能**：网页版使用 Web Worker 异步处理，CLI 版基于 Sharp 引擎。
-3. **隐私安全**：100% 浏览器本地或本地命令行处理，图片绝不上传服务器。
-4. **全平台支持**：提供网页版、油猴脚本、以及自动化 CLI 服务。
+## 核心能力
 
----
+1. 数学逆运算恢复像素，不是 AI 补全。
+2. Web、CLI、Python bridge 都在本地执行。
+3. 前端支持单图、目录、拖拽、粘贴、批处理。
+4. 新模板可以通过 profile/catalog/asset/test 的标准流程快速接入。
 
-## 💻 命令行工具 (CLI) - 进阶用法
+## 网页版
 
-对于需要批量处理本地图片的开发者，可以使用 CLI 工具：
+适合单图和小批量处理。
 
-### 使用前提
-- 安装了 [Node.js](https://nodejs.org/)。
-- 在项目目录运行 `pnpm install` 安装依赖（主要为 `sharp`）。
+操作顺序：
 
-### 命令格式
+1. 选择图片文件，或使用“选择目录”处理整个文件夹。
+2. 选择 `Gemini`、`Doubao` 或 `AUTO` profile。
+3. 根据图像质量决定是否开启 `Deep Scan`、`Noise Reduction`、`Auto Download`。
+4. 处理完成后查看 `SLIDER`、`SIDE-BY-SIDE`、`STATS` 三种视图。
+5. 单图可直接下载；批量模式下可逐张下载或全部下载成功结果。
+
+网页端的关键一致性约束：
+
+- `fileInput` 只负责文件选择。
+- `folderInput` 只负责目录选择。
+- 批量卡片文件名使用 `textContent` 渲染。
+- 统计视图展示引擎返回的真实 `pos` 和 `confidence`。
+- 活动日志、导出、批量状态都由 i18n 统一驱动。
+
+快捷键：
+
+- `1` 切换滑动对比
+- `2` 切换左右对比
+- `3` 切换统计视图
+- `Esc` 重置工作区
+- `Ctrl + S` 下载当前成功结果
+
+## 命令行工具
+
+适合批量处理和自动化场景。
+
+前提：
+
+- 安装 [Node.js](https://nodejs.org/)
+- 在项目根目录运行 `npm install`
+
+示例：
+
 ```bash
-# 处理单个文件或整个目录
-node src/cli.js -i <输入路径> -o <输出目录>
-```
+# 单文件或目录
+node src/cli.js -i ./input -o ./output
 
-### 示例
-```bash
-# 批量处理 images 文件夹下的所有图片
-node src/cli.js -i ./images -o ./processed_images
-```
-
----
-
-## 🛠 使用方式
-### 1. 网页版 (Web Experience)
-最直观的使用方式，适合单张或小批量处理。
-- **访问**：打开 `dist/index.html` (或部署后的地址)。
-- **操作**：
-  1. 将 Gemini 生成的图片拖入上传区。
-  2. 程序会自动识别（优先使用 **v1.5 分级混合探测：官方目录 + 降噪 NCC + 边缘恢复**）。
-  3. **高级引擎设置**: 
-      - **Deep Scan (v1.4)**: 默认开启，通过 Sobel 梯度特征增强复杂背景下的匹配精度。
-      - **Noise Reduction (v1.5)**: 针对 JPEG 高压缩产生的噪声，在探测前进行快速 Box Blur 预处理。
-      - **高性能并发 (v1.5.5)**: 网页版现在采用**滑动窗口 (Sliding Window)** 队列，支持极高并发处理而不崩溃内存。
-      - **多模型 Profile 支持**: 支持 Gemini（绿）和豆包/Doubao（蓝）双品牌，UI 自动同步品牌色。
-  4. **探测勋章 (Tier Badge) v1.5.5**: 
-     - 当引擎精准匹配到官方分辨率（如 1k Tier）时，界面展示 **Official Tier Badge**。
-     - **勋章回显**：代表该图片已通过分级混合探测系统的最高置换验证 (100% 还原)。
-  5. **对比滑块/并排模式**: 支持 SLIDER 滑块实时比对或 SIDE-BY-SIDE 并排查看。
-  6. **目录自动处理 (v1.5)**: 点击“目录模式”，实现批量静默处理。
-  6. **PWA 桌面安装 (v1.6.0)**: 
-     - 支持在 Chrome/Edge 浏览器地址栏点击“安装”图标，将本工具作为桌面独立 App 使用。
-     - **离线支持**：即使在无网络环境下，依然可以进行去水印解算。
-  7. **全局快捷键与交互 (v1.9.8)**: 
-     - `1` / `2` / `3` : 快速切换对比视图（滑动对比 / 左右并排 / 数据统计）。
-     - `←` / `→` : 切换预览模式时，微调对比滑块位置。
-     - `Esc` : 一键清空工作区并重置状态。
-     - `Ctrl + S`: 单图处理后，快速触发保存当前无水印图片。
-     - **自动品牌感知**: 程序会自动识别水印来源（如豆包或 Gemini）并自动同步 UI 颜色。
-  8. **安全性与加固 (v1.6.0)**: 
-     - **Safe DOM**: 全面加固 UI 更新逻辑，杜绝 XSS 风险。
-     - **流式目录扫描**：支持处理上万张图片的超大目录而不会导致浏览器卡死。
-
-### 2. 命令行工具 (CLI) - 进阶用法
-适合需要大规模批量处理图片的开发者。
-
-#### 使用前提
-- 安装了 [Node.js](https://nodejs.org/) v18+。
-- 在项目目录运行 `npm install`。
-
-#### 命令示例
-```bash
-# 1. 常规批量处理 (处理图像或目录)
-node src/cli.js -i ./images -o ./processed
-
-# 2. 高级引擎标志位
-# --no-deepScan: 禁用深层扫描以提速
-# --noiseReduction: 启用针对 JPEG 的燥点抑制
+# 开启降噪并关闭深层扫描
 node src/cli.js -i input.png -o output.png --noiseReduction --no-deepScan
 
-# 3. 机器友好模式 (输出包含详细探测信息的 JSON)
+# JSON 输出
 node src/cli.js -i input.png -o output.png --json
 ```
 
----
+CLI 现在的行为与 Web 引擎保持一致：
 
-## 🐍 Python 集成实现 (Integration)
+- `profileId`、`deepScan`、`noiseReduction` 都来自统一的引擎选项。
+- 胜出 profile 的全部命中都会被去除。
+- 目录处理和单文件处理共用同一套候选生成逻辑。
 
-如果您需要在 Python 程序中调用本工具，可以使用我们封装的“桥接类”：
+## Python 集成
 
-### Python 调用示例
+如果你需要从 Python 调用本工具，可以使用桥接类。
+
 ```python
 from python.remover import GeminiWatermarkRemover
 
-# 初始化桥接
 remover = GeminiWatermarkRemover("./")
-
-# 1. 批量处理 (支持 1.5 高级引擎标志位)
 results = remover.remove_watermark(
-    "./input_dir", 
-    "./output_dir", 
-    deep_scan=True,         # 默认开启
-    noise_reduction=False   # JPEG 燥点抑制
+    "./input_dir",
+    "./output_dir",
+    deep_scan=True,
+    noise_reduction=False,
 )
-
-for res in results:
-    print(f"File: {res['file']}, Method: {res['detection']}")
-
-# 2. 字节流管道处理
-with open("input.png", "rb") as f:
-    clean_bytes = remover.remove_watermark_pipe(f.read())
 ```
 
----
+## 技术原理
 
-## 🔬 技术原理简述
-Gemini 的水印是在生成图层上覆盖了一个固定透明度的 Logo。本工具通过：
-1. **校准**：获取水印在 48x48 和 96x96 两种规格下的精确 Alpha 映射。
-2. **分级探测 (v1.5 Tiered Detector)**：
-   - **Level 1 (Catalog)**：O(1) 官方分辨率索引（支持 21:9）。
-   - **Level 2 (Adaptive NR)**：当开启 `noiseReduction` 时，通过 `fastBoxBlur` 提高信噪比后再进行特征匹配。
-   - **Level 3 (Edge Recovery)**：允许探测窗口溢出边界（Pixel Overflow），支持识别已部分切边的水印。
-   - **Level 4 (Sobel Scan)**：比对图像边缘强度，对抗森林、星空等高频纹理背景。
-3. **解算**：使用公式 `Original = (Watermarked - Alpha * Logo) / (1 - Alpha)` 完美还原像素。
+当前实现分四层：
 
----
+1. `src/core/templates/registry.js` 保存 profile、catalog、assets、heuristic。
+2. `getAllPotentialConfigs()` 根据图片尺寸与 profile 生成候选。
+3. `calculateProbeConfidence()` 在候选位置附近计算置信度并返回 `pos`。
+4. `removeWatermark()` 对 alpha map 做反向混合恢复。
 
-## ⚠️ 注意事项
-- 本工具仅适用于 Gemini AI 原生生成的包含“Made with Google AI”水印的图片。
-- 像素探测算法对大部分背景有效，但在纯白背景上水印极不明显时可能回退到尺寸检测。
-- 仅供学习与技术交流使用。
+### 参数一致化与动态对齐
+
+这里最重要的是避免“UI 看起来像对齐了，但代码其实没对齐”的问题。
+
+- 新模板不能只改前端文案。
+- 必须同时补 profile、catalog、资产和回归测试。
+- 前端、CLI、Python bridge 都从同一份 profile/catalog 派生候选。
+- 统计视图显示的是引擎输出，不是界面自己猜的值。
+
+### 如何确认新模板可用
+
+1. 加入 profile 和 catalog。
+2. 提供对应的资产文件。
+3. 增加前端/i18n 文案。
+4. 增加 `tests/product_audit.test.js` 或专项测试。
+5. 跑 `npm test`、`npm run lint`、`npm run build`。
+
+## 注意事项
+
+- 本工具仅适用于当前 profile/catalog 覆盖的可见水印样本。
+- 任何新模板都应先完成测试，再更新说明文档。
+- 旧版版本号、旧测试数、旧标题如果不再代表当前基线，应当保留为历史记录而不是当前状态。

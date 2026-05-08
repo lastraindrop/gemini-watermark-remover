@@ -60,7 +60,7 @@ export class WatermarkEngine {
                     if (this._worker) {
                         try {
                             this._worker.terminate();
-                        } catch (err) {}
+                        } catch {}
                         this._worker = null;
                     }
                 };
@@ -177,6 +177,7 @@ export class WatermarkEngine {
             let localRemoved = 0;
             let localBestConf = 0;
             let localBestResult = null;
+            const localResults = [];
 
             for (const config of potentialConfigs) {
                 const pos = calculateWatermarkPosition(canvas.width, canvas.height, config);
@@ -185,14 +186,21 @@ export class WatermarkEngine {
                 
                 const verification = calculateProbeConfidence(imageData, pos, alphaMap.data, id, detectionOptions);
                 if (verification.confidence > threshold) {
+                    const result = {
+                        config,
+                        pos: { ...pos, x: verification.x, y: verification.y },
+                        alphaMap: alphaMap.data,
+                        confidence: verification.confidence
+                    };
+                    localResults.push(result);
                     if (verification.confidence > localBestConf) {
                         localBestConf = verification.confidence;
-                        localBestResult = { config, pos: { ...pos, x: verification.x, y: verification.y }, alphaMap: alphaMap.data };
+                        localBestResult = result;
                     }
                     localRemoved++;
                 }
             }
-            return { removed: localRemoved, confidence: localBestConf, result: localBestResult, profileId: id };
+            return { removed: localRemoved, confidence: localBestConf, result: localBestResult, results: localResults, profileId: id };
         };
 
         let overallBest = { confidence: 0 };
@@ -207,9 +215,11 @@ export class WatermarkEngine {
             overallBest = await tryProfile(requestedProfileId);
         }
 
-        if (overallBest.result) {
-            removeWatermark(imageData, overallBest.result.alphaMap, overallBest.result.pos);
-            removedCount = 1;
+        if (overallBest.results && overallBest.results.length > 0) {
+            for (const result of overallBest.results) {
+                removeWatermark(imageData, result.alphaMap, result.pos);
+            }
+            removedCount = overallBest.results.length;
             bestConfidence = overallBest.confidence;
             lastResult = { config: overallBest.result.config, pos: overallBest.result.pos, profileId: overallBest.profileId };
         }
@@ -224,6 +234,7 @@ export class WatermarkEngine {
             confidence: bestConfidence,
             removedCount,
             config: lastResult ? lastResult.config : null,
+            pos: lastResult ? lastResult.pos : null,
             profileId: lastResult ? lastResult.profileId : requestedProfileId
         };
     }

@@ -33,14 +33,14 @@ export const AuditLog = {
     },
     exportCSV() {
         if (logHistory.length === 0) return;
-        const csvContent = "data:text/csv;charset=utf-8," 
-            + "Time,Type,Message\n"
-            + logHistory.map(e => `${e.time},${e.type},"${e.message.replace(/"/g, '""')}"`).join("\n");
+        const csvContent = 'data:text/csv;charset=utf-8,'
+            + 'Time,Type,Message\n'
+            + logHistory.map(e => `${e.time},${e.type},"${e.message.replace(/"/g, '""')}"`).join('\n');
         
         const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `gwr_audit_${Date.now()}.csv`);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `gwr_audit_${Date.now()}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

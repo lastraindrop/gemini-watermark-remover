@@ -1,7 +1,6 @@
 import { state, objectUrlManager } from './state.js';
-import { AuditLog, showToast, updateProgress } from './ui.js';
-import { loadImage, checkOriginal, getOriginalStatus, setStatusMessage, showLoading, hideLoading } from '../utils.js';
-import i18n from '../i18n.js';
+import { AuditLog, updateProgress } from './ui.js';
+import { loadImage, checkOriginal } from '../utils.js';
 import { ENGINE_LIMITS } from '../core/config.js';
 
 /**
@@ -25,7 +24,7 @@ export async function processSingle(item, options, callbacks = {}) {
         }
 
         const startTime = performance.now();
-        const { canvas, confidence, config, removedCount, profileId } = await state.engine.removeWatermarkFromImage(img, options);
+        const { canvas, confidence, config, pos, removedCount, profileId } = await state.engine.removeWatermarkFromImage(img, options);
         const endTime = performance.now();
         
         const latency = (endTime - startTime).toFixed(0);
@@ -37,7 +36,7 @@ export async function processSingle(item, options, callbacks = {}) {
         item.status = 'success';
 
         if (callbacks.onSuccess) {
-            callbacks.onSuccess({ item, removedCount, confidence: confPercent, latency, config, profileId });
+            callbacks.onSuccess({ item, removedCount, confidence: confPercent, latency, config, pos, profileId });
         }
 
         if (options.autoDownload) {
@@ -58,36 +57,48 @@ export async function processQueue(options, callbacks = {}) {
     const CONCURRENCY = 4;
     const queue = [...state.imageQueue];
     const total = queue.length;
-    let active = 0;
 
     const next = async () => {
         if (queue.length === 0) return;
         
-        active++;
         const item = queue.shift();
+        let accounted = false;
         
         try {
             await processSingle(item, options, {
                 ...callbacks,
                 onSuccess: (data) => {
+                    accounted = true;
                     state.processedCount++;
                     updateProgress(state.processedCount, total);
                     if (callbacks.onItemSuccess) callbacks.onItemSuccess(data);
+                },
+                onError: (error) => {
+                    accounted = true;
+                    state.processedCount++;
+                    updateProgress(state.processedCount, total);
+                    if (callbacks.onItemError) callbacks.onItemError({ item, error });
+                    if (callbacks.onError) callbacks.onError(error);
                 }
             });
         } finally {
-            active--;
+            if (!accounted && item.status !== 'pending') {
+                state.processedCount++;
+                updateProgress(state.processedCount, total);
+            }
             if (queue.length > 0) {
                 await next();
             }
         }
     };
 
-    const workers = Array(Math.min(CONCURRENCY, queue.length)).fill(0).map(() => next());
-    await Promise.all(workers);
-    
-    state.isProcessing = false;
-    if (callbacks.onComplete) callbacks.onComplete();
+    try {
+        const workers = Array(Math.min(CONCURRENCY, queue.length)).fill(0).map(() => next());
+        await Promise.all(workers);
+    } finally {
+        state.isProcessing = false;
+        if (callbacks.onComplete) callbacks.onComplete();
+    }
 }
 
 export function downloadImage(item) {

@@ -5,13 +5,16 @@ import { getAllProfiles } from './core/profiles.js';
 import { ENGINE_LIMITS } from './core/config.js';
 
 import { state, objectUrlManager } from './app/state.js';
-import { AuditLog, showToast, updateProgress, resetGlobalProgress } from './app/ui.js';
+import { AuditLog, showToast, resetGlobalProgress } from './app/ui.js';
 import { processSingle, processQueue, downloadImage } from './app/processing.js';
 
 // DOM Elements
 const elements = {
     uploadArea: document.getElementById('uploadArea'),
     fileInput: document.getElementById('fileInput'),
+    folderInput: document.getElementById('folderInput'),
+    chooseFileBtn: document.getElementById('chooseFileBtn'),
+    chooseFolderBtn: document.getElementById('chooseFolderBtn'),
     profileSelect: document.getElementById('profileSelect'),
     singlePreview: document.getElementById('singlePreview'),
     multiPreview: document.getElementById('multiPreview'),
@@ -28,7 +31,9 @@ const elements = {
     tierBadge: document.getElementById('tierBadge'),
     lastLatency: document.getElementById('lastLatency'),
     resetAreaBtn: document.getElementById('resetAreaBtn'),
-    clearAllBtn: document.getElementById('clearAllBtn')
+    clearAllBtn: document.getElementById('clearAllBtn'),
+    auditConsole: document.getElementById('auditConsole'),
+    auditConsoleToggle: document.getElementById('auditConsoleToggle')
 };
 
 async function init() {
@@ -46,6 +51,7 @@ async function init() {
 
             const autoOpt = document.createElement('option');
             autoOpt.value = 'auto';
+            autoOpt.setAttribute('data-i18n', 'settings.autoDetect');
             autoOpt.textContent = i18n.t('settings.autoDetect');
             elements.profileSelect.appendChild(autoOpt);
 
@@ -71,9 +77,6 @@ async function init() {
         setupEventListeners();
         loadSettings();
         
-        // v1.9.8: Dynamic UI initialization
-        const yearEl = document.querySelector('[data-i18n="footer.copyright"]');
-        if (yearEl) yearEl.innerHTML = yearEl.innerHTML.replace('{{year}}', new Date().getFullYear());
     } catch (error) {
         AuditLog.log(`Critical Fault: ${error.message}`, 'err');
         showLoadingFail(error.message);
@@ -81,10 +84,31 @@ async function init() {
 }
 
 function setupEventListeners() {
-    elements.fileInput.addEventListener('change', (e) => handleFiles(Array.from(e.target.files)));
+    elements.fileInput?.addEventListener('change', (e) => handleFiles(Array.from(e.target.files)));
+    elements.folderInput?.addEventListener('change', (e) => handleFiles(Array.from(e.target.files)));
+    elements.chooseFileBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        elements.fileInput?.click();
+    });
+    elements.chooseFolderBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        elements.folderInput?.click();
+    });
+
+    elements.uploadArea?.addEventListener('click', (e) => {
+        if (e.target instanceof Element && e.target.closest('button')) return;
+        elements.fileInput?.click();
+    });
+
+    elements.uploadArea?.addEventListener('keydown', (e) => {
+        if (e.target instanceof Element && e.target.closest('button')) return;
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        elements.fileInput?.click();
+    });
 
     ['dragover', 'dragleave', 'drop'].forEach(evt => {
-        elements.uploadArea.addEventListener(evt, (e) => {
+        elements.uploadArea?.addEventListener(evt, (e) => {
             e.preventDefault();
             if (evt === 'dragover') elements.uploadArea.classList.add('scale-[0.98]');
             else elements.uploadArea.classList.remove('scale-[0.98]');
@@ -106,13 +130,19 @@ function setupEventListeners() {
     });
 
     elements.downloadAllBtn?.addEventListener('click', () => {
-        state.imageQueue.forEach(downloadImage);
-        showToast(`Downloading ${state.imageQueue.length} images`, 'info');
+        const completedItems = state.imageQueue.filter(item => item.status === 'success');
+        completedItems.forEach(downloadImage);
+        showToast(i18n.t('toast.downloading', { count: completedItems.length }), 'info');
     });
 
     elements.resetAreaBtn?.addEventListener('click', resetWorkspace);
     elements.clearAllBtn?.addEventListener('click', resetWorkspace);
     document.getElementById('exportLogBtn')?.addEventListener('click', () => AuditLog.exportCSV());
+    elements.auditConsoleToggle?.addEventListener('click', (e) => {
+        if (e.target instanceof Element && e.target.closest('#exportLogBtn')) return;
+        elements.auditConsole?.classList.toggle('translate-y-0');
+        elements.auditConsole?.classList.toggle('translate-y-[calc(100%-48px)]');
+    });
 
     elements.modeSliderBtn?.addEventListener('click', () => switchViewMode('slider'));
     elements.modeSideBtn?.addEventListener('click', () => switchViewMode('side'));
@@ -124,7 +154,11 @@ function setupEventListeners() {
 }
 
 function handleFiles(files) {
-    if (!state.engine || state.isProcessing) return;
+    if (!state.engine) return;
+    if (state.isProcessing) {
+        showToast(i18n.t('toast.processingBusy'), 'info');
+        return;
+    }
 
     const validFiles = files.filter(file => {
         if (!file.type.match('image/(jpeg|png|webp)')) return false;
@@ -135,6 +169,8 @@ function handleFiles(files) {
         return true;
     });
 
+    const skipped = files.length - validFiles.length;
+    if (skipped > 0) showToast(i18n.t('toast.invalidFiles', { count: skipped }), 'info');
     if (validFiles.length === 0) return;
 
     resetWorkspace(false);
@@ -155,8 +191,8 @@ function handleFiles(files) {
         document.getElementById('resultContainer')?.classList.add('scan-active');
         
         processSingle(state.imageQueue[0], getEngineOptions(), {
-            onSuccess: ({ item, removedCount, confidence, latency, config, profileId }) => {
-                updateSingleUI(item, removedCount, confidence, latency, config, profileId);
+            onSuccess: ({ item, removedCount, confidence, latency, config, pos, profileId }) => {
+                updateSingleUI(item, removedCount, confidence, latency, config, pos, profileId);
                 document.getElementById('resultContainer')?.classList.remove('scan-active');
                 elements.singlePreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
             },
@@ -169,12 +205,17 @@ function handleFiles(files) {
         state.imageQueue.forEach(createImageCard);
         
         processQueue(getEngineOptions(), {
-            onItemSuccess: ({ item, removedCount, confidence, latency, config, profileId }) => {
-                updateCardUI(item, removedCount, confidence, latency, config, profileId);
+            onItemSuccess: ({ item, removedCount, confidence, latency }) => {
+                updateCardUI(item, removedCount, confidence, latency);
+            },
+            onItemError: ({ item, error }) => {
+                updateCardErrorUI(item, error);
             },
             onComplete: () => {
-                showToast(`Batch completed: ${state.imageQueue.length} processed`, 'success');
-                elements.downloadAllBtn.style.display = 'block';
+                const successCount = state.imageQueue.filter(item => item.status === 'success').length;
+                const failedCount = state.imageQueue.filter(item => item.status === 'error').length;
+                showToast(i18n.t('toast.batchComplete', { success: successCount, failed: failedCount }), failedCount ? 'info' : 'success');
+                elements.downloadAllBtn.style.display = successCount > 0 ? 'block' : 'none';
             }
         });
     }
@@ -222,7 +263,7 @@ async function handleDataTransferItems(items) {
     }
 }
 
-function updateSingleUI(item, removedCount, confidence, latency, config, profileId) {
+function updateSingleUI(item, removedCount, confidence, latency, config, pos, profileId) {
     document.getElementById('sliderOriginal').src = item.originalUrl;
     document.getElementById('sliderProcessed').src = item.processedUrl;
     document.getElementById('sideOriginal').src = item.originalUrl;
@@ -230,48 +271,72 @@ function updateSingleUI(item, removedCount, confidence, latency, config, profile
 
     if (config && elements.tierBadge) {
         const profile = getAllProfiles().find(p => p.id === profileId) || { id: 'AUTO' };
-        const detectionType = config.isOfficial ? 'OFFICIAL' : 'HEURISTIC';
+        const detectionType = config.isOfficial ? i18n.t('detection.official') : i18n.t('detection.heuristic');
         elements.tierBadge.textContent = `${profile.id.toUpperCase()} • ${config.tier || detectionType} • ${config.anchor || 'BR'}`;
         elements.tierBadge.classList.remove('hidden');
         
         // v1.9.8: Auto-sync theme with detected profile
         if (profile.brandColor) applyProfileTheme(profile);
-        updateStatsUI(config, latency, confidence, profileId);
+        updateStatsUI(config, pos, confidence, profileId);
     }
 
-    if (elements.lastLatency) elements.lastLatency.textContent = `Latency: ${latency}ms`;
+    if (elements.lastLatency) elements.lastLatency.textContent = `${i18n.t('info.latency')}: ${latency}ms`;
     
     elements.downloadBtn.onclick = () => downloadImage(item);
     
     AuditLog.log(`[PASS] ${item.name} | Profile: ${profileId} | Conf: ${confidence}% | ${latency}ms`, 'success');
-    showToast(`Removed ${removedCount} watermarks`, 'success');
+    showToast(i18n.t('toast.removed', { count: removedCount }), 'success');
 }
 
 function createImageCard(item) {
     const card = document.createElement('div');
     card.id = `card-${item.id}`;
     card.className = 'gwr-image-card glass-premium rounded-3xl p-4 group overflow-hidden animate-fade-up';
-    
-    card.innerHTML = `
-        <div class="relative aspect-square rounded-2xl bg-slate-900/5 dark:bg-slate-900/50 flex items-center justify-center overflow-hidden mb-4 scanner-effect">
-            <img id="result-${item.id}" class="max-w-full max-h-full object-contain transition-opacity duration-500 opacity-0" src="">
-            <div id="loader-${item.id}" class="absolute inset-0 flex items-center justify-center">
-                <div class="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-        </div>
-        <div class="space-y-1 px-1">
-            <h4 class="font-black text-slate-900 dark:text-white truncate text-xs">${item.name}</h4>
-            <div class="flex items-center justify-between">
-                <span id="status-${item.id}" class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Processing</span>
-                <span id="meta-${item.id}" class="text-[9px] font-black text-emerald-500 font-mono"></span>
-            </div>
-        </div>
-        <button id="download-${item.id}" class="mt-4 w-full py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-[10px] hidden group-hover:block transition-all transform hover:scale-[1.02]">DOWNLOAD</button>
-    `;
+
+    const preview = document.createElement('div');
+    preview.className = 'relative aspect-square rounded-2xl bg-slate-900/5 dark:bg-slate-900/50 flex items-center justify-center overflow-hidden mb-4 scanner-effect';
+
+    const img = document.createElement('img');
+    img.id = `result-${item.id}`;
+    img.className = 'max-w-full max-h-full object-contain transition-opacity duration-500 opacity-0';
+    img.alt = item.name;
+
+    const loader = document.createElement('div');
+    loader.id = `loader-${item.id}`;
+    loader.className = 'absolute inset-0 flex items-center justify-center';
+    const spinner = document.createElement('div');
+    spinner.className = 'w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin';
+    loader.appendChild(spinner);
+    preview.append(img, loader);
+
+    const content = document.createElement('div');
+    content.className = 'space-y-1 px-1';
+    const title = document.createElement('h4');
+    title.className = 'font-black text-slate-900 dark:text-white truncate text-xs';
+    title.textContent = item.name;
+
+    const metaRow = document.createElement('div');
+    metaRow.className = 'flex items-center justify-between';
+    const status = document.createElement('span');
+    status.id = `status-${item.id}`;
+    status.className = 'text-[10px] font-bold text-slate-400 uppercase tracking-widest';
+    status.textContent = i18n.t('status.processing');
+    const meta = document.createElement('span');
+    meta.id = `meta-${item.id}`;
+    meta.className = 'text-[9px] font-black text-emerald-500 font-mono';
+    metaRow.append(status, meta);
+    content.append(title, metaRow);
+
+    const downloadButton = document.createElement('button');
+    downloadButton.id = `download-${item.id}`;
+    downloadButton.className = 'mt-4 w-full py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-[10px] hidden group-hover:block transition-all transform hover:scale-[1.02]';
+    downloadButton.textContent = i18n.t('btn.download');
+
+    card.append(preview, content, downloadButton);
     elements.imageList.appendChild(card);
 }
 
-function updateCardUI(item, removedCount, confidence, latency, config) {
+function updateCardUI(item, removedCount, confidence, latency) {
     const loader = document.getElementById(`loader-${item.id}`);
     const img = document.getElementById(`result-${item.id}`);
     const status = document.getElementById(`status-${item.id}`);
@@ -283,12 +348,28 @@ function updateCardUI(item, removedCount, confidence, latency, config) {
         img.src = item.processedUrl;
         img.classList.remove('opacity-0');
     }
-     if (status) status.textContent = confidence > 0 ? i18n.t('status.dewatermarked') : i18n.t('status.noWatermark');
-    if (meta) meta.textContent = `${latency}ms`;
+    if (status) status.textContent = confidence > 0 ? i18n.t('status.dewatermarked') : i18n.t('status.noWatermark');
+    if (meta) meta.textContent = `${removedCount} / ${latency}ms`;
     if (dlBtn) {
         dlBtn.classList.remove('hidden');
         dlBtn.onclick = () => downloadImage(item);
     }
+}
+
+function updateCardErrorUI(item, error) {
+    const loader = document.getElementById(`loader-${item.id}`);
+    const status = document.getElementById(`status-${item.id}`);
+    const meta = document.getElementById(`meta-${item.id}`);
+    const card = document.getElementById(`card-${item.id}`);
+
+    if (loader) loader.style.display = 'none';
+    if (status) {
+        status.textContent = i18n.t('status.failed');
+        status.classList.remove('text-slate-400');
+        status.classList.add('text-red-500');
+    }
+    if (meta) meta.textContent = error?.message || i18n.t('status.error');
+    if (card) card.classList.add('border', 'border-red-500/30');
 }
 
 function switchViewMode(mode) {
@@ -310,10 +391,10 @@ function switchViewMode(mode) {
     }
 }
 
-function updateStatsUI(config, latency, confidence, profileId) {
+function updateStatsUI(config, pos, confidence, profileId) {
     document.getElementById('statAnchor').textContent = (config.anchor || 'BOTTOM-RIGHT').toUpperCase();
-    document.getElementById('statCoord').textContent = config.pos ? `${Math.round(config.pos.x)}, ${Math.round(config.pos.y)}` : 'AUTO';
-    document.getElementById('statScale').textContent = config.scale !== undefined ? `${config.scale.toFixed(3)}x` : '1.000x';
+    document.getElementById('statCoord').textContent = pos ? `${Math.round(pos.x)}, ${Math.round(pos.y)}` : 'AUTO';
+    document.getElementById('statConfidence').textContent = `${confidence}%`;
     document.getElementById('statAlgo').textContent = (profileId || 'AUTO').toUpperCase();
 }
 
@@ -375,7 +456,7 @@ function getEngineOptions() {
     return {
         profileId: elements.profileSelect?.value || 'gemini',
         deepScan: document.getElementById('deepScanToggle')?.checked ?? true,
-        noiseReduction: false, // Hidden but available in core
+        noiseReduction: document.getElementById('noiseReductionToggle')?.checked ?? false,
         autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false
     };
 }
@@ -407,7 +488,7 @@ function setupSlider() {
         document.addEventListener('mouseup', upHandler);
     });
 
-    slider.addEventListener('touchstart', (e) => {
+    slider.addEventListener('touchstart', () => {
         const moveHandler = (e) => updateSlider(e);
         const upHandler = () => {
             document.removeEventListener('touchmove', moveHandler);
@@ -451,9 +532,20 @@ function saveSettings() {
 
 function loadSettings() {
     const saved = localStorage.getItem('gwr_pro_settings');
-    if (saved) {
+    if (!saved) return;
+
+    try {
         const settings = JSON.parse(saved);
-        if (settings.profileId && elements.profileSelect) elements.profileSelect.value = settings.profileId;
+        if (settings.profileId && elements.profileSelect) {
+            const option = [...elements.profileSelect.options].find(opt => opt.value === settings.profileId);
+            if (option) {
+                elements.profileSelect.value = settings.profileId;
+                const profile = getAllProfiles().find(p => p.id === settings.profileId);
+                if (profile) applyProfileTheme(profile);
+            }
+        }
+    } catch (error) {
+        AuditLog.log(`Settings ignored: ${error.message}`, 'err');
     }
 }
 
@@ -479,7 +571,8 @@ function handleKeyDown(e) {
 
 // Global hook for clipboard
 document.addEventListener('paste', (e) => {
-    const items = e.clipboardData.items;
+    const items = e.clipboardData?.items;
+    if (!items) return;
     const files = [];
     for (const item of items) {
         if (item.type.indexOf('image') !== -1) {

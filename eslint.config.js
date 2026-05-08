@@ -3,7 +3,7 @@ export default [
   {
     files: ["**/*.js"],
     languageOptions: {
-      ecmaVersion: 2022,
+      ecmaVersion: "latest",
       sourceType: "module",
       globals: {
         // Browser
@@ -26,6 +26,7 @@ export default [
         Response: "readonly",
         ClipboardItem: "readonly",
         File: "readonly",
+        Element: "readonly",
         // Node
         process: "readonly",
         console: "readonly",

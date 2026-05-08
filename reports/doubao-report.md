@@ -156,10 +156,10 @@
 
 ### 5.4 全量测试结果
 
-当前仓库完整测试输出：
+当前仓库完整测试输出（2026-05-09 复验）：
 
-- `node --test 'tests/doubao.test.js'`: `32/32` 通过
-- `node --test 'tests/*.test.js'`: `137/137` 通过
+- `node --test .\tests\doubao.test.js`: `35/35` 通过
+- `npm test`: `203/203` 通过
 
 这说明 Doubao 专项修复与验证已无回归。
 

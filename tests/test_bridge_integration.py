@@ -50,7 +50,7 @@ class TestBridgeIntegration(unittest.TestCase):
         output_file = res.get("output")
         self.assertTrue(os.path.exists(output_file), f"Output file not found: {output_file}")
         
-        print(f"✅ Integration Success! Confidence: {conf*100:.1f}%, Output: {os.path.basename(output_file)}")
+        print(f"Integration Success! Confidence: {conf*100:.1f}%, Output: {os.path.basename(output_file)}")
 
     def tearDown(self):
         # We keep the output for manual inspection if needed, or cleanup

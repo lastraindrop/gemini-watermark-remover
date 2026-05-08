@@ -1,507 +1,285 @@
-# GWR 全面审计分析与执行计划
+# 现阶段综合审计与落地计划
 
-> 生成日期: 2026-04-29
-> 测试基准: 200/200 Tests Pass (50 suites, 0 fail)
-> 分析范围: 全部源码、测试、文档、构建脚本、Python桥接
+> 审计日期: 2026-05-09
+> 当前分支: `main`
+> 当前版本: `package.json` v1.9.9
+> 对比上游: `https://github.com/GargantuaX/gemini-watermark-remover`, `garg/main` = `6f7e3313d2479410a9da0469bf48c45e63900eab`
+> 本次验证基线: `npm test` 203/203 pass, `npm run lint` 0 warning, `npm run build` pass, Python bridge pass
 
----
+## 0. 执行摘要
 
-## 一、软件架构工程设计审查
+当前分支已经不是 GargantuaX 上游的轻量 fork，而是一个面向 Web UI、CLI、Python bridge、Doubao 多锚点模板的产品化分支。核心能力已经覆盖 Gemini 与 Doubao 的可见水印检测、分析与反 alpha 去除，并有较完整的矩阵测试。
 
-### 1.1 架构总览
+本次审计发现并修复了验证链路与行为一致性问题:
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    入口层 (Entry)                     │
-│  src/app.js (Browser)  │  src/cli.js (Legacy Node)  │  bin/gwr.mjs (New Node)  │
-├─────────────────────────────────────────────────────┤
-│                    应用层 (Application)               │
-│  src/app/state.js  │  src/app/processing.js  │  src/app/ui.js               │
-├─────────────────────────────────────────────────────┤
-│                    CLI层 (Command)                    │
-│  src/cli/gwrCli.js  │  src/cli/gwrRemoveCommand.js  │
-├─────────────────────────────────────────────────────┤
-│                    引擎层 (Engine)                    │
-│  src/core/watermarkEngine.js  │  src/core/worker.js  │
-├─────────────────────────────────────────────────────┤
-│                    核心层 (Core Algorithm)            │
-│  detector.js  │  blendModes.js  │  alphaMap.js  │  config.js  │  catalog.js  │
-│  profiles.js  │  restorationMetrics.js  │  templates/registry.js           │
-├─────────────────────────────────────────────────────┤
-│                    资产层 (Assets)                    │
-│  src/assets/bg_48.png  │  bg_96.png  │  bg_doubao_*.png                    │
-├─────────────────────────────────────────────────────┤
-│                    桥接层 (Python)                    │
-│  python/remover.py  │  python/gui.py                                          │
-└─────────────────────────────────────────────────────┘
-```
+- `npm test` 依赖 `npx cross-env` 运行时下载，离线或受限网络下会失败。已改为本地 Node 测试命令。
+- `npm run build` 依赖 `cross-env` 设置 `NODE_ENV`，已改为 `node build.js --production`。
+- ESLint 无法解析 JSON import attributes，已切换 `ecmaVersion` 到 `latest`。
+- CLI 版本测试硬编码 v1.9.8，已改为读取 `package.json`。
+- Python bridge 集成测试在 Windows GBK 控制台输出 emoji 时失败，已改成 ASCII 输出。
+- 浏览器引擎和 CLI 的 multi-probe 逻辑此前只去除最高置信度候选，却可能报告多个命中；已改为同一胜出 profile 下的所有候选都执行去除，并新增 Doubao TL+BR 端到端回归测试。
+- Web UI 仍以 Gemini-only/GWR PRO 为主叙事，且把单图上传和目录上传绑在同一个 input 上；已改成 Gemini + Doubao profile 工作台、分离文件/目录入口，并暴露降噪开关。
+- 前端批处理卡片曾用 `innerHTML` 拼接文件名，存在 DOM 注入风险；已改为 DOM API + `textContent` 渲染，并新增前端合约测试。
+- 前端批处理失败项不会推进进度，可能导致批量进度条无法完成；已在 queue 层对 success/error 都计数并更新错误卡片。
+- Web 统计页之前读取 `config.pos`，但 engine 返回值没有携带 `pos`；已将检测坐标从 engine 返回并在 UI/测试中锁定。
+- 中文 README 与 Service Worker cache 版本仍停留在 v1.9.8，已同步到 v1.9.9。
+- lint 的历史 unused warning 已清零。
 
-### 1.2 设计优点
+## 1. 当前架构事实
 
-| # | 设计模式 | 体现位置 | 评价 |
-|---|---|---|---|
-| 1 | **核心与外壳分离** | `core/` 纯JS无DOM依赖 | ★★★★★ 优秀的关注点分离 |
-| 2 | **模板注册表** | `templates/registry.js` | ★★★★★ 动态扩展的基石 |
-| 3 | **内存池化** | `detector.js` 函数级缓冲区 | ★★★★☆ 降低GC压力,但共享可变状态 |
-| 4 | **Worker弹性回退** | `watermarkEngine.js` | ★★★★☆ 15s超时+自动降级 |
-| 5 | **资产内联** | `build.js` DataURL注入 | ★★★★★ PWA离线体验保障 |
-| 6 | **分级探测策略** | `detector.js` Phase 1-3 | ★★★★☆ 多策略冗余保证检出率 |
-| 7 | **Profile策略模式** | `profiles.js` | ★★★★★ 多品牌解耦 |
+### 1.1 运行入口
 
-### 1.3 架构问题
+- Web app: `public/index.html` -> `src/app.js` -> `src/app/*` -> `src/core/*`
+- Userscript: `src/userscript/index.js` -> `src/core/watermarkEngine.js`
+- CLI: `bin/gwr.mjs` / `src/cli.js` -> `src/cli/gwrCli.js` -> `src/cli/gwrRemoveCommand.js`
+- Python bridge: `python/remover.py` 调 Node CLI, `python/gui.py` 提供 Tkinter GUI
+- Build: `build.js` 使用 esbuild 打包 `dist/app.js`, `dist/worker.js`, userscript, 并内联 PNG assets 到 `window.GWR_INLINED_ASSETS`
 
-| # | 问题 | 严重度 | 位置 |
-|---|---|---|---|
-| A1 | alphaMap用BT.709但detector用BT.601 | **高** | `alphaMap.js:23` vs `detector.js:306` |
-| A2 | DALL-E 3 Profile定义了但无资产文件 | **高** | `profiles.js:63-87` / `src/assets/` |
-| A3 | CLI ASSETS映射不完整 | **中** | `gwrRemoveCommand.js:19-24` |
-| A4 | detector Phase 2硬编码尺寸数组 | **中** | `detector.js:132` |
-| A5 | detector Phase 2将矩形水印当正方形搜索 | **中** | `detector.js:156-157` |
-| A6 | GUI status_canvas引用不存在 | **中** | `gui.py:251` |
-| A7 | processQueue并发控制有缺陷 | **中** | `processing.js:63-88` |
-| A8 | restorationMetrics SSIM是伪实现 | **低** | `restorationMetrics.js:38-44` |
-| A9 | app.js引用未定义DOM元素 | **低** | `app.js:111-112` |
-| A10 | cli.js版本号过时(v1.9.1 vs v1.9.8) | **低** | `cli.js:20` |
+### 1.2 核心数据流
 
-### 1.4 架构债务
+1. 输入图像被载入为 Canvas 或 Sharp raw RGBA。
+2. 根据 profile 和 catalog 生成候选配置:
+   - `src/core/profiles.js`: Gemini, Doubao, experimental DALL-E 3 metadata
+   - `src/core/catalog.js`: 官方/已知分辨率与锚点目录
+   - `src/core/config.js`: catalog 优先, heuristic fallback
+3. `src/core/watermarkEngine.js` / CLI 对每个候选读取 alphaMap。
+4. `src/core/detector.js` 使用 NCC 与 Sobel gradient confidence 探测位置和轻微位移。
+5. `src/core/blendModes.js` 使用反 alpha 混合公式恢复像素。
+6. Web/CLI/Python 返回处理结果、置信度、profile、config 与输出图像。
 
-1. **无TypeScript**: 纯JS无编译期类型安全保障,依赖eslint做基本检查
-2. **函数级可变状态**: `detector.js`用`detectWatermark._blurBuffer`等函数属性做内存池化,非标准模式
-3. **无CI/CD**: `.github/`目录存在但无workflow文件
-4. **wrangler.toml残留**: Cloudflare Workers配置存在但未集成
-5. **doubao目录中无测试用的"已加水印"样本**: 只有`sample/other/`中的pre_watermark文件
+### 1.3 设计优点
 
----
+- Profile + catalog + registry 已经将品牌差异从核心算法中抽离。
+- Doubao 同一分辨率多锚点 TL/BR 已有目录与测试覆盖。
+- 浏览器和 CLI 共用核心数学模块，减少算法漂移。
+- 测试覆盖从数学、探测、目录、矩阵、前端契约、CLI、Python bridge 到内存压力。
+- 运行时资产已有浏览器内联优化，减少前端 PNG fetch 风险。
 
-## 二、项目定位与竞品分析
+### 1.4 主要技术债
 
-### 2.1 定位
+- Web engine 与 CLI 有重复候选探测逻辑，后续应提取为共享 `candidateRunner`。
+- `detectWatermark` 与 `calculateProbeConfidence` 内含多阶段决策、阈值、候选排序，仍偏大，应拆出策略对象。
+- DALL-E 3 profile 是 experimental，但缺少真实资产与样本，不应在生产文档里宣称可用。
+- `serve` 仍使用 `npx serve dist`，未安装 serve 时仍会联网；应改为本地静态服务脚本或声明依赖。
+- `public/index.html` 仍依赖 Tailwind CDN，离线/PWA 或受限网络下首屏样式存在外部依赖风险；发布版应将 Tailwind 输出纳入本地 build。
+- 旧报告文件存在测试数量和版本漂移，应继续统一。
 
-GWR是一个**客户端AI可见水印移除工具**,核心特点:
-- 数学逆运算(非AI Inpainting),理论上无损
-- 支持多平台水印(Gemini/Doubao/DALL-E 3)
-- 全客户端处理,隐私安全
+### 1.5 Web UI 与交互状态
 
-### 2.2 竞品对比
+- UI 现已从 Gemini-only 文案调整为 Gemini + Doubao 水印分析工作台，主标题、meta、页眉、页脚、profile 选择和活动日志文案更贴近当前 profile/catalog 架构。
+- 上传区分为 `fileInput` 与 `folderInput`，点击上传默认打开图片文件选择，目录模式由独立按钮触发，避免 Chromium 下单图上传被目录选择行为干扰。
+- 控制面板展示 `profile`, `deepScan`, `noiseReduction`, `autoDownload` 四个核心运行参数；这与 `getEngineOptions()` 和 CLI 能力保持一致。
+- 单图结果页统计维度调整为 anchor、coordinate、confidence、algorithm，去掉长期固定为 `1.000x` 的展示噪声。
+- 批量模式现在对失败项有可见状态，并且成功/失败都会推进进度；`Download All` 只下载成功项。
+- 活动日志折叠由 JS 事件管理，移除 inline handler，便于测试和 CSP 收敛。
 
-| 能力 | GWR (我们) | [GeminiWatermarkTool](https://github.com/allenk/GeminiWatermarkTool) (上游原始) | [GargantuaX fork](https://github.com/GargantuaX/gemini-watermark-remover) (上游分支) |
-|---|---|---|---|
-| 语言 | JavaScript (全栈) | Python | JavaScript |
-| 多Profile | ✅ Gemini+Doubao+DALL-E3 | ❌ 仅Gemini | ❌ 仅Gemini |
-| Web UI | ✅ PWA+离线 | ❌ | ❌ |
-| CLI | ✅ 完整CLI+pipe | ✅ Python CLI | ❌ |
-| Python GUI | ✅ Tkinter | ✅ Tkinter | ❌ |
-| 多锚点 | ✅ TL+BR | ❌ 仅BR | ❌ 仅BR |
-| 编译期内嵌α-map | ❌ 运行时加载/DataURL | N/A | ✅ JS内嵌 |
-| BT.709色度权重 | ⚠️ 混用(BT.709+BT.601) | N/A | ✅ 统一BT.709 |
-| 多路去除(重叠水印) | ❌ | N/A | ✅ multiPassRemoval |
-| 质量评估(PSNR/SSIM) | ⚠️ 伪SSIM | N/A | ✅ restorationMetrics |
-| 候选决策解耦 | ❌ 内嵌在detector | N/A | ✅ candidateSelector |
-| 亚像素对齐 | ✅ 双线性插值 | ❌ | ✅ |
-| 抖动容忍 | ✅ ±4px | ❌ | ✅ |
-| 测试套件 | ✅ 188个测试 | ❌ | ❌ |
+## 2. 与 GargantuaX 上游对比
 
-### 2.3 值得学习的上游特性
+### 2.1 上游当前形态
 
-| 上游特性 | 建议融合方式 | 优先级 |
-|---|---|---|
-| 编译期内嵌α-map | 用esbuild data-url方式内嵌所有资产(已在build.js部分实现) | 高 |
-| 统一BT.709权重 | 修复detector.js的calculateCorrelation,改用0.2126/0.7152/0.0722 | **紧急** |
-| candidateSelector.js | 将detector Stage 3决策逻辑重构为独立模块 | 中 |
-| multiPassRemoval.js | 支持Doubao双锚点同时去除 | 中 |
-| 真实SSIM实现 | 基于滑动窗口的SSIM计算 | 低 |
+上游 `garg/main` 当前 package 版本为 v1.0.14，仓库重点已经转向:
 
-### 2.4 未来路线图建议
+- SDK surface: `src/sdk/*`, TypeScript declarations, package exports
+- Runtime surface: `src/runtime/*`, `src/shared/*`
+- Chrome extension: `src/extension/*`
+- Userscript request/download/clipboard/page bridge 完整拆分
+- Gemini-only core: `geminiSizeCatalog.js`, `watermarkProcessor.js`, `candidateSelector.js`, `watermarkDecisionPolicy.js`
+- Embedded alpha maps: `embeddedAlphaMaps.js`
+- Multi-pass removal: `multiPassRemoval.js`
+- Preview calibration 与真实页面回归样本
 
-```
-v1.9.9 (修复版) ← 本计划目标
-  ├── 修复色度权重不一致 (BT.709统一)
-  ├── 修复DALL-E 3资产缺失
-  ├── 修复矩形水印Phase 2搜索
-  ├── 补全CLI ASSETS映射
-  ├── 修复GUI status_canvas引用
-  ├── 文档一致性修复
-  └── 新增针对性单元测试
+### 2.2 当前分支优势
 
-v2.0.0 (性能里程碑)
-  ├── Rust/WASM像素核心
-  ├── 统一candidateSelector
-  ├── 真实SSIM质量评估
-  ├── 官方浏览器插件 (Manifest V3)
-  └── 多路重叠水印去除
+- Doubao 多锚点与矩形模板支持是当前分支的核心差异。
+- Python bridge 与 GUI 对本地批处理友好。
+- PWA/多语言/前端操作台更偏产品工具形态。
+- 测试矩阵覆盖 Gemini + Doubao profile/catalog。
+- Node CLI 支持 file, directory, pipe, JSON 输出。
 
-v2.1.0 (生态里程碑)
-  ├── iOS/Android原生集成
-  ├── 更多Profile (Midjourney, Stable Diffusion)
-  └── 智能Profile自动识别
-```
+### 2.3 上游优势
 
----
+- 模块边界更细，候选决策与处理流水线更清晰。
+- SDK/类型声明/包导出更成熟，适合被第三方集成。
+- Chrome extension 体系完整。
+- Userscript 对真实 Gemini 页面下载、复制、预览路径处理更深。
+- 真实样本与 preview calibration 体系比当前分支更完整。
 
-## 三、完整Code Review - BUG清单
+### 2.4 融合建议
 
-### 🔴 严重BUG (影响功能正确性)
+短期不建议直接 merge 上游，因为两边架构已经大幅分叉，直接合并会破坏 Doubao/profile registry。建议按能力摘取:
 
-#### BUG-C01: alphaMap与detector色度权重不一致
-- **文件**: `src/core/alphaMap.js:23` vs `src/core/detector.js:306`
-- **现象**: alphaMap生成使用BT.709(`0.2126R + 0.7152G + 0.0722B`),但NCC探测使用BT.601(`0.299R + 0.587G + 0.114B`)
-- **影响**: 在高饱和度背景(纯绿/纯蓝)上,检测灵敏度降低。alpha map "看起来"和检测器"期望的"不一致
-- **注意**: `detector.js:424`(Sobel梯度)已正确使用BT.709,只有`calculateCorrelation`的NCC用了BT.601
-- **修复方案**: 将`detector.js:306`改为BT.709权重
-```javascript
-// 当前 (BT.601):
-const brightness = (data[imgIdx] * 0.299 + data[imgIdx + 1] * 0.587 + data[imgIdx + 2] * 0.114) / 255.0;
-// 应改为 (BT.709):
-const brightness = (data[imgIdx] * 0.2126 + data[imgIdx + 1] * 0.7152 + data[imgIdx + 2] * 0.0722) / 255.0;
-```
+1. 引入上游 `candidateSelector` / `watermarkDecisionPolicy` 思路，但保留当前 profile registry。
+2. 将当前 `detector.js` Stage 3 排序迁移到独立决策模块。
+3. 参考上游 SDK package exports，新增只读 API: `removeImageData`, `detectWatermark`, `registerProfile`。
+4. 参考上游 extension/runtime，但先保持 Web/Python/CLI 主线稳定。
+5. 参考上游真实页面样本回归，将当前 docs/sample 与 Doubao sample 合并成标准 fixtures。
 
-#### BUG-C02: DALL-E 3 Profile无资产文件
-- **文件**: `src/core/profiles.js:63-87`, `src/assets/` (缺文件)
-- **现象**: `profiles.js`定义了`dalle3` profile, `catalog.js`定义了dalle3目录,但`src/assets/`中没有`bg_dalle3_bl.png`
-- **影响**: 如果用户选择dalle3 profile,浏览器端`_loadAsset`会404,CLI端会fallback到bg_96
-- **修复方案**: 两种选择:
-  1. (推荐) 移除dalle3 profile,标记为"实验性/未就绪"
-  2. 制作dalle3水印的alpha map资产并放入assets目录
+## 3. Code Review 结论
 
-#### BUG-C03: detector Phase 2不支持矩形水印搜索
-- **文件**: `src/core/detector.js:132-227`
-- **现象**: Phase 2的sizes数组是正方形尺寸,且`searchW = size; searchH = size;`
-- **影响**: Doubao的矩形水印(如373x165)在Phase 1失败后,Phase 2无法正确搜索
-- **修复方案**: 从catalog动态生成搜索尺寸列表,支持WxH格式
+### 3.1 已修复问题
 
-### 🟡 中等BUG (影响可用性/稳定性)
+- `package.json`: test/build/stress 脚本不再依赖 `npx cross-env` 运行时下载。
+- `build.js`: 支持 `--production` 参数。
+- `scripts/stress-env.mjs`: 为 stress test 提供本地 env 注入。
+- `eslint.config.js`: 支持 import attributes 解析。
+- `src/app/ui.js`: CSV export 符合单引号 lint 规则。
+- `tests/cli.integration.test.js`: 版本断言跟随 package version。
+- `tests/test_bridge_integration.py`: Windows 控制台安全输出。
+- `src/core/watermarkEngine.js`: multi-probe 命中全部应用去除。
+- `src/core/watermarkEngine.js`: 返回 `pos`，前端统计页可显示真实检测坐标。
+- `src/cli/gwrRemoveCommand.js`: CLI 与 Web engine 行为一致，胜出 profile 内全部命中都去除。
+- `tests/product_audit.test.js`: 增加 Doubao TL+BR 同图多锚点回归。
+- `src/app.js`, `src/app/processing.js`: 拆分文件/目录上传、修复批处理错误进度、暴露 noise reduction、批处理卡片改为安全 DOM 渲染。
+- `public/index.html`: 去除 GWR PRO/Gemini-only 叙事，补齐前端 DOM hook、移动端 side-by-side 布局、活动日志按钮和 i18n 文案。
+- `src/i18n/*.json`, `src/i18n.js`: 新增品牌、上传、批处理、toast、检测类型、置信度等多语言键，并支持通用 `{{param}}` 插值。
+- `tests/frontend_contract.test.js`: 锁定文件/目录 picker 分离、无 inline onclick、批处理文件名不插入 HTML。
+- `src/app.js`, `src/app/processing.js`, `src/cli/gwrRemoveCommand.js`, `src/core/profiles.js`, `src/utils.js`: 清理 lint warning。
+- `README_zh.md`, `public/sw.js`: 版本同步到 v1.9.9。
 
-#### BUG-C04: CLI ASSETS映射不完整
-- **文件**: `src/cli/gwrRemoveCommand.js:19-24`
-- **现象**: ASSETS对象只有`'48', '96', 'doubao_br', 'doubao_tl'`四个key
-- **影响**: 缺少`doubao_br_tall`, `doubao_tl_tall`(竖版doubao水印的资产映射)
-- **修复方案**: 添加缺失的资产路径映射
+### 3.2 剩余风险
 
-#### BUG-C05: GUI status_canvas引用错误
-- **文件**: `python/gui.py:251`
-- **现象**: `self.status_canvas.itemconfig(self.status_circle, fill=color)` — `self.status_canvas`从未赋值
-- **实际变量**: 第88行创建的是局部变量`status_dot`(Canvas对象)
-- **影响**: 处理过程中状态指示灯颜色不会变化
-- **修复方案**: 将`status_dot`改为`self.status_dot`并在`status_dot_color`中引用`self.status_dot`
+- 当前 multi-anchor 修复按“胜出 profile”全部候选去除，避免跨 profile 误删；但仍需增加重叠候选去重策略，防止同一水印被两个相近候选重复处理。
+- CLI 阈值为 `0.25`，Web 阈值为 `0.10`，二者在低对比图上可能出现结果差异；应在测试中锁定预期。
+- `calculateProbeConfidence` 每次滑窗都会分配 gradient buffer，Doubao 分支也会新分配；高分辨率批量场景可继续池化。
+- Web 首屏样式仍依赖 `https://cdn.tailwindcss.com`；如果产品目标是完全离线/PWA，需要把 Tailwind 编译结果纳入本地 CSS。
+- 前端仍存在若干非关键硬编码运行日志，例如远程 URL 拉取失败提示、profile 切换日志；后续可统一迁移到 i18n/log message registry。
+- Python bridge 仅解析 JSON 行，不解析非 JSON CLI 输出；这是设计可接受，但应在文档中明确。
+- `python/prefs.json` 当前为本地用户配置且工作区已是 dirty 状态，不应进入发布变更。
 
-#### BUG-C06: processQueue并发控制缺陷
-- **文件**: `src/app/processing.js:53-88`
-- **现象**:
-  1. `next()`函数中`active++`在await前执行,但`active--`在await后,若processSingle抛出异常则active永不递减
-  2. 递归式`next()`从queue.shift()取值后再次调用自身,与初始的`Promise.all(workers)`模式不匹配
-- **影响**: 异常时可能导致队列卡死
-- **修复方案**: 用try/finally包裹active--；或重构为标准Semaphore模式
+## 4. 文档一致性审计
 
-#### BUG-C07: config.js getAllPotentialConfigs对无anchors profile崩溃
-- **文件**: `src/core/config.js:47`
-- **现象**: `return profile.anchors.map(anchor => ...)` — 若profile无anchors属性则抛TypeError
-- **影响**: 当前所有内置profile都有anchors,但如果用户注册一个无anchors的profile会崩溃
-- **修复方案**: 添加`if (!profile.anchors) return [profile.getHeuristicConfig(w, h)]`
+### 4.1 已修复
 
-### 🟢 低优先级问题
+- `README_zh.md`: 从 v1.9.8 描述更新到 v1.9.9 与 203/203 当前验证。
+- `public/sw.js`: cache name 从 `gwr-v1.9.8-cache` 更新为 `gwr-v1.9.9-cache`。
+- `COMPREHENSIVE_PLAN.md`: 重写为当前审计与落地计划。
 
-#### BUG-C08: restorationMetrics SSIM是伪实现
-- **文件**: `src/core/restorationMetrics.js:38-44`
-- **现象**: `calculateSSIM`只是将PSNR线性映射到[0,1],不是真实的结构相似度
-- **影响**: 误导性指标
-- **修复方案**: 重命名为`estimateQualityFromPSNR`或实现真实SSIM
+### 4.2 仍需统一的文档
 
-#### BUG-C09: app.js引用未定义DOM元素
-- **文件**: `src/app.js:111-112`
-- **现象**: `elements.resetAreaBtn`和`elements.clearAllBtn`未在elements对象中定义
-- **影响**: 静默失败,按钮事件不绑定
-- **修复方案**: 在elements对象中添加这两个ID的引用,或确认HTML中有对应元素
+- `MASTER_PLAN.md`: 顶部写 200/200，但矩阵表仍写 188 tests / 46 suites，且含历史 v1.8/v1.9.8 计数。
+- `reports/frontend-and-tests-report.md`: 已同步到当前前端审计结论与 203/203 验证。
+- `reports/doubao-report.md`: 已同步 Doubao 专项测试 `35/35` 与全量 `203/203` 当前验证。
+- `README.md`: 已同步为 v1.9.9 与 203/203 当前验证；后续建议改成引用 CI badge 避免数字漂移。
+- `package.json` repository 指向 `journey-ad`，本地 origin 为 `lastraindrop`，上游对比为 `GargantuaX`；发布前应明确 canonical repo。
+- `public/index.html` GitHub link 指向 `journey-ad`，如当前产品归属已变化，需要同步。
+- `USER_GUIDE.md` 与 `DEVELOPER_GUIDE.md` 需补充 multi-anchor 实际去除、offline test/build 命令、experimental profile 说明。
 
-#### BUG-C10: cli.js版本号过时
-- **文件**: `src/cli.js:20`
-- **现象**: 硬编码`v1.9.1`,实际版本v1.9.8
-- **修复方案**: 从package.json动态读取或更新为v1.9.8
+## 5. 如何确认水印案例均可通过
 
----
+### 5.1 必须覆盖的案例矩阵
 
-## 四、文档不一致性分析
+- Gemini catalog: 512, 1024, 2048, 4096, portrait/landscape additions。
+- Gemini heuristic: 非 catalog 尺寸、小图、宽图、轻微缩放。
+- Doubao catalog: 2048 square, 2730x1535 TL/BR, 2364x1773 TL/BR, 1536x2727 TL/BR。
+- Doubao heuristic: 非 catalog 矩形、TL/BR fallback。
+- 对抗样本: JPEG 量化、heavy noise、edge crop、subpixel jitter。
+- 负样本: 纯色/随机无水印图，必须 `removedCount=0` 或低 confidence。
+- 运行面: Web engine, CLI JSON, CLI pipe, Python bridge。
+- 前端面: 单图上传、目录上传、拖拽、粘贴、profile 选择、deep scan、noise reduction、auto download、单图/批量结果视图、活动日志导出。
 
-| # | 不一致项 | 位置 | 应修正为 |
-|---|---|---|---|
-| D1 | DEVELOPER_GUIDE版本号v1.9.1 | `DEVELOPER_GUIDE.md:1` | v1.9.8 |
-| D2 | cli.js版本号v1.9.1 | `src/cli.js:20` | v1.9.8 |
-| D3 | README说"130+ cases" | `README.md:170` | "188+ cases" |
-| D4 | README项目结构不完整 | `README.md:148-174` | 补充profiles.js, restorationMetrics.js, templates/ |
-| D5 | DEVELOPER_GUIDE说"npm install" | `DEVELOPER_GUIDE.md:39` | "pnpm install" |
-| D6 | USER_GUIDE只提Gemini | `USER_GUIDE.md` 全文 | 补充Doubao和DALL-E 3说明 |
-| D7 | DEVELOPER_GUIDE未提restorationMetrics | `DEVELOPER_GUIDE.md` | 补充 |
-| D8 | MASTER_PLAN测试矩阵说183但实际188 | `MASTER_PLAN.md:259` | 188 |
-| D9 | ROADMAP说"200/200"正确 | `ROADMAP.md:6` | ✅ 正确 |
-| D10 | README Features提到DALL-E 3支持 | `README.md` | 应标注"实验性"或移除 |
+### 5.2 通过标准
 
----
+- detection: catalog 样本至少命中 1 个候选；多锚点图应命中并去除全部真实锚点。
+- confidence: 合成样本应 > 0.40；真实 Doubao bridge 样本本次为 71.9%。
+- fidelity: 合成可逆样本 PSNR > 24dB；关键像素误差保持在现有测试阈值内。
+- safety: 无水印图不得高置信误判。
+- build: `dist/app.js`, `dist/worker.js`, userscript 和静态 assets 必须生成。
+- frontend: DOM hook 必须存在；文件 picker 不应带 `webkitdirectory`；目录 picker 必须带 `webkitdirectory`；文件名不得通过 `innerHTML` 拼入批量卡片；批处理失败项必须推进进度。
 
-## 五、水印案例验证分析
+### 5.3 当前验证命令
 
-### 5.1 当前测试覆盖方式
-
-```
-测试策略:
-  ┌─ Mock Alpha Map (createMockAlphaMap) ─ 圆形渐变模拟水印
-  ├─ applyWatermark() ─ 模拟alpha blending注入水印
-  ├─ calculateProbeConfidence() ─ 验证检出
-  └─ removeWatermark() ─ 验证像素还原
+```powershell
+npm run lint
+npm test
+npm run build
+python -m unittest tests\test_bridge_integration.py
+node --test tests\product_audit.test.js
+node --test tests\frontend_contract.test.js
 ```
 
-### 5.2 Mock vs 真实的差距
+## 6. 新增水印模板的适配方式
 
-| 维度 | Mock测试 | 真实场景 |
-|---|---|---|
-| Alpha Map形状 | 圆形渐变 | Gemini实际Logo图案 |
-| 背景复杂度 | solid/gradient/noise/random | 真实照片纹理 |
-| Alpha值范围 | 0-0.95均匀 | 实际水印0.01-0.15(极低透明度) |
-| JPEG压缩失真 | 无 | 有 |
-| 缩放因子 | 无 | 可能有亚像素偏移 |
+### 6.1 最小改动路径
 
-### 5.3 如何确认水印案例均可通过
+1. 将模板 PNG 放入 `src/assets/`，命名为 `bg_<profile>_<anchor>.png`。
+2. 在 `src/core/profiles.js` 增加 profile:
+   - `id`, `name`, `brandColor`, `logoValue`
+   - `anchors`
+   - `assets`
+   - `getHeuristicConfig(width, height, anchor)`
+3. 在 `src/core/catalog.js` 增加 catalog entries:
+   - `width`, `height`
+   - `logoWidth`/`logoHeight` 或 `logoSize`
+   - `marginLeft`/`marginTop` 或 `marginRight`/`marginBottom`
+   - `anchor`
+4. 注册 profile 与 catalog 到 `registry`。
+5. 如果颜色不是白色 alpha blend，需要扩展 `blendModes.js` 的 logoValue/profile 传参。
 
-**步骤1: 构建真实Alpha Map测试**
-- 从`sample/other/`中的`pre_watermark_*.png`提取真实alpha map
-- 用真实alpha map替代mock进行端到端测试
+### 6.2 必须新增的测试
 
-**步骤2: 构建Golden Dataset**
-- 收集一组已知"原图+水印图"配对
-- 验证还原后像素差PSNR > 40dB(理想>50dB)
+- `tests/profiles.test.js`: profile 注册、anchors、assets、heuristic。
+- `tests/catalog.test.js`: catalog exact/tolerance match。
+- `tests/config.test.js`: `getAllPotentialConfigs` 与坐标计算。
+- `tests/detector.test.js`: `calculateProbeConfidence` 对单锚点/多锚点命中。
+- `tests/product_audit.test.js`: 新 profile 全 catalog 矩阵与多锚点 E2E。
+- `tests/frontend_contract.test.js`: 新 profile 出现在 profile select 生成链路中；新增模板相关 UI 文案要有 i18n key。
+- `tests/cli.integration.test.js`: `--profile <id> --json`。
+- `tests/real_sample.test.js`: 至少 1 个真实样本 metadata/catalog 对齐。
 
-**步骤3: 自动化回归**
-- 在CI中加入真实样本回归测试
-- 对每次提交运行golden dataset验证
+### 6.3 边界要求
 
-### 5.4 当前效果评估
+- 新 profile 默认不进入 auto-detect，除非已有真实样本与负样本证明误判可控。
+- experimental profile 必须标记 `experimental: true`，前端默认隐藏。
+- 模板资产尺寸必须与 catalog 的 `logoWidth/logoHeight` 对齐，或测试必须覆盖 resize 误差。
+- 如果同一图存在多个真实水印，必须断言 `removedCount` 等于真实锚点数。
 
-| Profile | Phase 1命中 | Phase 2搜索 | 还原精度 | 评估 |
-|---|---|---|---|---|
-| Gemini 512x512 | ✅ Catalog直命中 | 不需要 | ±2px内 | ★★★★★ |
-| Gemini 1024x1024 | ✅ Catalog直命中 | 不需要 | ±2px内 | ★★★★★ |
-| Gemini 2048x2048 | ✅ Catalog直命中 | 不需要 | ±2px内 | ★★★★★ |
-| Doubao 2730x1535 BR | ✅ Catalog直命中 | 不需要 | ±2px内 | ★★★★★ |
-| Doubao 2730x1535 TL | ✅ Catalog直命中 | 不需要 | ±2px内 | ★★★★★ |
-| Doubao 竖版 1536x2727 | ✅ Catalog直命中 | 不需要 | ±2px内 | ★★★★★ |
-| Gemini 非Catalog尺寸 | ⚠️ Phase 1失败 | ✅ Phase 2 | ±5px内 | ★★★★☆ |
-| Doubao 非Catalog尺寸 | ⚠️ Phase 1失败 | ⚠️ Phase 2矩形限制 | 待验证 | ★★★☆☆ |
-| DALL-E 3 | ❌ 无资产 | ❌ | 不可用 | ☆☆☆☆☆ |
+## 7. 后续落地顺序
 
----
+### P0 已完成
 
-## 六、新水印模板添加指南
+- 修复本地验证链路。
+- 修复 multi-probe 只去除一个候选的问题。
+- 修复 Web UI 上传入口、批量失败进度、检测坐标统计、批量卡片 DOM 注入风险。
+- 将前端主叙事与控件同步到 Gemini + Doubao + profile architecture。
+- 清理 lint。
+- 同步部分版本文档。
+- 重新跑全量验证。
 
-### 6.1 当前流程评估
+### P1 文档收敛
 
-**优点**: Template Registry使添加新Profile只需3步:
-1. 在`profiles.js`中定义Profile
-2. 在`catalog.js`中添加分辨率条目
-3. 放入PNG资产文件
+1. 更新 `MASTER_PLAN.md` 测试矩阵到 203/203，删除历史错误计数或移动到 changelog。
+2. 更新 `reports/frontend-and-tests-report.md` 当前状态为 203/203，保留历史段落。
+3. 后续将 README 测试数量改成引用 CI badge，避免数字漂移。
+4. 明确 canonical repository，并同步 `package.json`, `public/index.html`, README links。
 
-**缺点**:
-- 必须手动同步4个位置(profiles.js, catalog.js, gwrRemoveCommand.js ASSETS, detector.js Phase 2 sizes)
-- 无自动化验证资产是否齐全
-- Phase 2矩形水印搜索不支持
+### P2 架构收敛
 
-### 6.2 理想的添加流程 (目标)
+1. 从 `watermarkEngine.js` 与 `gwrRemoveCommand.js` 抽出共享候选执行器。
+2. 从 `detector.js` 抽出候选排序与去重策略。
+3. 统一 Web/CLI 阈值策略，profile 可覆盖 threshold。
+4. 将真实样本验证统一到 `tests/fixtures`，避免 sample/research/report 混用。
 
-```
-1. 制作水印Alpha Map PNG → 放入 src/assets/bg_<name>.png
-2. 定义Profile → 自动注册到registry
-3. 定义Catalog → 自动扫描registry
-4. 运行测试 → 自动覆盖新Profile
-   (无需手动修改detector.js或gwrRemoveCommand.js)
-```
+### P3 上游能力择优融合
 
-### 6.3 达到理想状态需要的改造
+1. 参考上游 SDK exports，提供稳定 JS API。
+2. 参考上游 extension/runtime 拆分 userscript 页面桥接。
+3. 引入上游真实页面 benchmark 思路，但继续保留 Doubao registry。
+4. 对 preview calibration 做独立实验分支，避免影响稳定主线。
 
-| 改造项 | 当前 | 目标 |
-|---|---|---|
-| CLI ASSETS映射 | 手动硬编码 | 自动扫描src/assets/目录 |
-| detector Phase 2 sizes | 手动硬编码数组 | 从catalog动态生成 |
-| 资产存在性校验 | 无 | profiles.test.js校验每个profile的assets都存在 |
-| 矩形水印搜索 | size=size | 从catalog获取WxH |
+### P4 新模板流程产品化
 
----
+1. 增加 `docs/TEMPLATE_AUTHORING.md`。
+2. 增加 `scripts/create-profile-fixture.mjs`，从真实 before/after 或 watermark-only 图生成模板校验报告。
+3. 增加 `tests/template_contract.test.js`，自动校验所有非 experimental profile 的 assets/catalog/heuristic。
+4. 新模板合入必须同时提供真实样本、负样本、CLI JSON 样本和文档片段。
 
-## 七、完整执行计划
+## 8. 发布前检查清单
 
-### Phase 1: 紧急Bug修复 (预计2小时)
-
-#### Step 1.1: 修复色度权重不一致 [BUG-C01]
-- **文件**: `src/core/detector.js:306`
-- **操作**: 将BT.601改为BT.709
-- **验证**: 运行`bt709_color.test.js`和`detector.test.js`
-
-#### Step 1.2: 处理DALL-E 3缺失资产 [BUG-C02]
-- **文件**: `src/core/profiles.js:63-87`, `src/core/catalog.js:23-25`
-- **操作方案A** (推荐): 将dalle3标记为实验性,在profile中添加`experimental: true`,在UI/CLI中隐藏
-- **操作方案B**: 制作dalle3 alpha map资产
-- **验证**: profiles.test.js添加dalle3资产存在性断言
-
-#### Step 1.3: 修复detector Phase 2矩形水印搜索 [BUG-C03]
-- **文件**: `src/core/detector.js:132-227`
-- **操作**:
-  1. 从catalog动态生成搜索尺寸列表(含WxH格式)
-  2. 修改Phase 2内循环支持非正方形搜索
-- **验证**: doubao.test.js添加Phase 2矩形水印命中测试
-
-### Phase 2: 中等Bug修复 (预计1.5小时)
-
-#### Step 2.1: 补全CLI ASSETS映射 [BUG-C04]
-- **文件**: `src/cli/gwrRemoveCommand.js:19-24`
-- **操作**: 改为动态扫描`src/assets/`目录或从profiles提取所有asset key
-- **验证**: cli.integration.test.js
-
-#### Step 2.2: 修复GUI status_canvas [BUG-C05]
-- **文件**: `python/gui.py:88,251`
-- **操作**: `status_dot` → `self.status_dot`; `self.status_canvas` → `self.status_dot`
-- **验证**: 手动运行GUI观察状态指示灯变化
-
-#### Step 2.3: 修复processQueue并发 [BUG-C06]
-- **文件**: `src/app/processing.js:53-88`
-- **操作**: 用try/finally包裹active--,或重构为标准并发池
-- **验证**: memory_queue.test.js
-
-#### Step 2.4: 修复getAllPotentialConfigs防御性 [BUG-C07]
-- **文件**: `src/core/config.js:47`
-- **操作**: 添加`if (!profile.anchors) return [...]`
-- **验证**: profiles.test.js添加无anchors profile测试
-
-### Phase 3: 文档一致性修复 (预计30分钟)
-
-#### Step 3.1: 版本号统一
-- `DEVELOPER_GUIDE.md:1` → v1.9.8
-- `src/cli.js:20` → v1.9.8 (或从package.json读取)
-- `README.md:170` → "188+ cases"
-- `MASTER_PLAN.md:259` → 188
-
-#### Step 3.2: 文档内容更新
-- `DEVELOPER_GUIDE.md:39` → "pnpm install"
-- `USER_GUIDE.md` → 补充Doubao说明
-- `README.md` → 更新项目结构图,标注DALL-E 3为实验性
-
-### Phase 4: 单元测试增强 (预计2小时)
-
-#### Step 4.1: 色度权重一致性测试
-- **新文件**: 无(增强现有)
-- **操作**: 在`bt709_color.test.js`中添加断言:
-  - alphaMap和detector对同一像素计算的亮度值必须相等
-  - 添加红/绿/蓝纯色背景的端到端检出-还原验证
-
-#### Step 4.2: 资产完整性测试
-- **文件**: `tests/product_audit.test.js`
-- **操作**: 添加测试——遍历所有profile,校验其assets字段对应的PNG文件存在于`src/assets/`
-
-#### Step 4.3: 矩形水印Phase 2命中测试
-- **文件**: `tests/doubao.test.js`
-- **操作**: 在非Catalog分辨率上放置矩形doubao水印,验证Phase 2能检出
-
-#### Step 4.4: CLI完整ASSETS路径测试
-- **文件**: `tests/cli.integration.test.js`
-- **操作**: 测试`--profile doubao`和`--profile dalle3`的CLI行为
-
-#### Step 4.5: processQueue异常恢复测试
-- **文件**: `tests/memory_queue.test.js`
-- **操作**: 模拟processSingle抛出异常后队列继续处理
-
-#### Step 4.6: config.js防御性测试
-- **文件**: `tests/config.test.js`
-- **操作**: 测试无anchors的profile、无getHeuristicConfig的profile
-
-#### Step 4.7: 真实样本回归测试
-- **新文件**: `tests/real_sample.test.js`
-- **操作**: 从`sample/other/`读取真实doubao水印样本,验证探测+还原
-
-### Phase 5: 低优先级优化 (预计1小时)
-
-#### Step 5.1: restorationMetrics SSIM标注
-- **文件**: `src/core/restorationMetrics.js:38-44`
-- **操作**: 重命名为`estimateQualityFromPSNR`或添加注释说明是估算值
-
-#### Step 5.2: app.js DOM元素引用
-- **文件**: `src/app.js:12-30,111-112`
-- **操作**: 添加缺失的DOM元素引用
-
-#### Step 5.3: detector.js全局变量清理
-- **文件**: `src/core/detector.js:17`
-- **操作**: 将`let _lastVar = 0`封装进函数或改为detector的属性
-
----
-
-## 八、测试覆盖矩阵 (目标状态)
-
-| 测试文件 | 当前测试数 | 计划新增 | 关键覆盖 |
-|---|---|---|---|
-| alphaMap_precision.test.js | 2 | +1 | BT.709与detector一致性 |
-| blendModes.test.js | 5 | 0 | α-混合精度 |
-| bt709_color.test.js | 3 | +2 | 纯色背景检出-还原端到端 |
-| build_pipeline.test.js | 3 | 0 | 构建产物 |
-| catalog.test.js | 10 | 0 | 目录精确匹配 |
-| cli.integration.test.js | 7 | +2 | doubao/dalle3 profile |
-| color_space.test.js | 2 | 0 | 色彩空间 |
-| config.test.js | 6 | +2 | 无anchors/无heuristic防御 |
-| consistency.test.js | 3 | 0 | 参数协议 |
-| core_math.test.js | 4 | 0 | 数学基础 |
-| detector_buffers.test.js | 3 | 0 | 缓冲区管理 |
-| detector_modes.test.js | 2 | 0 | 模式标记 |
-| detector.test.js | 4+32(matrix) | 0 | NCC+矩阵验证 |
-| doubao.test.js | 18 | +2 | 矩形Phase 2命中 |
-| edge_cases.test.js | 5 | 0 | 边角 |
-| frontend_contract.test.js | 4 | 0 | DOM hooks |
-| frontend_interaction.test.js | 3 | 0 | E2E还原 |
-| i18n.test.js | 12 | 0 | 7语言翻译 |
-| memory_pressure.test.js | 1 | 0 | 50轮内存 |
-| memory_queue.test.js | 3 | +1 | 异常恢复 |
-| parameter_matrix.test.js | 5 | 0 | 参数矩阵 |
-| pipeline.test.js | 2 | 0 | 全流程 |
-| product_audit.test.js | 4+1+1+2 | +1 | 资产存在性校验 |
-| productization.test.js | 4 | 0 | 注册表 |
-| profiles.test.js | 4 | +1 | dalle3资产校验 |
-| restoration_metrics.test.js | 3 | 0 | PSNR/MSE |
-| security.test.js | 6+2 | 0 | 安全验证 |
-| subpixel.test.js | 2 | 0 | 亚像素 |
-| watermarkEngine.test.js | 5 | 0 | 缓存/Worker |
-| worker_resilience.test.js | 2 | 0 | Worker回退 |
-| **real_sample.test.js** | **0** | **+3** | **真实样本回归** |
-| **合计** | **188** | **+15** | **目标 203** |
-
----
-
-## 九、执行顺序总表
-
-```
-┌─ Phase 1: 紧急Bug (先修后测)
-│  ├─ 1.1 detector.js:306 色度权重 → BT.709
-│  ├─ 1.2 profiles.js dalle3 → experimental标记
-│  └─ 1.3 detector.js:132-227 Phase 2矩形支持
-│
-├─ Phase 2: 中等Bug
-│  ├─ 2.1 gwrRemoveCommand.js:19-24 ASSETS动态映射
-│  ├─ 2.2 gui.py:88,251 status_dot引用
-│  ├─ 2.3 processing.js:53-88 并发池try/finally
-│  └─ 2.4 config.js:47 无anchors防御
-│
-├─ Phase 3: 文档
-│  ├─ 3.1 版本号统一 (4处)
-│  └─ 3.2 内容更新 (3处)
-│
-├─ Phase 4: 单元测试 (+15个)
-│  ├─ 4.1 bt709一致性 (+1)
-│  ├─ 4.2 资产完整性 (+1)
-│  ├─ 4.3 矩形Phase 2 (+2)
-│  ├─ 4.4 CLI profile覆盖 (+2)
-│  ├─ 4.5 队列异常恢复 (+1)
-│  ├─ 4.6 config防御性 (+2)
-│  └─ 4.7 真实样本回归 (+3, 新文件)
-│
-├─ Phase 5: 低优先级
-│  ├─ 5.1 SSIM标注
-│  ├─ 5.2 DOM引用
-│  └─ 5.3 全局变量清理
-│
-└─ 验证: pnpm test → 目标 203/203 pass
-```
-
----
-
-*此分析由全面代码审计系统生成 — 2026-04-29*
+- `git status --short` 只包含预期源码/文档改动，不包含 `python/prefs.json` 这类本地偏好。
+- `npm run lint` 无输出。
+- `npm test` 全部通过。
+- `npm run build` 通过，`dist/` 产物可打开。
+- `python -m unittest tests\test_bridge_integration.py` 通过。
+- README/README_zh/package/public links 指向同一 canonical repo。
+- Service Worker cache version 与 package version 对齐。
+- experimental profiles 不在默认 UI 中暴露。

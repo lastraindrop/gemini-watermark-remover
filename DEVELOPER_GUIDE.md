@@ -1,45 +1,108 @@
-# GWR Developer Guide (v1.9.9 Final)
+# GWR Developer Guide
 
-本文档旨在帮助开发者了解 Gemini Watermark Remover 的项目架构、核心设计模式及开发规范。
+本文档说明当前分支的架构、参数一致化策略、动态对齐规则，以及新增模板时必须遵守的测试流程。
 
-## 🏗 代码架构 (v1.9.1 Hardened)
+## 架构概览
 
-项目遵循“核心与外壳分离”的模块化设计，将核心算法与环境实现彻底解耦：
+### 核心层
 
-### 1. 核心算法层 (`src/core/`) - 纯 JS，无依赖
-- **`templates/registry.js`**: **模板注册表系统**。这是 v1.8.5 的核心。它解耦了品牌配置与引擎逻辑，支持运行时动态注册水印 Profile（如 Gemini, Doubao）。
-- **`detector.js`**: **梯度探测引擎 (v1.9.0加固)**。引入 +/- 4px 滑动窗口抖动搜寻与距离惩罚机制，解决由于图像剪裁或宿主环境缩放带来的亚像素偏移问题。新增多模态评分系统（Anchored/Aligned/Free）。
-- **`blendModes.js`**: **数学复原层**。使用反向 Alpha 混合模型，通过双线性插值实现亚像素级的无损复原。
-- **`restorationMetrics.js`**: **质量评估层**。提供 MSE、PSNR 等量化指标用于还原质量验证。
-- **`worker.js`**: Web Worker 封装，确保耗时的像素计算不阻塞主线程。
+- `src/core/templates/registry.js` 是单一事实来源，保存 profile、catalog、assets、heuristic。
+- `src/core/profiles.js` 提供品牌与模板策略。
+- `src/core/catalog.js` 提供分辨率与锚点目录。
+- `src/core/detector.js` 负责候选位置探测、置信度评分和坐标回传。
+- `src/core/blendModes.js` 负责反向 Alpha 混合恢复。
+- `src/core/watermarkEngine.js` 统筹 multi-probe、候选应用和结果归一化。
 
-### 2. 应用逻辑层 (`src/app/`) - 浏览器端调度
-- **`state.js`**: 全局状态中心。管理处理进度、图片队列及关键的对象 URL 生命周期（防止内存泄漏）。
-- **`processing.js`**: 并发控制中心。实现了并发数为 4 的任务调度队列。
-- **`ui.js`**: 交互增强工具。统筹 Toast 通知、Audit Log 日志输出及 Premium UI 动效。
+### 应用层
 
-### 3. 环境适配层
-- **`app.js`**: 浏览器端入口，负责引导 UI 初始化。
-- **`src/cli/`**: Node.js 环境下的命令行交互实现，支持批量与 Pipe 模式。
+- `src/app.js` 负责网页事件、状态、渲染和 profile 选择。
+- `src/app/processing.js` 负责单图与队列并发。
+- `src/app/ui.js` 负责 Toast、进度和活动日志。
 
-## 💎 设计哲学：动态对齐 (Dynamic Alignment)
+### 环境层
 
-为了消除“硬编码坏味道”，GWR 采用**单元测试驱动的参数矩阵**。
-- **Single Source of Truth**: 开发者只需在 `src/core/templates/` 中添加新分辨率或锚点。
-- **Auto-Regression**: `tests/product_audit.test.js` 会自动扫描注册表，针对每一个已注册的条目生成虚拟图片进行端到端测试。这确保了新添加的水印模板能够立即获得 100% 的覆盖验证。
-- **Adversarial Hardening**: 引入了极端噪声（Extreme Noise）与边缘截断（Edge Cropping）测试，验证引擎在面对“坏样本”时的稳定性。
+- `src/cli.js` 与 `src/cli/*` 负责命令行入口。
+- `python/remover.py` 负责 Python bridge。
+- `build.js` 负责打包和静态资源同步。
 
-## 🚀 性能优化：资产内联 (Inlining)
+## 当前设计原则
 
-v1.9.9 引入了前端国际化完整性与快捷键上下文感知：
-- **原理**: `build.js` 会在打包时扫描 `src/assets/*.png`，将其转换为 Base64 并注入 `window.GWR_INLINED_ASSETS`。
-- **优势**: 核心引擎 `_loadAsset` 优先读取内存 DataURL，完全消除了浏览器端的 HTTP 并发限制，解决了 PWA 环境下的静态资源丢失问题。
+1. profile/catalog/assets 三者必须同步变化。
+2. 前端和 CLI 不能直接写死分辨率。
+3. 统计 UI 必须使用 engine 返回的真实 `pos` 与 `confidence`。
+4. 批处理成功和失败都要推进进度。
+5. 批量卡片、日志和文案都必须走安全渲染与 i18n。
 
-## 🛠 开发流程
-1. **安装**: `pnpm install`
-2. **开发**: 修改 `src/` 中的模块化文件。
-3. **编译**: `pnpm build` 将 ESM 模块打包为浏览器可用的单文件。
-4. **测试**: `pnpm test` (或 `node --test tests/*.js`) 运行全量审计套件。
+## 动态对齐
 
-## 📍 路线图 (Roadmap)
-后续重点在于 **Rust/WASM 性能迁移** 与 **智能模型特征识别**。详情请参阅 [ROADMAP.md](./ROADMAP.md)。
+这是目前最重要的工程约束。
+
+新增模板时，不允许只加一处：
+
+1. 先在 `src/core/templates/registry.js` 或对应 profile 文件里登记模板。
+2. 再在 `src/core/catalog.js` 补分辨率与锚点。
+3. 再补资产文件。
+4. 最后补回归测试。
+
+这样做的目的，是让测试成为参数一致性的守门人，而不是事后补洞。
+
+## 参数一致化
+
+当前前端、CLI、Python bridge 都从同一组引擎参数派生：
+
+- `profileId`
+- `deepScan`
+- `noiseReduction`
+- `autoDownload`
+
+Web UI 里的统计面不再自行推断坐标，而是直接使用 engine 回传的 `pos`。
+
+## 测试策略
+
+当前验证基线应至少包含：
+
+- `npm run lint`
+- `npm test`
+- `npm run build`
+- `node --test tests/frontend_contract.test.js`
+- `node --test tests/product_audit.test.js`
+- `python -m unittest tests\\test_bridge_integration.py`
+
+新增模板时，必须补至少以下一种：
+
+- `tests/product_audit.test.js` 的矩阵覆盖
+- 专项 profile/catalog/detector 测试
+- 前端契约测试中的 i18n 或 DOM hook 断言
+
+## 文档维护规则
+
+如果代码重构了，文档必须同步，尤其是下面几类信息：
+
+- 当前版本号和测试数
+- 当前 UI 控件与交互
+- CLI / Web / Python 的参数对齐方式
+- 新模板的接入步骤
+
+不要在说明里继续把历史状态写成当前状态。历史结论应留在 `MASTER_PLAN.md` 或专题报告里，并明确标注为历史快照。
+
+## 开发流程
+
+1. 修改源码。
+2. 更新相应测试。
+3. 更新用户指南、开发者指南、路线图和计划。
+4. 跑完整验证。
+5. 再提交。
+
+## 路线图
+
+当前短期方向：
+
+- 收敛文档漂移。
+- 保持 profile/catalog 动态对齐。
+- 把新模板接入流程固定为标准化步骤。
+
+中长期方向：
+
+- 抽出更细的共享候选执行器。
+- 继续优化高分辨率与批处理性能。
+- 若引入 Rust/WASM，必须先用测试锁定行为，再替换实现。
