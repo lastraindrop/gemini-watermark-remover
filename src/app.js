@@ -6,7 +6,7 @@ import { ENGINE_LIMITS } from './core/config.js';
 
 import { state, objectUrlManager } from './app/state.js';
 import { AuditLog, showToast, resetGlobalProgress } from './app/ui.js';
-import { processSingle, processQueue, downloadImage } from './app/processing.js';
+import { processSingle, processQueue, downloadImage, downloadAllAsZip } from './app/processing.js';
 
 // DOM Elements
 const elements = {
@@ -34,6 +34,10 @@ const elements = {
     clearAllBtn: document.getElementById('clearAllBtn'),
     auditConsole: document.getElementById('auditConsole'),
     auditConsoleToggle: document.getElementById('auditConsoleToggle')
+};
+
+const dragState = {
+    depth: 0
 };
 
 async function init() {
@@ -107,32 +111,27 @@ function setupEventListeners() {
         elements.fileInput?.click();
     });
 
-    ['dragover', 'dragleave', 'drop'].forEach(evt => {
-        elements.uploadArea?.addEventListener(evt, (e) => {
-            e.preventDefault();
-            if (evt === 'dragover') elements.uploadArea.classList.add('scale-[0.98]');
-            else elements.uploadArea.classList.remove('scale-[0.98]');
-            
-            if (evt === 'drop') {
-                const items = e.dataTransfer.items;
-                const uri = e.dataTransfer.getData('text/uri-list');
-                
-                if (uri) {
-                    AuditLog.log(`Remote asset detected: ${uri.split('/').pop()}`, 'process');
-                    handleUrl(uri);
-                } else if (items && items.length > 0 && items[0].webkitGetAsEntry) {
-                    handleDataTransferItems(items);
-                } else {
-                    handleFiles(Array.from(e.dataTransfer.files));
-                }
-            }
-        });
-    });
+    setupWindowDragAndDrop();
 
-    elements.downloadAllBtn?.addEventListener('click', () => {
+    elements.downloadAllBtn?.addEventListener('click', async () => {
         const completedItems = state.imageQueue.filter(item => item.status === 'success');
-        completedItems.forEach(downloadImage);
-        showToast(i18n.t('toast.downloading', { count: completedItems.length }), 'info');
+        if (completedItems.length === 0 || elements.downloadAllBtn.disabled) return;
+
+        elements.downloadAllBtn.disabled = true;
+        elements.downloadAllBtn.classList.add('opacity-60', 'cursor-wait');
+        try {
+            AuditLog.log(`Preparing ZIP bundle for ${completedItems.length} files`, 'process');
+            const count = await downloadAllAsZip(completedItems, {
+                filename: `gwr_batch_${new Date().toISOString().replace(/[:.]/g, '-')}.zip`
+            });
+            showToast(i18n.t('toast.downloading', { count }), 'info');
+        } catch (error) {
+            AuditLog.log(`ZIP export failed: ${error.message}`, 'err');
+            showToast(error.message, 'err');
+        } finally {
+            elements.downloadAllBtn.disabled = false;
+            elements.downloadAllBtn.classList.remove('opacity-60', 'cursor-wait');
+        }
     });
 
     elements.resetAreaBtn?.addEventListener('click', resetWorkspace);
@@ -153,6 +152,78 @@ function setupEventListeners() {
     setupMagnifier();
 }
 
+function isFileOrUrlDrag(event) {
+    const types = Array.from(event.dataTransfer?.types || []);
+    return types.includes('Files') || types.includes('text/uri-list');
+}
+
+function setDropzoneActive(active) {
+    elements.uploadArea?.classList.toggle('scale-[0.98]', active);
+    elements.uploadArea?.classList.toggle('drop-active', active);
+}
+
+function setupWindowDragAndDrop() {
+    window.addEventListener('dragenter', (event) => {
+        if (!isFileOrUrlDrag(event)) return;
+        event.preventDefault();
+        dragState.depth++;
+        setDropzoneActive(true);
+    });
+
+    window.addEventListener('dragover', (event) => {
+        if (!isFileOrUrlDrag(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        setDropzoneActive(true);
+    });
+
+    window.addEventListener('dragleave', (event) => {
+        if (!isFileOrUrlDrag(event)) return;
+        event.preventDefault();
+        dragState.depth = Math.max(0, dragState.depth - 1);
+        if (dragState.depth === 0) setDropzoneActive(false);
+    });
+
+    window.addEventListener('drop', async (event) => {
+        if (!isFileOrUrlDrag(event)) return;
+        event.preventDefault();
+        dragState.depth = 0;
+        setDropzoneActive(false);
+        await handleDropEvent(event);
+    });
+}
+
+async function handleDropEvent(event) {
+    const dataTransfer = event.dataTransfer;
+    if (!dataTransfer) return;
+
+    const uri = dataTransfer.getData('text/uri-list')
+        .split('\n')
+        .map(line => line.trim())
+        .find(line => line && !line.startsWith('#'));
+
+    if (uri) {
+        AuditLog.log(`Remote asset detected: ${uri.split('/').pop()}`, 'process');
+        await handleUrl(uri);
+        return;
+    }
+
+    const items = dataTransfer.items;
+    const hasEntries = items && Array.from(items).some(item => typeof item.webkitGetAsEntry === 'function');
+    if (hasEntries) {
+        await handleDataTransferItems(items);
+        return;
+    }
+
+    handleFiles(Array.from(dataTransfer.files || []));
+}
+
+function isSupportedImageFile(file) {
+    const type = (file.type || '').toLowerCase();
+    if (/^image\/(jpeg|png|webp)$/.test(type)) return true;
+    return /\.(jpe?g|png|webp)$/i.test(file.name || '');
+}
+
 function handleFiles(files) {
     if (!state.engine) return;
     if (state.isProcessing) {
@@ -161,7 +232,7 @@ function handleFiles(files) {
     }
 
     const validFiles = files.filter(file => {
-        if (!file.type.match('image/(jpeg|png|webp)')) return false;
+        if (!isSupportedImageFile(file)) return false;
         if (file.size > ENGINE_LIMITS.MAX_FILE_SIZE) {
             showToast(`${file.name} exceeds max size`, 'err');
             return false;
@@ -241,13 +312,23 @@ async function handleUrl(uri) {
 
 async function handleDataTransferItems(items) {
     const files = [];
+    const readAllEntries = async (reader) => {
+        const entries = [];
+        while (true) {
+            const batch = await new Promise(resolve => reader.readEntries(resolve));
+            if (!batch || batch.length === 0) break;
+            entries.push(...batch);
+        }
+        return entries;
+    };
+
     const traverseEntry = async (entry) => {
         if (entry.isFile) {
             const file = await new Promise(resolve => entry.file(resolve));
             files.push(file);
         } else if (entry.isDirectory) {
             const reader = entry.createReader();
-            const entries = await new Promise(resolve => reader.readEntries(resolve));
+            const entries = await readAllEntries(reader);
             for (const e of entries) await traverseEntry(e);
         }
     };
@@ -272,7 +353,7 @@ function updateSingleUI(item, removedCount, confidence, latency, config, pos, pr
     if (config && elements.tierBadge) {
         const profile = getAllProfiles().find(p => p.id === profileId) || { id: 'AUTO' };
         const detectionType = config.isOfficial ? i18n.t('detection.official') : i18n.t('detection.heuristic');
-        elements.tierBadge.textContent = `${profile.id.toUpperCase()} • ${config.tier || detectionType} • ${config.anchor || 'BR'}`;
+        elements.tierBadge.textContent = `${profile.id.toUpperCase()} - ${config.tier || detectionType} - ${config.anchor || 'BR'}`;
         elements.tierBadge.classList.remove('hidden');
         
         // v1.9.8: Auto-sync theme with detected profile
@@ -294,7 +375,7 @@ function createImageCard(item) {
     card.className = 'gwr-image-card glass-premium rounded-3xl p-4 group overflow-hidden animate-fade-up';
 
     const preview = document.createElement('div');
-    preview.className = 'relative aspect-square rounded-2xl bg-slate-900/5 dark:bg-slate-900/50 flex items-center justify-center overflow-hidden mb-4 scanner-effect';
+    preview.className = 'relative aspect-square rounded-2xl bg-slate-900/5 dark:bg-slate-900/50 flex items-center justify-center overflow-hidden mb-4 scanner-effect is-processing';
 
     const img = document.createElement('img');
     img.id = `result-${item.id}`;
@@ -339,11 +420,13 @@ function createImageCard(item) {
 function updateCardUI(item, removedCount, confidence, latency) {
     const loader = document.getElementById(`loader-${item.id}`);
     const img = document.getElementById(`result-${item.id}`);
+    const preview = img?.closest('.scanner-effect');
     const status = document.getElementById(`status-${item.id}`);
     const meta = document.getElementById(`meta-${item.id}`);
     const dlBtn = document.getElementById(`download-${item.id}`);
 
     if (loader) loader.style.display = 'none';
+    preview?.classList.remove('is-processing');
     if (img) {
         img.src = item.processedUrl;
         img.classList.remove('opacity-0');
@@ -361,8 +444,10 @@ function updateCardErrorUI(item, error) {
     const status = document.getElementById(`status-${item.id}`);
     const meta = document.getElementById(`meta-${item.id}`);
     const card = document.getElementById(`card-${item.id}`);
+    const preview = card?.querySelector('.scanner-effect');
 
     if (loader) loader.style.display = 'none';
+    preview?.classList.remove('is-processing');
     if (status) {
         status.textContent = i18n.t('status.failed');
         status.classList.remove('text-slate-400');

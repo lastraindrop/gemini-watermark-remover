@@ -1,253 +1,90 @@
-[中文文档](README_zh.md)
+[中文说明](README_zh.md)
 
 # Gemini & Doubao Lossless Watermark Remover (v1.9.9)
 
-A production-grade, high-performance, 100% client-side tool for removing AI watermarks. v1.9.9 completes **Frontend Internationalization**, keyboard shortcut context-awareness, and experimental profile filtering.
+A production-grade, client-side tool for detecting, analyzing, and removing visible AI watermarks from Gemini and Doubao images.
 
-<p align="center">
-  <img src="https://count.getloli.com/@gemini-watermark-remover?name=gemini-watermark-remover&theme=minecraft&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400">
-</p>
+## What this release covers
 
-## Features
+- Shared detection pipeline for Web, CLI, and Python bridge
+- Gemini catalog-first matching with heuristic fallback
+- Doubao multi-anchor support
+- Frontend drag-and-drop upload
+- ZIP batch download
+- Localized UI and contract tests
+- Reproducible regression coverage for difficult watermark samples
 
-- ✅ **Professional Magnifier** - Sub-pixel verification of recovery quality with 3x optical-style zoom.
-- ✅ **Real-time Stats Dashboard** - Deep visibility into detection confidence, anchor points, and algorithm types.
-- ✅ **Dynamic Brand Theming** - Adaptive UI that morphs its design language based on the detected AI profile.
-- ✅ **Audit Log Export** - Professional CSV export for batch processing reports and verification.
-- ✅ **Multi-Model Support** - Now supports **Gemini** and **Doubao (豆包)** AI watermarks via the Profile System.
-- ✅ **Enhanced Jitter Tolerance** - Phase 1 local search (+/- 4px) to handle slightly cropped or scaled photos.
-- ✅ **Sub-pixel Alignment** - Bilinear interpolation for both image and alpha mask, eliminating artifacts.
-- ✅ **Modular CLI Engine** - High-speed batch processing with a flexible command-line interface.
-- ✅ **PWA (Progressive Web App)** - Installable on desktop/mobile, offline ready.
-- ✅ **Premium UI / Glassmorphism** - Modern aesthetic with high-end micro-animations.
-- ✅ **Auto-Detection & Sliding-Window Alignment** - Proactive correlation engine automatically finds watermark and corrects positional jitter (+/- 4px).
-- ✅ **Gradient-Based Probing** - Hardened detection for transparent/dark watermarks (like Doubao).
-- ✅ **Modular Template System** - Dynamic registry for multi-platform support (Gemini, Doubao).
-- ✅ **Keyboard Shortcuts** - `1/2/3` view switch, `←/→` sliders, `Esc` reset, `Ctrl+S` save (context-aware).
-- ✅ ✅ **Exhaustive Audit Suite (v1.9.9)** - 203/203 local test coverage including i18n completeness and frontend interaction.
-- ✅ **Python / GUI Bridge** - Robust Python integration with high-performance Node.js backend.
-- ✅ **CORS Fetch-First** - Resilient image loading strategy to bypass cross-origin "Tainted Canvas" errors.
+## Key capabilities
 
-## 🛡️ Production Hardened (v1.8.0)
+- Web app for interactive single-image and batch workflows
+- CLI for file, directory, pipe, and JSON output modes
+- Python bridge for automation and GUI integration
+- Shared profile/config/catalog system for consistent detection
+- Batch download packaged as ZIP to avoid browser download loss
+- Adaptive detection confidence and anchor validation
+- Local-only processing with no server upload
 
-To ensure absolute stability and precision when processing thousands of images or ultra-high resolution (4K/8K), the v1.8.0 release incorporates several hardening technologies:
+## Architecture overview
 
-1. **Sub-pixel Alpha Sampling**: Utilizing **Bilinear Interpolation** for both the image data and the watermark mask. This ensures that even when the watermark is offset by a fraction of a pixel (common in scaled images), the reconstruction is mathematically perfect.
-2. **Perceptual Luminance Detection**: Switched to the industry-standard luminance formula ($Y = 0.299R + 0.587G + 0.114B$) for detection, making the engine significantly more sensitive to watermarks on vivid or complex colored backgrounds.
-3. **Memory Buffering & Pooling**: Persistent reuse of Float32Array and Uint8ClampedArray buffers within the `Detector` core. This reduces GC pressure for 4K processing by **85%**.
-4. **Streaming Directory Mode**: Utilizing **Async Generators** for high-volume local directory processing. The streaming architecture ensures no OOM even with tens of thousands of files.
-5. **Worker Resilience & Timeouts**: A 15-second mandatory timeout for Web Worker communication. If a worker hangs, the system automatically falls back to the main thread seamlessly.
+- `src/core/catalog.js`: size and anchor catalog
+- `src/core/config.js`: profile-driven candidate generation
+- `src/core/detector.js`: confidence scoring and local probe logic
+- `src/core/detectionPipeline.js`: shared decision policy
+- `src/core/watermarkEngine.js`: browser/CLI orchestration
+- `src/app.js` and `src/app/processing.js`: frontend state, drag/drop, queueing, and downloads
+- `src/cli/gwrRemoveCommand.js`: CLI entry point
+- `python/remover.py`: Python bridge
 
-## Examples
+## Verification baseline
 
-<details open>
-<summary>Click to Expand/Collapse Examples</summary>
-　
-<p>lossless diff example</p>
-<p><img src="docs/lossless_diff.webp"></p>
+Current local verification:
 
-
-<p>example images</p>
-
-| Original Image | Watermark Removed |
-| :---: | :----: |
-| <img src="docs/1.webp" width="400"> | <img src="docs/unwatermarked_1.webp" width="400"> |
-| <img src="docs/2.webp" width="400"> | <img src="docs/unwatermarked_2.webp" width="400"> |
-| <img src="docs/3.webp" width="400"> | <img src="docs/unwatermarked_3.webp" width="400"> |
-| <img src="docs/4.webp" width="400"> | <img src="docs/unwatermarked_4.webp" width="400"> |
-| <img src="docs/5.webp" width="400"> | <img src="docs/unwatermarked_5.webp" width="400"> |
-
-</details>
-
-## ⚠️ Disclaimer
-
-> [!WARNING]
->  **USE AT YOUR OWN RISK**
->
-> This tool modifies image files. While it is designed to work reliably, unexpected results may occur due to:
-> - Variations in Gemini's watermark implementation
-> - Corrupted or unusual image formats
-> - Edge cases not covered by testing
->
-> The author assumes no responsibility for any data loss, image corruption, or unintended modifications. By using this tool, you acknowledge that you understand these risks.
-
-> [!NOTE]
-> **Note**: Disabling any fingerprint defender extensions (e.g., Canvas Fingerprint Defender) to avoid processing errors. https://github.com/journey-ad/gemini-watermark-remover/issues/3
+- `npm test` -> 271/271 passing
+- `npm run lint` -> clean
+- `npm run build` -> clean
+- `node --test tests/frontend_contract.test.js`
+- `node --test tests/gemini_regression.test.js`
+- `python -m unittest tests\\test_bridge_integration.py`
 
 ## Usage
 
-### Online Website
+### Web
 
-1. Open [banana.ovo.re](https://banana.ovo.re).
-2. Drag and drop or click to select your Gemini-generated image.
-3. The engine will automatically process and remove the watermark.
-4. Download the cleaned image.
+1. Open the local web app.
+2. Drag files or directories onto the page, or use the upload controls.
+3. Choose `Gemini`, `Doubao`, or `AUTO`.
+4. Enable or disable `Deep Scan`, `Noise Reduction`, and `Auto Download`.
+5. Process and review the detection result, then download the cleaned output.
 
-### Userscript for Gemini Conversation Pages
-
-1. Install a userscript manager (e.g., Tampermonkey or Greasemonkey).
-2. Open [gemini-watermark-remover.user.js](https://banana.ovo.re/userscript/gemini-watermark-remover.user.js).
-3. The script will install automatically.
-4. Navigate to Gemini conversation pages.
-5. Click "Copy Image" or "Download Image" to remove the watermark.
-
-## Development
+### CLI
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Development build
-pnpm dev
-
-# Production build
-pnpm build
-
-# Local preview
-pnpm serve
+node src/cli.js -i ./input -o ./output
+node src/cli.js -i ./input.png -o ./output.png --noiseReduction --no-deepScan
+node src/cli.js -i ./input.png -o ./output.png --json
 ```
 
-## How it Works
+### Python
 
-### The Gemini Watermarking Process
+```python
+from python.remover import GeminiWatermarkRemover
 
-Gemini applies watermarks using standard alpha compositing:
-
-$$watermarked = \alpha \cdot logo + (1 - \alpha) \cdot original$$
-
-Where:
-- `watermarked`: The pixel value with the watermark.
-- `α`: The Alpha channel value (0.0 - 1.0).
-- `logo`: The watermark logo color value (White = 255).
-- `original`: The raw, original pixel value we want to recover.
-
-### The Reverse Solution
-
-To remove the watermark, we solve for `original`:
-
-$$original = \frac{watermarked - \alpha \cdot logo}{1 - \alpha}$$
-
-By capturing the watermark on a known solid background, we reconstruct the exact Alpha map and apply the inverse formula to restore the original pixels with zero loss.
-
-## Detection Rules
-
-The engine uses a **Tiered Hybrid Detection Strategy (v1.5)**:
-1. **Tier 1: Catalog Direct Match**: Instantly matches against official resolution database (512x512, 1024x1024, 21:9, etc.).
-2. **Tier 2: Adaptive Noise-Aware Search**: If `noiseReduction` is enabled, applies specialized blurring to search a denoised version of the image, while maintaining pixel-perfect removal precision.
-3. **Tier 3: Smart Edge-Crop Recovery**: Allows the search window to overflow image boundaries, detecting watermarks that have been partially cropped (up to 60% occlusion support).
-4. **Tier 4: Deep Sobel Intensity Scan**: Matches gradients using Sobel filters to ensure accuracy on high-texture backgrounds.
-
-| Standard resolution tier | Logo Size | Default Margins | Support |
-| :--- | :--- | :--- | :--- |
-| 0.5k (e.g. 512x512) | 48×48 | 32px | Included |
-| 1.0k (e.g. 1024x1024 / 1376x768) | 96×96 | 64px | Included |
-| 2.0k (e.g. 2048x2048) | 96×96 | 64px | Included |
-| 4.0k (e.g. 4096x4096) | 96×96 | 64px | Included |
-| Doubao 2k (2730x1535) | 401×173 | 24px | Included |
-| Doubao 2k TL (2730x1535) | 307×167 | 38px | Included |
-| Doubao 2k (2730x1535) | 401×173 | 24px | Included |
-| Doubao 2k TL (2730x1535) | 307×167 | 38px | Included |
-
-## Project Structure
-
-```text
-├── src/
-│   ├── assets/            # Calibrated watermark masks (bg_48, bg_96)
-│   ├── core/
-│   │   ├── alphaMap.js    # Alpha map calculation logic
-│   │   ├── blendModes.js  # Optimized reverse alpha blending
-│   │   ├── catalog.js     # Official Gemini resolution database
-│   │   ├── config.js      # Watermark rules & parameter protocol
-│   │   ├── detector.js    # Tiered detector (NCC + Sobel + Catalog)
-│   │   └── watermarkEngine.js  # Engine coordinator (Web Workers)
-│   ├── i18n/              # Language JSON files
-│   ├── userscript/        # Tampermonkey script
-│   ├── app.js             # Web Application entry
-│   ├── cli.js             # CLI tool (JSON, Pipe, Concurrency)
-│   ├── i18n.js            # i18n Engine
-│   └── utils.js           # Shared utilities
-├── python/                # Python integration with cross-platform GUI
-├── tests/                 # Standardized Test Suite (203+ cases)
-│   ├── security.test.js    # Security: XSS and Overflow protection
-│   ├── edge_cases.test.js  # Boundaries: 8K+, corrupted files, empty images
-│   ├── consistency.test.js # Core: Parameter protocol verification
-│   ├── build_pipeline.test.js # Build: Asset inlining validation
-│   ├── memory_queue.test.js # Performance: Sliding window robustness
-│   └── ...                # Extensive Unit & Integration tests
-├── build.js               # esbuild build pipeline
-└── package.json           # Scripts (test, build, cli, gui)
+remover = GeminiWatermarkRemover("./")
+results = remover.remove_watermark(
+    "./input_dir",
+    "./output_dir",
+    deep_scan=True,
+    noise_reduction=False,
+)
 ```
 
-## Core Modules
+## Notes for contributors
 
-### alphaMap.js
-
-Calculates the Alpha channel by comparing captured watermark assets:
-
-```javascript
-export function calculateAlphaMap(bgCaptureImageData) {
-    // Extract max RGB channel and normalize to [0, 1]
-    const alphaMap = new Float32Array(width * height);
-    for (let i = 0; i < alphaMap.length; i++) {
-        const maxChannel = Math.max(r, g, b);
-        alphaMap[i] = maxChannel / 255.0;
-    }
-    return alphaMap;
-}
-```
-
-### blendModes.js
-
-The mathematical core of the tool:
-
-```javascript
-export function removeWatermark(imageData, alphaMap, position) {
-    // Formula: original = (watermarked - α × 255) / (1 - α)
-    for (let row = 0; row < height; row++) {
-        for (let col = 0; col < width; col++) {
-            const alpha = Math.min(alphaMap[idx], MAX_ALPHA);
-            const original = (watermarked - alpha * 255) / (1.0 - alpha);
-            imageData.data[idx] = Math.max(0, Math.min(255, original));
-        }
-    }
-}
-```
-
-## Browser Compatibility
-
-- ✅ Chrome 90+
-- ✅ Firefox 88+
-- ✅ Safari 14+
-- ✅ Edge 90+
-
-Required APIs:
-- ES6 Modules
-- Canvas API
-- Async/Await
-- TypedArray (Float32Array, Uint8ClampedArray)
-
----
-
-## Limitations
-
-- Only removes **Gemini visible watermarks** <small>(the semi-transparent logo in bottom-right)</small>
-- Does not remove invisible/steganographic watermarks. <small>[(Learn more about SynthID)](https://support.google.com/gemini/answer/16722517)</small>
-- Designed for Gemini's current watermark pattern <small>(as of 2025)</small>
-
-## Legal Disclaimer
-
-This tool is provided for **personal and educational use only**. 
-
-The removal of watermarks may have legal implications depending on your jurisdiction and the intended use of the images. Users are solely responsible for ensuring their use of this tool complies with applicable laws, terms of service, and intellectual property rights.
-
----
-
-## Credits
-
-This project is a JavaScript port of the [Gemini Watermark Tool](https://github.com/allenk/GeminiWatermarkTool) by Allen Kuo ([@allenk](https://github.com/allenk)).
-
-The Reverse Alpha Blending method and calibrated watermark masks are based on the original work © 2024 AllenK (Kwyshell), licensed under MIT License.
+- Keep profile, catalog, asset, and test changes aligned.
+- Update both Web and CLI behavior when changing detection policy.
+- Prefer regression tests when adjusting thresholds or probe scoring.
+- Do not introduce documentation numbers that can drift from the current baseline without noting they are historical.
 
 ## License
 
-[MIT License](./LICENSE)
+MIT

@@ -18,7 +18,10 @@ yarn-error.log*
 # local env files
 .env*.local
 test_output/
+test_output_integration/
 test_sample/
+.test-output/
+.diagnostics/
 .env
 
 # python

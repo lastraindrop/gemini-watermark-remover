@@ -5,9 +5,8 @@
 
 import { calculateAlphaMap } from './alphaMap.js';
 import { removeWatermark } from './blendModes.js';
-import { calculateWatermarkPosition, getAllPotentialConfigs } from './config.js';
-import { calculateProbeConfidence, resetDetectorBuffers } from './detector.js';
-import { PROFILES } from './profiles.js';
+import { resetDetectorBuffers } from './detector.js';
+import { detectWatermarks } from './detectionPipeline.js';
 
 export class WatermarkEngine {
     constructor() {
@@ -143,7 +142,6 @@ export class WatermarkEngine {
      */
     async removeWatermarkFromImage(image, options = {}) {
         const requestedProfileId = options.profileId || 'gemini';
-        let profilesToTry = requestedProfileId === 'auto' ? Object.keys(PROFILES) : [requestedProfileId];
         
         const canvas = document.createElement('canvas');
         canvas.width = image.width;
@@ -166,62 +164,28 @@ export class WatermarkEngine {
         let removedCount = 0;
         let bestConfidence = 0;
         let lastResult = null;
-        const threshold = 0.10;
 
-        // 2. Multi-Probe Detection Loop (Hardened v1.8)
-        const detectionOptions = { deepScan: options.deepScan !== false };
-        
-        const tryProfile = async (id) => {
-            const p = PROFILES[id] || PROFILES.gemini;
-            const potentialConfigs = getAllPotentialConfigs(canvas.width, canvas.height, id);
-            let localRemoved = 0;
-            let localBestConf = 0;
-            let localBestResult = null;
-            const localResults = [];
-
-            for (const config of potentialConfigs) {
-                const pos = calculateWatermarkPosition(canvas.width, canvas.height, config);
-                const assetKey = (p.assets && p.assets[pos.anchor]) || config.logoSize || '96';
-                const alphaMap = await this.getAlphaMap(assetKey, pos.width, pos.height);
-                
-                const verification = calculateProbeConfidence(imageData, pos, alphaMap.data, id, detectionOptions);
-                if (verification.confidence > threshold) {
-                    const result = {
-                        config,
-                        pos: { ...pos, x: verification.x, y: verification.y },
-                        alphaMap: alphaMap.data,
-                        confidence: verification.confidence
-                    };
-                    localResults.push(result);
-                    if (verification.confidence > localBestConf) {
-                        localBestConf = verification.confidence;
-                        localBestResult = result;
-                    }
-                    localRemoved++;
-                }
+        const overallBest = await detectWatermarks({
+            imageData,
+            profileId: requestedProfileId,
+            getAlphaMap: (assetKey, width, height) => this.getAlphaMap(assetKey, width, height),
+            options: {
+                deepScan: options.deepScan !== false,
+                noiseReduction: options.noiseReduction === true
             }
-            return { removed: localRemoved, confidence: localBestConf, result: localBestResult, results: localResults, profileId: id };
-        };
+        });
 
-        let overallBest = { confidence: 0 };
-        if (requestedProfileId === 'auto') {
-            for (const pid of profilesToTry) {
-                const pRes = await tryProfile(pid);
-                if (pRes.confidence > overallBest.confidence) {
-                    overallBest = pRes;
-                }
-            }
-        } else {
-            overallBest = await tryProfile(requestedProfileId);
-        }
-
-        if (overallBest.results && overallBest.results.length > 0) {
-            for (const result of overallBest.results) {
+        if (overallBest.matches.length > 0) {
+            for (const result of overallBest.matches) {
                 removeWatermark(imageData, result.alphaMap, result.pos);
             }
-            removedCount = overallBest.results.length;
+            removedCount = overallBest.matches.length;
             bestConfidence = overallBest.confidence;
-            lastResult = { config: overallBest.result.config, pos: overallBest.result.pos, profileId: overallBest.profileId };
+            lastResult = {
+                config: overallBest.winner.config,
+                pos: overallBest.winner.pos,
+                profileId: overallBest.profileId
+            };
         }
 
         if (removedCount > 0) {

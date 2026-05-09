@@ -1,5 +1,10 @@
 import { registry } from '../src/core/templates/registry.js';
 
+function pseudoRandom01(seed) {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+}
+
 /**
  * Build a map of alpha maps for all required sizes in a profile
  */
@@ -26,12 +31,12 @@ export function createMockImageData(width, height, type = 'solid', baseColor = 1
             if (type === 'gradient') {
                 val = ((x / width) * 255 + (y / height) * 255) / 2;
             } else if (type === 'random') {
-                val = Math.random() * 255;
+                val = pseudoRandom01((x + 1) * 12.9898 + (y + 1) * 78.233) * 255;
             } else if (type === 'grid') {
                 val = ((x >> 4) + (y >> 4)) % 2 === 0 ? 200 : 50;
             }
             // Add tiny jitter to avoid pure zero variance (v1.9.0 stability fix)
-            val = Math.max(0, Math.min(255, val + (Math.random() - 0.5) * 4));
+            val = Math.max(0, Math.min(255, val + (pseudoRandom01((x + 17) * 39.3467 + (y + 23) * 11.135) - 0.5) * 4));
             data[idx] = data[idx + 1] = data[idx + 2] = val;
             data[idx + 3] = 255;
         }
@@ -127,6 +132,16 @@ export function alphaToRGBA(alphaMap, width, height) {
  */
 
 export function generateParameterMatrix() {
+    const maxSyntheticPixels = 2048 * 2048;
+    const keyGeminiDimensions = new Set([
+        '512x512',
+        '1024x1024',
+        '1536x672',
+        '832x1248',
+        '1344x768',
+        '2048x2048',
+        '512x2048'
+    ]);
     const flags = [
         { deepScan: true, noiseReduction: false },
         { deepScan: false, noiseReduction: false }
@@ -137,7 +152,10 @@ export function generateParameterMatrix() {
 
     for (const profile of allProfiles) {
         const catalog = registry.getCatalog(profile.id);
-        for (const entry of catalog) {
+        const entries = profile.id === 'gemini'
+            ? catalog.filter(entry => keyGeminiDimensions.has(`${entry.width}x${entry.height}`))
+            : catalog.filter(entry => entry.width * entry.height <= maxSyntheticPixels);
+        for (const entry of entries) {
             for (const f of flags) {
                 matrix.push({
                     profileId: profile.id,

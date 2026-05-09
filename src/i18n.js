@@ -17,24 +17,24 @@ const translations = {
 };
 
 export const supportedLanguages = [
-    { code: 'zh-CN', label: '🇨🇳 中文' },
-    { code: 'en-US', label: '🇺🇸 EN' },
-    { code: 'ja-JP', label: '🇯🇵 日本語' },
-    { code: 'ru-RU', label: '🇷🇺 RU' },
-    { code: 'fr-FR', label: '🇫🇷 FR' },
-    { code: 'es-ES', label: '🇪🇸 ES' },
-    { code: 'de-DE', label: '🇩🇪 DE' }
+    { code: 'zh-CN', label: 'Chinese' },
+    { code: 'en-US', label: 'English' },
+    { code: 'ja-JP', label: 'Japanese' },
+    { code: 'ru-RU', label: 'Russian' },
+    { code: 'fr-FR', label: 'French' },
+    { code: 'es-ES', label: 'Spanish' },
+    { code: 'de-DE', label: 'German' }
 ];
 
 const i18n = {
-  locale: (typeof localStorage !== 'undefined' ? localStorage.getItem('locale') : null) || 
-          (typeof navigator !== 'undefined' ? 
-            (navigator.language?.startsWith('zh') ? 'zh-CN' : 
+  locale: (typeof localStorage !== 'undefined' ? localStorage.getItem('locale') : null) ||
+          (typeof navigator !== 'undefined' ?
+            (navigator.language?.startsWith('zh') ? 'zh-CN' :
              navigator.language?.startsWith('ru') ? 'ru-RU' :
              navigator.language?.startsWith('fr') ? 'fr-FR' :
-             navigator.language?.startsWith('ja') ? 'ja-JP' : 
+             navigator.language?.startsWith('ja') ? 'ja-JP' :
              navigator.language?.startsWith('es') ? 'es-ES' :
-             navigator.language?.startsWith('de') ? 'de-DE' : 'en-US') 
+             navigator.language?.startsWith('de') ? 'de-DE' : 'en-US')
           : 'en-US'),
   translations: {},
 
@@ -74,7 +74,6 @@ const i18n = {
       }
     });
 
-    // Update Meta descriptions if they exist
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) metaDesc.content = this.t('main.subtitle');
   },

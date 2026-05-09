@@ -1,108 +1,103 @@
 # GWR Developer Guide
 
-本文档说明当前分支的架构、参数一致化策略、动态对齐规则，以及新增模板时必须遵守的测试流程。
+本指南说明当前分支的工程结构、参数一致化规则、测试策略，以及新增模板或修改检测策略时必须遵守的流程。
 
-## 架构概览
+## 1. 当前架构
 
 ### 核心层
 
-- `src/core/templates/registry.js` 是单一事实来源，保存 profile、catalog、assets、heuristic。
-- `src/core/profiles.js` 提供品牌与模板策略。
-- `src/core/catalog.js` 提供分辨率与锚点目录。
-- `src/core/detector.js` 负责候选位置探测、置信度评分和坐标回传。
-- `src/core/blendModes.js` 负责反向 Alpha 混合恢复。
-- `src/core/watermarkEngine.js` 统筹 multi-probe、候选应用和结果归一化。
+- `src/core/catalog.js`：尺寸与锚点目录，优先级最高
+- `src/core/config.js`：根据图片尺寸生成候选参数
+- `src/core/detector.js`：候选评分、局部相关性与置信度计算
+- `src/core/detectionPipeline.js`：统一 Web/CLI 的接受策略
+- `src/core/watermarkEngine.js`：主引擎，负责候选执行与结果归一化
+- `src/core/blendModes.js`：反向 alpha 混合恢复
 
 ### 应用层
 
-- `src/app.js` 负责网页事件、状态、渲染和 profile 选择。
-- `src/app/processing.js` 负责单图与队列并发。
-- `src/app/ui.js` 负责 Toast、进度和活动日志。
+- `src/app.js`：事件、状态、拖拽、文件导入
+- `src/app/processing.js`：批处理、并发、下载、ZIP 输出
+- `src/app/ui.js`：界面交互辅助
+- `public/index.html`、`public/index.css`：前端骨架与样式
 
-### 环境层
+### 入口层
 
-- `src/cli.js` 与 `src/cli/*` 负责命令行入口。
-- `python/remover.py` 负责 Python bridge。
-- `build.js` 负责打包和静态资源同步。
+- `src/cli.js`、`src/cli/gwrRemoveCommand.js`：CLI
+- `python/remover.py`、`python/gui.py`：Python bridge 与 GUI
+- `src/userscript/index.js`：userscript 入口
+- `build.js`：打包与静态资源内联
 
-## 当前设计原则
+## 2. 参数一致化原则
 
-1. profile/catalog/assets 三者必须同步变化。
-2. 前端和 CLI 不能直接写死分辨率。
-3. 统计 UI 必须使用 engine 返回的真实 `pos` 与 `confidence`。
-4. 批处理成功和失败都要推进进度。
-5. 批量卡片、日志和文案都必须走安全渲染与 i18n。
-
-## 动态对齐
-
-这是目前最重要的工程约束。
-
-新增模板时，不允许只加一处：
-
-1. 先在 `src/core/templates/registry.js` 或对应 profile 文件里登记模板。
-2. 再在 `src/core/catalog.js` 补分辨率与锚点。
-3. 再补资产文件。
-4. 最后补回归测试。
-
-这样做的目的，是让测试成为参数一致性的守门人，而不是事后补洞。
-
-## 参数一致化
-
-当前前端、CLI、Python bridge 都从同一组引擎参数派生：
+当前 Web、CLI、Python bridge 必须共享同一组引擎参数：
 
 - `profileId`
 - `deepScan`
 - `noiseReduction`
 - `autoDownload`
 
-Web UI 里的统计面不再自行推断坐标，而是直接使用 engine 回传的 `pos`。
+禁止在某一端私自引入新语义、改名或自行硬编码阈值。真正的策略应该进入 `config.js`、`catalog.js`、`detector.js` 或 `detectionPipeline.js`。
 
-## 测试策略
+## 3. 新增 profile 或模板的流程
 
-当前验证基线应至少包含：
+1. 在 `src/core/profiles.js` 注册 profile。
+2. 在 `src/core/catalog.js` 补齐官方尺寸、锚点或近似尺寸。
+3. 如需新资源，把资产放入 `src/assets/` 并更新打包引用。
+4. 更新 `src/core/config.js`，确保候选生成逻辑覆盖新 profile。
+5. 更新 `src/core/detector.js` 或 `src/core/detectionPipeline.js` 的接受条件。
+6. 补充 `tests/*.test.js`，至少覆盖：
+   - 目录精确匹配
+   - 近似尺寸
+   - 无水印负样本
+   - Web/CLI 一致性
+7. 最后同步文档，不要只改代码不改说明。
 
-- `npm run lint`
-- `npm test`
-- `npm run build`
-- `node --test tests/frontend_contract.test.js`
-- `node --test tests/product_audit.test.js`
-- `python -m unittest tests\\test_bridge_integration.py`
+## 4. 设计规则
 
-新增模板时，必须补至少以下一种：
+1. profile、catalog、assets 必须同步变化。
+2. Web 与 CLI 不得各自实现不同的检测策略。
+3. UI 不得自己猜测检测坐标，必须使用引擎返回的 `pos` 与 `confidence`。
+4. 批处理成功与失败都要推进状态，不能让进度条停住。
+5. 任何批量文件名渲染都必须使用 DOM API 和 `textContent`，不能回退到 `innerHTML` 拼接。
 
-- `tests/product_audit.test.js` 的矩阵覆盖
-- 专项 profile/catalog/detector 测试
-- 前端契约测试中的 i18n 或 DOM hook 断言
+## 5. 调试重点
 
-## 文档维护规则
+当用户反馈“明显水印也检测不到”时，优先检查：
 
-如果代码重构了，文档必须同步，尤其是下面几类信息：
+- 是否命中 catalog 精确尺寸
+- 是否命中近似尺寸候选
+- `detector.js` 的置信度是否被局部纹理稀释
+- `detectionPipeline.js` 的全局回退是否过严
+- `tests/gemini_regression.test.js` 是否已有对应样本
 
-- 当前版本号和测试数
-- 当前 UI 控件与交互
-- CLI / Web / Python 的参数对齐方式
-- 新模板的接入步骤
+当用户反馈“误报太多”时，优先检查：
 
-不要在说明里继续把历史状态写成当前状态。历史结论应留在 `MASTER_PLAN.md` 或专题报告里，并明确标注为历史快照。
+- 低置信度全局回退是否过宽
+- 负样本测试是否充分
+- `deepScan` 是否把噪声背景抬成了假阳性
 
-## 开发流程
+## 6. 测试策略
 
-1. 修改源码。
-2. 更新相应测试。
-3. 更新用户指南、开发者指南、路线图和计划。
-4. 跑完整验证。
-5. 再提交。
+当前验证基线应至少包括：
 
-## 路线图
+```bash
+npm run lint
+npm test
+npm run build
+node --test tests/frontend_contract.test.js
+node --test tests/gemini_regression.test.js
+node --test tests/product_audit.test.js
+python -m unittest tests\test_bridge_integration.py
+```
 
-当前短期方向：
+对检测算法做修改时，必须同时看：
 
-- 收敛文档漂移。
-- 保持 profile/catalog 动态对齐。
-- 把新模板接入流程固定为标准化步骤。
+- 回归样本
+- 负样本
+- 前端契约
+- CLI 行为
+- Python bridge 输出
 
-中长期方向：
+## 7. 文档维护规则
 
-- 抽出更细的共享候选执行器。
-- 继续优化高分辨率与批处理性能。
-- 若引入 Rust/WASM，必须先用测试锁定行为，再替换实现。
+文档里如果写到版本号、测试总数、流程状态或当前架构，必须是当前基线。历史数值应当进入 `MASTER_PLAN.md` 或 `COMPREHENSIVE_PLAN.md` 的历史段落，而不是混在用户指南里。

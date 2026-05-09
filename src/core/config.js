@@ -1,4 +1,4 @@
-import { getAllCatalogConfigs } from './catalog.js';
+import { getAllCatalogConfigs, getScaledCatalogConfigs } from './catalog.js';
 import { getProfile } from './profiles.js';
 
 export const ENGINE_LIMITS = {
@@ -39,6 +39,16 @@ export function detectWatermarkConfig(imageWidth, imageHeight, profileId = 'gemi
  */
 export function getAllPotentialConfigs(imageWidth, imageHeight, profileId = 'gemini') {
     const catalogMatches = getAllCatalogConfigs(imageWidth, imageHeight, profileId);
+    if (catalogMatches.length > 0) {
+        const exactMatches = catalogMatches.filter(config => config.width === imageWidth && config.height === imageHeight);
+        if (exactMatches.length > 0) return exactMatches;
+    }
+
+    if (profileId === 'gemini') {
+        const scaledMatches = getScaledCatalogConfigs(imageWidth, imageHeight, profileId);
+        if (scaledMatches.length > 0) return scaledMatches;
+    }
+
     if (catalogMatches.length > 0) return catalogMatches;
 
     const profile = getProfile(profileId);

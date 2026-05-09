@@ -9,8 +9,7 @@ sharp.concurrency(1);
 
 import { calculateAlphaMap } from '../core/alphaMap.js';
 import { removeWatermark } from '../core/blendModes.js';
-import { calculateWatermarkPosition, getAllPotentialConfigs } from '../core/config.js';
-import { calculateProbeConfidence } from '../core/detector.js';
+import { detectWatermarks } from '../core/detectionPipeline.js';
 import { PROFILES } from '../core/profiles.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -86,54 +85,18 @@ class Engine {
             data: new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength) 
         };
         
-        const requestedProfileId = options.profile || 'gemini';
-        const profilesToTry = requestedProfileId === 'auto' ? Object.keys(PROFILES) : [requestedProfileId];
-
-        const THRESHOLD = 0.25;
-        let winner = null;
-        let removedCounter = 0;
-
-        const tryProfile = async (id) => {
-            const p = PROFILES[id] || PROFILES.gemini;
-            const potentialConfigs = getAllPotentialConfigs(info.width, info.height, id);
-            let localWinner = null;
-            const localMatches = [];
-
-            for (const config of potentialConfigs) {
-                const assetKey = p.assets ? p.assets[config.anchor] : (p.defaultAsset || '96');
-                const w = config.logoWidth || config.logoSize;
-                const h = config.logoHeight || config.logoSize;
-                
-                const alphaMap = await this.getAlphaMap(assetKey, w, h);
-                const pos = calculateWatermarkPosition(info.width, info.height, config);
-                
-                const probeResult = calculateProbeConfidence(imageData, pos, alphaMap.data, id);
-                const confidence = probeResult.confidence;
-                
-                if (confidence > THRESHOLD) {
-                    const match = { config, pos: { ...pos, x: probeResult.x, y: probeResult.y }, alphaMap: alphaMap.data, confidence, profileId: id };
-                    localMatches.push(match);
-                    if (!localWinner || confidence > localWinner.confidence) {
-                        localWinner = match;
-                    }
-                }
+        const detection = await detectWatermarks({
+            imageData,
+            profileId: options.profile || 'gemini',
+            getAlphaMap: (assetKey, width, height) => this.getAlphaMap(assetKey, width, height),
+            options: {
+                deepScan: options.deepScan !== false,
+                noiseReduction: options.noiseReduction === true
             }
-            return { winner: localWinner, removed: localMatches.length, matches: localMatches };
-        };
+        });
 
-        let overallWinner = null;
-        let overallMatches = [];
-
-        for (const pid of profilesToTry) {
-            const { winner: pWinner, matches: pMatches } = await tryProfile(pid);
-            if (pWinner && (!overallWinner || pWinner.confidence > overallWinner.confidence)) {
-                overallWinner = pWinner;
-                overallMatches = pMatches;
-            }
-        }
-
-        winner = overallWinner;
-        removedCounter = overallMatches.length;
+        const winner = detection.winner;
+        const removedCounter = detection.matches.length;
 
         if (!winner) {
             // No watermark detected with high enough confidence
@@ -145,7 +108,7 @@ class Engine {
             };
         }
 
-        for (const match of overallMatches) {
+        for (const match of detection.matches) {
             removeWatermark(imageData, match.alphaMap, match.pos);
         }
 
@@ -162,7 +125,8 @@ class Engine {
             confidence: winner.confidence, // Return raw float for better JSON consumers
             config: winner.config,
             removedCount: removedCounter,
-            profileId: winner.profileId
+            profileId: detection.profileId,
+            source: winner.source
         };
     }
 }
@@ -170,8 +134,17 @@ class Engine {
 /**
  * Basic Arg Parser (Zero Dependency Replacement for Yargs)
  */
-function parseArgs(args) {
-    const opts = { _: [], profile: 'gemini', format: 'png', overwrite: false, json: false, pipe: false };
+export function parseArgs(args) {
+    const opts = {
+        _: [],
+        profile: 'gemini',
+        format: 'png',
+        overwrite: false,
+        json: false,
+        pipe: false,
+        deepScan: true,
+        noiseReduction: false
+    };
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
         if (arg === '--output' || arg === '-o') opts.output = args[++i];
@@ -181,6 +154,8 @@ function parseArgs(args) {
         else if (arg === '--overwrite') opts.overwrite = true;
         else if (arg === '--json') opts.json = true;
         else if (arg === '--pipe') opts.pipe = true;
+        else if (arg === '--no-deepScan') opts.deepScan = false;
+        else if (arg === '--noiseReduction') opts.noiseReduction = true;
         else if (!arg.startsWith('-')) opts._.push(arg);
     }
     return opts;

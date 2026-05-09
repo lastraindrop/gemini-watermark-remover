@@ -2,69 +2,85 @@
 
 # Gemini & Doubao 无损去水印 (v1.9.9)
 
-一款高性能、100% 纯客户端运行的 Gemini 与 豆包 (Doubao) AI 去水印工具。v1.9.9 完成了前端国际化、验证链路修复、多锚点去除一致性加固，以及生产级 Node-Python 桥接验证。
+这是一个完全在本地运行的图像水印检测、分析与移除工具，面向 Gemini 与 Doubao 图片。
 
-<p align="center">
-  <img src="https://count.getloli.com/@gemini-watermark-remover?name=gemini-watermark-remover&theme=minecraft&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400">
-</p>
+## 当前版本说明
 
-## 特性
+v1.9.9 的重点是把 Web、CLI、Python 三条入口统一到同一套检测与去除管线，并补齐前端交互、拖拽上传、批量 ZIP 下载、语言显示和回归测试。
 
-- ✅ **多模型 Profile 系统** - 深度支持 **Gemini** 和 **豆包 (Doubao)** AI 水印。
-- ✅ **自动探测与滑动寻优** - 主动相关性引擎自动锁定水印，并修正 AI 生成导致的位置抖动 (±4px)。
-- ✅ **梯度探测加固 (Gradient Probing)** - 针对豆包等半透明/深色框水印的硬核识别技术。
-- ✅ **100% 纯客户端** - 无后端、零延迟、隐私数据绝不出本地。
-- ✅ **全量审计套件 (v1.9.9)** - 自动化矩阵测试覆盖 100% 目录条目，当前本地验证为 203/203 通过。
-- ✅ **Node-Python 桥接加固** - 修复 CLI 路径、变量及 JSON 类型一致性问题。
-- ✅ **CORS 预取策略** - 完美解决远程图片处理时的 “Tainted Canvas” 安全拦截。
-- ✅ **多语言支持** - 已内置 **中、英、日、俄、法、德、西** 七国语言。
+## 核心能力
 
-## 🛡️ 生产级加固保障 (v1.9.1)
+- Web 端单图和批量处理
+- CLI 文件、目录、管道和 JSON 输出
+- Python bridge 与 GUI 集成
+- 统一的 profile / catalog / config / engine 结构
+- Gemini catalog 优先，近似尺寸与启发式作为补充
+- Doubao 多锚点支持
+- 批量下载打包为 ZIP，避免浏览器并发下载遗漏
+- 前端拖拽上传与目录拖拽
+- 本地处理，不上传服务器
 
-为了确保在处理万级图片或超高分辨率（4K/8K）时的绝对稳定性与精确度，v1.8.0 引入了以下硬核技术：
+## 架构说明
 
-1. **多锚点多步探测 (Multi-Anchor Probing)**：不再假设水印只在右下角。探测引擎会根据模型 Profile 自动在左上、右下等多个预设区域进行梯度匹配，捕获所有已知水印。
-2. **感知梯度相关性 (Gradient Correlation)**：针对豆包等具有复杂透明度的水印，采用 Sobel 梯度相关性算法。这使得引擎在色彩极其复杂或背景极暗的情况下依然能实现 100% 的还原精度。
-3. **滑动窗口对齐 (Sliding Window)**：自动处理 AI 生成过程中产生的亚像素级位置漂移。通过 `+/- 4px` 的局部搜索，自动锁定数学最优对齐位置。
-4. **流式目录处理 (Streaming Directory Mode)**：利用 **Async Generators** 驱动本地目录处理。即使处理数万张图片，内存占用依然能维持在极低水平，彻底告别浏览器 OOM。
+- `src/core/catalog.js`：尺寸和锚点目录
+- `src/core/config.js`：候选参数生成
+- `src/core/detector.js`：置信度与局部探测评分
+- `src/core/detectionPipeline.js`：共享决策策略
+- `src/core/watermarkEngine.js`：浏览器与 CLI 的统一执行层
+- `src/app.js`、`src/app/processing.js`：前端状态、拖拽、队列与下载
+- `src/cli/gwrRemoveCommand.js`：CLI 入口
+- `python/remover.py`：Python 桥接
+
+## 验证基线
+
+当前本地验证结果：
+
+- `npm test` -> 271/271 通过
+- `npm run lint` -> 通过
+- `npm run build` -> 通过
+- `node --test tests/frontend_contract.test.js`
+- `node --test tests/gemini_regression.test.js`
+- `python -m unittest tests\\test_bridge_integration.py`
 
 ## 使用方法
 
-### 在线体验
-1. 访问 [banana.ovo.re](https://banana.ovo.re)。
-2. 拖入或选择包含 Gemini/豆包 水印的图片。
-3. 引擎会自动完成识别并无损移除。
-4. 点击下载结果图。
+### Web
 
-### 油猴脚本 (Gemini 会话页面)
-1. 安装 Tampermonkey 扩展。
-2. 安装 [gemini-watermark-remover.user.js](https://banana.ovo.re/userscript/gemini-watermark-remover.user.js)。
-3. 在 Gemini 聊天页面生成的图片下方会出现“复制/下载”按钮，点击即得无水印大图。
+1. 打开本地网页端。
+2. 直接拖拽文件或文件夹，或使用上传入口。
+3. 选择 `Gemini`、`Doubao` 或 `AUTO`。
+4. 按需开启 `Deep Scan`、`Noise Reduction`、`Auto Download`。
+5. 处理后查看检测结果并下载输出。
 
-## 算法原理
+### CLI
 
-### 数学还原公式
+```bash
+node src/cli.js -i ./input -o ./output
+node src/cli.js -i ./input.png -o ./output.png --noiseReduction --no-deepScan
+node src/cli.js -i ./input.png -o ./output.png --json
+```
 
-Gemini/Doubao 采用标准的 Alpha 混合模式叠加水印：
+### Python
 
-$$watermarked = \alpha \cdot logo + (1 - \alpha) \cdot original$$
+```python
+from python.remover import GeminiWatermarkRemover
 
-为了实现**无损还原**，我们通过预先校准得到的掩模图反向解出原始像素值：
+remover = GeminiWatermarkRemover("./")
+results = remover.remove_watermark(
+    "./input_dir",
+    "./output_dir",
+    deep_scan=True,
+    noise_reduction=False,
+)
+```
 
-$$original = \frac{watermarked - \alpha \cdot logo}{1 - \alpha}$$
+## 贡献说明
 
-这种方法与基于 AI 生成（Inpainting）的“涂抹”式去水印完全不同，它能恢复背景中被遮挡的每一个像素的真实信息，实现数学级的无损。
+- 改动 profile、catalog、asset 时，必须同步测试。
+- 调整检测阈值或候选排序时，必须补回归测试。
+- 修改 Web 检测策略时，CLI 也要保持一致。
+- 文档中的数字如果是历史基线，应明确标记，不要混成当前状态。
 
----
+## License
 
-## 免责声明
-
-> [!WARNING]
-> **风险自担**
-> 本工具仅供个人研究与学习使用。用户需自行承担使用本工具可能导致的法律责任。作者不对任何数据损坏、图片失真或法律风险负责。
-
-## 贡献
-代码结构规范，欢迎提交 Pull Request 以支持更多模型的水印移除。
-
-## 开源协议
-[MIT License](./LICENSE)
+MIT

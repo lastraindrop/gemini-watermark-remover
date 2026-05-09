@@ -1,45 +1,50 @@
-# Walkthrough - Gemini Watermark Remover Hardened (v1.8.0)
+# Walkthrough - Current Release Summary
 
-我们已经完成了 `gemini-watermark-remover` 的核心算法加固与生产级优化。本次更新将项目版本提升至 **v1.8.0**，重点解决了 Gemini 与 Doubao 两种水印的多锚点检测、动态参数一致性以及整个测试矩阵的自动对齐。
+本文件记录当前分支的工作方式与落地结果，作为交接与复盘参考。
 
-## 🛠 已完成的核心改进
+## 1. 当前工作模式
 
-### 1. 亚像素级反向混合 (Sub-pixel Accuracy)
-- **实现文件**: [blendModes.js](file:///e:/VScode/gemini-watermark-remover-main/gemini-watermark-remover/src/core/blendModes.js)
-- **技术细节**: 引入了 `sampleBilinear` 双线性插值函数。
-- **效果**: 解决了非整数坐标（如 $x=928.5$）下的采样失真，彻底消除了水印边缘的“彩虹边”和残留锯齿。
+项目现在不是单一路径脚本，而是三条入口共用同一套检测能力：
 
-### 2. 感知亮度探测 (Perceptual Detection)
-- **实现文件**: [detector.js](file:///e:/VScode/gemini-watermark-remover-main/gemini-watermark-remover/src/core/detector.js)
-- **算法升级**: 亮度计算公式从 `Max(R,G,B)` 切换为人类视觉感知的真实亮度：$Y = 0.299R + 0.587G + 0.114B$。
-- **效果**: 对彩色背景（特别是绿色分量较高的图像）的捕捉更加敏锐。
+- Web：交互式上传、拖拽、批处理、ZIP 下载
+- CLI：文件、目录、管道、JSON 输出
+- Python：桥接与 GUI 集成
 
-### 3. 动态熵权自适应 (Adaptive SNR Weighting)
-- **实现文件**: [detector.js](file:///e:/VScode/gemini-watermark-remover-main/gemini-watermark-remover/src/core/detector.js)
-- **优化内容**: 根据背景区域的方差（Variance）动态调整梯度匹配（Sobel）的权重。
-- **效果**: 在纯色（低纹理）背景下自动抑制梯度噪声，防止置信度虚高；在复杂背景下则保持高权重。
+这些入口共享同一套 `profile`、`catalog`、`detector` 和 `detectionPipeline`，所以改动检测策略时不能只改一个入口。
 
----
+## 2. 已经完成的关键修复
 
-## 🧪 验证结果
+### 检测能力
 
-### 自动化测试
-我们执行了全量测试套件，结果如下：
-- **核心数学测试**: 通过 (包含新增的亚像素还原验证 `tests/subpixel.test.js`)
-- **探测一致性测试**: 通过 (验证了感知亮度权重)
-- **工程协议验证**: 通过 (确保 package.json、Roadmap 与源码状态一致)
+- 补回 Gemini 官方尺寸与近似尺寸覆盖
+- 增加局部残差相关评分，提升复杂背景与弱水印召回
+- 收紧全局回退，降低噪声纹理误报
+- 修复候选排序 bug
 
-### 视频演示 (模拟)
-> [!NOTE]
-> 在 4K 分辨率下的水印处理耗时保持在 **~120ms** (Worker 模式)，内存池复用机制确保存储占用保持稳定。
+### 前端
 
----
+- 支持窗口级拖拽上传
+- 支持目录拖拽
+- 批量下载改为 ZIP
+- 修复语言下拉的可见性
+- 降低批处理卡顿
 
-## 📦 项目变更概览
+### 测试
 
-- **package.json**: 版本升级至 `1.8.0`。
-- **ROADMAP.md**: 更新了 Current Status 为 v1.8.0。
-- **DEVELOPER_GUIDE.md**: 文档同步，详细记录了多模型配置与动态参数对齐的测试原则。
+- 增加 Gemini 回归测试
+- 增加前端契约测试
+- 调整产品审计测试，让它与当前架构保持一致
 
-> [!IMPORTANT]
-> 建议在接下来的生产环境中重点关注彩色高动态范围 (HDR) 图像的还原效果，目前的公式已针对此场景进行了预先建模。
+## 3. 当前验证
+
+- `npm test`：271/271
+- `npm run lint`：通过
+- `npm run build`：通过
+- `python -m unittest tests\\test_bridge_integration.py`：通过
+
+## 4. 经验总结
+
+1. 检测召回不能只靠一个阈值，必须靠 catalog、heuristic 和局部评分一起工作。
+2. 前端体验问题往往不是单点 bug，而是上传、渲染、下载和动画叠加造成的。
+3. 文档如果不跟着当前基线同步，后续排查会变得很难。
+4. 新的回归样本一旦进入，就应该立刻落到测试里，而不是只停在手工验证。

@@ -2,6 +2,7 @@ import { state, objectUrlManager } from './state.js';
 import { AuditLog, updateProgress } from './ui.js';
 import { loadImage, checkOriginal } from '../utils.js';
 import { ENGINE_LIMITS } from '../core/config.js';
+import JSZip from 'jszip';
 
 /**
  * Image processing utilities
@@ -49,14 +50,30 @@ export async function processSingle(item, options, callbacks = {}) {
     }
 }
 
+function yieldToBrowser() {
+    if (typeof window === 'undefined') {
+        return new Promise(resolve => setTimeout(resolve, 0));
+    }
+    if ('requestIdleCallback' in window) {
+        return new Promise(resolve => window.requestIdleCallback(resolve, { timeout: 80 }));
+    }
+    return new Promise(resolve => window.requestAnimationFrame(() => setTimeout(resolve, 0)));
+}
+
+export function getBatchConcurrency(options = {}, queue = state.imageQueue) {
+    const requested = Number(options.batchConcurrency);
+    if (Number.isInteger(requested) && requested > 0) return Math.min(requested, 4);
+    if (options.profileId === 'auto' || options.deepScan !== false || options.noiseReduction === true) return 1;
+    return queue.length > 8 ? 1 : 2;
+}
+
 export async function processQueue(options, callbacks = {}) {
     if (state.isProcessing) return;
     state.isProcessing = true;
     
-    // Concurrency control: 4 workers
-    const CONCURRENCY = 4;
     const queue = [...state.imageQueue];
     const total = queue.length;
+    const concurrency = getBatchConcurrency(options, queue);
 
     const next = async () => {
         if (queue.length === 0) return;
@@ -65,6 +82,7 @@ export async function processQueue(options, callbacks = {}) {
         let accounted = false;
         
         try {
+            await yieldToBrowser();
             await processSingle(item, options, {
                 ...callbacks,
                 onSuccess: (data) => {
@@ -82,6 +100,7 @@ export async function processQueue(options, callbacks = {}) {
                 }
             });
         } finally {
+            await yieldToBrowser();
             if (!accounted && item.status !== 'pending') {
                 state.processedCount++;
                 updateProgress(state.processedCount, total);
@@ -93,7 +112,7 @@ export async function processQueue(options, callbacks = {}) {
     };
 
     try {
-        const workers = Array(Math.min(CONCURRENCY, queue.length)).fill(0).map(() => next());
+        const workers = Array(Math.min(concurrency, queue.length)).fill(0).map(() => next());
         await Promise.all(workers);
     } finally {
         state.isProcessing = false;
@@ -101,10 +120,66 @@ export async function processQueue(options, callbacks = {}) {
     }
 }
 
+function downloadNameForItem(item) {
+    const sourceName = item.name || item.file?.name || 'image';
+    const stem = sourceName.replace(/\.[^.\\/]+$/, '');
+    return `unwatermarked_${stem}.png`;
+}
+
+function uniqueZipName(name, usedNames) {
+    if (!usedNames.has(name)) {
+        usedNames.add(name);
+        return name;
+    }
+    const dot = name.lastIndexOf('.');
+    const stem = dot === -1 ? name : name.slice(0, dot);
+    const ext = dot === -1 ? '' : name.slice(dot);
+    let index = 2;
+    let candidate = `${stem}_${index}${ext}`;
+    while (usedNames.has(candidate)) {
+        index++;
+        candidate = `${stem}_${index}${ext}`;
+    }
+    usedNames.add(candidate);
+    return candidate;
+}
+
 export function downloadImage(item) {
     if (!item.processedBlob) return;
     const a = document.createElement('a');
     a.href = item.processedUrl;
-    a.download = `unwatermarked_${item.name}`;
+    a.download = downloadNameForItem(item);
+    document.body?.appendChild(a);
     a.click();
+    a.remove();
+}
+
+export async function downloadAllAsZip(items, options = {}) {
+    const completedItems = items.filter(item => item.status === 'success' && item.processedBlob);
+    if (completedItems.length === 0) return 0;
+
+    const zip = new JSZip();
+    const usedNames = new Set();
+    completedItems.forEach(item => {
+        zip.file(uniqueZipName(downloadNameForItem(item), usedNames), item.processedBlob);
+    });
+
+    const blob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+    }, metadata => {
+        if (options.onProgress) options.onProgress(metadata.percent);
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = options.filename || `gwr_batch_${Date.now()}.zip`;
+    document.body?.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    AuditLog.log(`ZIP bundle exported: ${completedItems.length} files`, 'success');
+    return completedItems.length;
 }

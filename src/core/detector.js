@@ -237,7 +237,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                         const marginX = width - fx - sizeW;
                         const marginY = height - fy - sizeH;
                         const standardMargins = [32, 64, 96, 24, 10, 4, 38, 25, 39, 16];
-                        const isAligned = standardMargins.some(m => Math.abs(marginX - m) <= 4 || Math.abs(marginY - m) <= 4);
+                        const rightAligned = standardMargins.some(m => Math.abs(marginX - m) <= 4);
+                        const bottomAligned = standardMargins.some(m => Math.abs(marginY - m) <= 4);
+                        const isAligned = rightAligned && bottomAligned;
                         allCandidates.push({ x: fx, y: fy, width: sizeW, height: sizeH, confidence, mode: isAligned ? 'aligned' : 'free' });
                     }
                 }
@@ -252,8 +254,8 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
 
     allCandidates.sort((a, b) => {
         const modePriority = { 'anchored': 3, 'aligned': 2, 'free': 1 };
-        const scoreA = b.confidence + (modePriority[a.mode] || 0) * 0.2;
-        const scoreB = a.confidence + (modePriority[b.mode] || 0) * 0.2;
+        const scoreA = a.confidence + (modePriority[a.mode] || 0) * 0.2;
+        const scoreB = b.confidence + (modePriority[b.mode] || 0) * 0.2;
         return scoreB - scoreA;
     });
     const finalCandidates = [];
@@ -343,6 +345,85 @@ export function calculateCorrelation(imageData, x, y, logoW, logoH, alphaMap, fu
     return (count * sumIA - sumI * sumA) / Math.sqrt(varI * varA);
 }
 
+function getLuminanceAt(data, imgWidth, x, y) {
+    const idx = (y * imgWidth + x) << 2;
+    return (data[idx] * 0.2126 + data[idx + 1] * 0.7152 + data[idx + 2] * 0.0722) / 255.0;
+}
+
+function getAlphaAt(alphaMap, logoW, logoH, col, row) {
+    if (col < 0 || row < 0 || col >= logoW || row >= logoH) return 0;
+    return alphaMap[row * logoW + col];
+}
+
+/**
+ * Local residual NCC for weak watermarks on busy backgrounds.
+ * It compares each pixel against nearby pixels before correlating with the
+ * alpha template, so broad landscape/flower texture has less influence.
+ */
+export function calculateLocalContrastCorrelation(imageData, x, y, logoW, logoH, alphaMap, fullPrecision = false) {
+    const { data, width: imgWidth, height: imgHeight } = imageData;
+    const step = fullPrecision ? 1 : 2;
+    const radius = Math.max(4, Math.round(Math.min(logoW, logoH) * 0.06));
+    const offsets = [
+        [-radius, 0],
+        [radius, 0],
+        [0, -radius],
+        [0, radius],
+        [-radius, -radius],
+        [radius, -radius],
+        [-radius, radius],
+        [radius, radius]
+    ];
+
+    let sumI = 0, sumI2 = 0, sumA = 0, sumA2 = 0, sumIA = 0, count = 0;
+
+    for (let row = 0; row < logoH; row += step) {
+        const curY = Math.floor(y + row);
+        if (curY < 0 || curY >= imgHeight) continue;
+
+        for (let col = 0; col < logoW; col += step) {
+            const curX = Math.floor(x + col);
+            if (curX < 0 || curX >= imgWidth) continue;
+
+            let imgNeighborSum = 0;
+            let imgNeighborCount = 0;
+            let alphaNeighborSum = 0;
+
+            for (const [dx, dy] of offsets) {
+                const nx = curX + dx;
+                const ny = curY + dy;
+                if (nx >= 0 && ny >= 0 && nx < imgWidth && ny < imgHeight) {
+                    imgNeighborSum += getLuminanceAt(data, imgWidth, nx, ny);
+                    imgNeighborCount++;
+                }
+                alphaNeighborSum += getAlphaAt(alphaMap, logoW, logoH, col + dx, row + dy);
+            }
+
+            if (imgNeighborCount < 4) continue;
+
+            const imageResidual = getLuminanceAt(data, imgWidth, curX, curY) - imgNeighborSum / imgNeighborCount;
+            const alphaResidual = alphaMap[row * logoW + col] - alphaNeighborSum / offsets.length;
+
+            if (Math.abs(alphaResidual) < 0.015) continue;
+
+            sumI += imageResidual;
+            sumI2 += imageResidual * imageResidual;
+            sumA += alphaResidual;
+            sumA2 += alphaResidual * alphaResidual;
+            sumIA += imageResidual * alphaResidual;
+            count++;
+        }
+    }
+
+    if (count < Math.max(24, (logoW * logoH) / (20 * step * step))) return 0;
+
+    const varI = count * sumI2 - sumI * sumI;
+    const varA = count * sumA2 - sumA * sumA;
+    if (varI <= 0.000001 || varA <= 0.000001) return 0;
+
+    return Math.max(0, (count * sumIA - sumI * sumA) / Math.sqrt(varI * varA));
+}
+
 /**
  * Verify if a watermark is likely present at the given position
  */
@@ -377,6 +458,8 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
      }
 
 let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
+      const localContrastConf = calculateLocalContrastCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
+      confidence = Math.max(confidence, localContrastConf);
       
       // If deepScan enabled, also compute gradient correlation and use max
       if (deepScan) {
@@ -402,9 +485,14 @@ let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.he
                 if (deepScan) {
                     const gradientsI = new Float32Array(pos.width * pos.height);
                     const gradientsA = new Float32Array(pos.width * pos.height);
-                    conf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, gradientsI, gradientsA);
+                    const nccConf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
+                    const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
+                    const gradientConf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, gradientsI, gradientsA);
+                    conf = Math.max(nccConf, localConf, gradientConf);
                 } else {
-                    conf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
+                    const nccConf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
+                    const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
+                    conf = Math.max(nccConf, localConf);
                 }
                 // Distance penalty to favor anchor positions
                 const penalty = (Math.abs(dx) + Math.abs(dy)) * 0.005;
