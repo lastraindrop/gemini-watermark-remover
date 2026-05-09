@@ -157,9 +157,9 @@ export function getCatalogConfig(width, height, profileId = 'gemini') {
 
 export function getScaledCatalogConfigs(width, height, profileId = 'gemini', options = {}) {
     const {
-        maxRelativeAspectRatioDelta = 0.02,
-        maxScaleMismatchRatio = 0.05,
-        maxScaleDistance = 0.20,
+        maxRelativeAspectRatioDelta = 0.05,
+        maxScaleMismatchRatio = 0.08,
+        maxScaleDistance = 0.30,
         minLogoSize = 24,
         maxLogoSize = 192,
         limit = 4

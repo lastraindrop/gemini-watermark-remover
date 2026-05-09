@@ -2,9 +2,9 @@ import { calculateWatermarkPosition, getAllPotentialConfigs } from './config.js'
 import { calculateProbeConfidence, detectWatermark } from './detector.js';
 import { PROFILES } from './profiles.js';
 
-const DEFAULT_PROBE_THRESHOLD = 0.10;
-const DEFAULT_GLOBAL_FALLBACK_THRESHOLD = 0.40;
-const DEFAULT_AUTO_NON_CATALOG_THRESHOLD = 0.40;
+const DEFAULT_PROBE_THRESHOLD = 0.18;
+const DEFAULT_GLOBAL_FALLBACK_THRESHOLD = 0.25;
+const DEFAULT_AUTO_NON_CATALOG_THRESHOLD = 0.35;
 
 export function getProfilesToTry(requestedProfileId = 'gemini') {
     if (requestedProfileId === 'auto') {
@@ -110,7 +110,7 @@ function isNearExpectedAnchor(imageData, detection, profileId) {
     for (const config of potentialConfigs) {
         const pos = calculateWatermarkPosition(imageData.width, imageData.height, config);
         const sizeTolerance = Math.max(4, Math.min(pos.width, pos.height) * 0.15);
-        const positionTolerance = Math.max(10, Math.min(pos.width, pos.height) * 0.20);
+        const positionTolerance = Math.max(4, Math.min(pos.width, pos.height) * 0.05);
         const sizeMatches = Math.abs(detection.width - pos.width) <= sizeTolerance &&
             Math.abs(detection.height - pos.height) <= sizeTolerance;
         const positionMatches = Math.abs(detection.x - pos.x) <= positionTolerance &&
@@ -185,7 +185,7 @@ export async function detectProfileWatermarks({
     if (shouldRunGlobalFallback && Object.keys(alphaMaps).length > 0) {
         const detection = detectWatermark(imageData, alphaMaps, detectionOptions);
         const minGlobalConfidence = options.globalFallbackMinConfidence ?? DEFAULT_GLOBAL_FALLBACK_THRESHOLD;
-        const minFreeGlobalConfidence = options.globalFreeMinConfidence ?? 0.78;
+        const minFreeGlobalConfidence = options.globalFreeMinConfidence ?? 0.50;
         const acceptsGlobalDetection = detection &&
             detection.confidence >= minGlobalConfidence &&
             (isNearExpectedAnchor(imageData, detection, profile.id) || detection.confidence >= minFreeGlobalConfidence);

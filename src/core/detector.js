@@ -98,8 +98,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         
         // Jitter search if not already perfect (v1.9.0)
         if (bestConf > 0.12 && bestConf < 0.95) {
-            for (let dy = -4; dy <= 4; dy++) {
-                for (let dx = -4; dx <= 4; dx++) {
+            const jitter = cfg.isOfficial ? 4 : 6;
+            for (let dy = -jitter; dy <= jitter; dy++) {
+                for (let dx = -jitter; dx <= jitter; dx++) {
                     if (dx === 0 && dy === 0) continue;
                     const c = calculateCorrelation(searchData, x + dx, y + dy, logoW, logoH, alphaMap, true);
                     // Distance penalty to avoid drift
@@ -180,9 +181,10 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         const startX = Math.max(-sizeW / 2, width - searchRangeX - sizeW);
         const startY = Math.max(-sizeH / 2, height - searchRangeY - sizeH);
         const sizeCandidates = [];
+        const step = sizeW <= 48 ? 1 : 2;
 
-        for (let y = startY; y < height - sizeH / 2; y += 2) {
-            for (let x = startX ; x < width - sizeW / 2; x += 2) {
+        for (let y = startY; y < height - sizeH / 2; y += step) {
+            for (let x = startX ; x < width - sizeW / 2; x += step) {
                 const confidence = calculateCorrelation(searchData, x, y, sizeW, sizeH, alphaMap);
                 const currentVar = _lastVar;
                 
@@ -229,7 +231,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                             detectWatermark._sharedGradientsI, 
                             detectWatermark._sharedGradientsA
                         );
-                        confidence = Math.max(confidence, gradientConf);
+                        // v1.9.9 Refined: Gradient filter — heavy penalty when no edge structure matches (false positive guard)
+                        if (gradientConf < 0.05) confidence = confidence * 0.25;
+                        else confidence = Math.max(confidence, gradientConf);
                     }
 
                     const stage2Threshold = noiseReduction ? SEARCH_CONFIG.THRESHOLDS.STAGE2_NR : SEARCH_CONFIG.THRESHOLDS.STAGE2_CLEAN;
@@ -440,12 +444,13 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
         const nccConf = calculateCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, true);
         confidence = Math.max(confidence, nccConf);
 
- if (confidence < 0.14) {
+        if (confidence < 0.14) {
              let bestConf = confidence;
              let bestX = pos.x;
              let bestY = pos.y;
-             for(let dy=-4; dy<=4; dy++) {
-                 for(let dx=-4; dx<=4; dx++) {
+             const jitter = 6;
+             for(let dy=-jitter; dy<=jitter; dy++) {
+                 for(let dx=-jitter; dx<=jitter; dx++) {
                      const conf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, logoW, logoH, alphaMap, gradientsI, gradientsA);
                      // Apply small distance penalty (v1.9.0) to prevent drift in low-contrast mock backgrounds
                      const penalty = (Math.abs(dx) + Math.abs(dy)) * 0.005;
@@ -461,14 +466,16 @@ let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.he
       const localContrastConf = calculateLocalContrastCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
       confidence = Math.max(confidence, localContrastConf);
       
-      // If deepScan enabled, also compute gradient correlation and use max
+      // If deepScan enabled, also compute gradient correlation and use hybrid score
       if (deepScan) {
           const logoW = pos.width;
           const logoH = pos.height;
           const gradientsI = new Float32Array(logoW * logoH);
           const gradientsA = new Float32Array(logoW * logoH);
           const gradientConf = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
-          confidence = Math.max(confidence, gradientConf);
+          
+          if (gradientConf < 0.05) confidence = confidence * 0.25;
+          else confidence = Math.max(confidence, gradientConf);
       }
       
       // Sliding window fine-tuning
@@ -476,9 +483,10 @@ let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.he
         let bestConf = confidence;
         let bestX = pos.x;
         let bestY = pos.y;
+        const jitter = 6;
         
-        for(let dy=-4; dy<=4; dy++) {
-            for(let dx=-4; dx<=4; dx++) {
+        for(let dy=-jitter; dy<=jitter; dy++) {
+            for(let dx=-jitter; dx<=jitter; dx++) {
                 if(dx === 0 && dy === 0) continue;
                 
                 let conf;
@@ -488,7 +496,8 @@ let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.he
                     const nccConf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const gradientConf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, gradientsI, gradientsA);
-                    conf = Math.max(nccConf, localConf, gradientConf);
+                    const combined = Math.max(nccConf, localConf);
+                    conf = gradientConf < 0.05 ? combined * 0.25 : Math.max(combined, gradientConf);
                 } else {
                     const nccConf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);

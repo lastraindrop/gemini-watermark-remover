@@ -1,86 +1,53 @@
-[English Document](README.md)
+[English](README.md)
 
-# Gemini & Doubao 无损去水印 (v1.9.9)
+# Gemini & Doubao 无损去水印工具 (v1.9.9)
 
-这是一个完全在本地运行的图像水印检测、分析与移除工具，面向 Gemini 与 Doubao 图片。
+用于检测、分析并去除 Gemini、Doubao 和 DALL-E 3（实验性）图片中可见 AI 水印的生产级客户端工具。
 
-## 当前版本说明
+## 当前版本覆盖
 
-v1.9.9 的重点是把 Web、CLI、Python 三条入口统一到同一套检测与去除管线，并补齐前端交互、拖拽上传、批量 ZIP 下载、语言显示和回归测试。
-
-## 核心能力
-
-- Web 端单图和批量处理
-- CLI 文件、目录、管道和 JSON 输出
-- Python bridge 与 GUI 集成
-- 统一的 profile / catalog / config / engine 结构
-- Gemini catalog 优先，近似尺寸与启发式作为补充
-- Doubao 多锚点支持
-- 批量下载打包为 ZIP，避免浏览器并发下载遗漏
-- 前端拖拽上传与目录拖拽
-- 本地处理，不上传服务器
-
-## 架构说明
-
-- `src/core/catalog.js`：尺寸和锚点目录
-- `src/core/config.js`：候选参数生成
-- `src/core/detector.js`：置信度与局部探测评分
-- `src/core/detectionPipeline.js`：共享决策策略
-- `src/core/watermarkEngine.js`：浏览器与 CLI 的统一执行层
-- `src/app.js`、`src/app/processing.js`：前端状态、拖拽、队列与下载
-- `src/cli/gwrRemoveCommand.js`：CLI 入口
-- `python/remover.py`：Python 桥接
+- Web / CLI / Python 共享检测管线
+- Gemini 目录优先匹配 + 启发式回退 + 近似尺寸缩放
+- Doubao 多锚点支持（左上 + 右下）
+- **Deep Scan 梯度滤波** 假阳性防御
+- 前端拖拽上传与批量 ZIP 下载
+- 多语言界面与契约测试
+- 271 个回归测试覆盖困难样本
 
 ## 验证基线
 
-当前本地验证结果：
-
-- `npm test` -> 271/271 通过
-- `npm run lint` -> 通过
-- `npm run build` -> 通过
-- `node --test tests/frontend_contract.test.js`
-- `node --test tests/gemini_regression.test.js`
-- `python -m unittest tests\\test_bridge_integration.py`
-
-## 使用方法
-
-### Web
-
-1. 打开本地网页端。
-2. 直接拖拽文件或文件夹，或使用上传入口。
-3. 选择 `Gemini`、`Doubao` 或 `AUTO`。
-4. 按需开启 `Deep Scan`、`Noise Reduction`、`Auto Download`。
-5. 处理后查看检测结果并下载输出。
-
-### CLI
-
 ```bash
-node src/cli.js -i ./input -o ./output
-node src/cli.js -i ./input.png -o ./output.png --noiseReduction --no-deepScan
-node src/cli.js -i ./input.png -o ./output.png --json
+npm test          # 271/271 通过
+npm run lint      # clean
+npm run build     # clean
+node --test tests/gemini_regression.test.js
+python -m unittest tests\\test_bridge_integration.py
 ```
 
-### Python
+## 架构概览
 
-```python
-from python.remover import GeminiWatermarkRemover
+| 层 | 文件 | 职责 |
+|-------|-------|---------------|
+| 基础 | `blendModes.js`, `alphaMap.js`, `templates/registry.js` | 反向 alpha 混合、模板注册 |
+| 核心 | `catalog.js`, `config.js`, `detector.js`, `detectionPipeline.js`, `watermarkEngine.js` | 检测、评分、管线编排 |
+| 应用 | `app.js`, `processing.js`, `ui.js` | 前端状态、拖拽、队列、下载 |
+| 入口 | `cli.js`, `gwrRemoveCommand.js`, `remover.py`, `gui.py` | CLI、Python bridge |
 
-remover = GeminiWatermarkRemover("./")
-results = remover.remove_watermark(
-    "./input_dir",
-    "./output_dir",
-    deep_scan=True,
-    noise_reduction=False,
-)
-```
+## 技术特性
 
-## 贡献说明
+- **梯度滤波**: Sobel 边缘相关抑制纯亮度假阳性，保留真水印
+- **多阶段检测**: 目录→近似→启发式→全局回退，逐级阈值
+- **Profile 系统**: 可插拔 profile（Gemini、Doubao、DALL-E 3）
+- **尺寸目录**: 标准尺寸 2% 容差匹配，近似覆盖裁切/缩放导出
+- **纯客户端**: 所有处理在本地完成
 
-- 改动 profile、catalog、asset 时，必须同步测试。
-- 调整检测阈值或候选排序时，必须补回归测试。
-- 修改 Web 检测策略时，CLI 也要保持一致。
-- 文档中的数字如果是历史基线，应明确标记，不要混成当前状态。
+## 文档
 
-## License
+- [用户指南](./USER_GUIDE.md)
+- [开发者指南](./DEVELOPER_GUIDE.md)
+- [技术指南](./TECHNICAL_GUIDE.md)
+- [路线图](./ROADMAP.md)
+
+## 许可证
 
 MIT

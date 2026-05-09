@@ -1,17 +1,18 @@
 # GWR Developer Guide
 
-本指南说明当前分支的工程结构、参数一致化规则、测试策略，以及新增模板或修改检测策略时必须遵守的流程。
+本指南说明当前分支的工程结构、参数一致化规则、梯度滤波机制、测试策略，以及新增模板或修改检测策略时必须遵守的流程。
 
 ## 1. 当前架构
 
 ### 核心层
 
 - `src/core/catalog.js`：尺寸与锚点目录，优先级最高
-- `src/core/config.js`：根据图片尺寸生成候选参数
-- `src/core/detector.js`：候选评分、局部相关性与置信度计算
-- `src/core/detectionPipeline.js`：统一 Web/CLI 的接受策略
+- `src/core/config.js`：根据图片尺寸生成候选参数（官方目录 → 近似尺寸 → 启发式）
+- `src/core/detector.js`：候选评分（NCC、局部对比度、梯度相关）、置信度计算与抖动搜索
+- `src/core/detectionPipeline.js`：统一 Web/CLI 的接受策略（probe → fallback → anchor 校验）
 - `src/core/watermarkEngine.js`：主引擎，负责候选执行与结果归一化
 - `src/core/blendModes.js`：反向 alpha 混合恢复
+- `src/core/templates/registry.js`：Profile 与 Catalog 注册中心
 
 ### 应用层
 
@@ -31,14 +32,55 @@
 
 当前 Web、CLI、Python bridge 必须共享同一组引擎参数：
 
-- `profileId`
-- `deepScan`
-- `noiseReduction`
-- `autoDownload`
+- `profileId`：`gemini`、`doubao`、`auto`
+- `deepScan`：是否启用梯度滤波（梯度相关 + 亮度 NCC 融合）
+- `noiseReduction`：对输出进行更强的去噪预处理
+- `autoDownload`：单图与批量处理后的自动下载
 
-禁止在某一端私自引入新语义、改名或自行硬编码阈值。真正的策略应该进入 `config.js`、`catalog.js`、`detector.js` 或 `detectionPipeline.js`。
+禁止在某一端私自引入新语义、改名或自行硬编码阈值。真正的策略应进入 `config.js`、`catalog.js`、`detector.js` 或 `detectionPipeline.js`。
 
-## 3. 新增 profile 或模板的流程
+## 3. 梯度滤波机制（v1.9.9）
+
+`deepScan` 启用时，检测引擎在三个位置应用梯度滤波：
+
+### 3.1 Phase 1（calculateProbeConfidence）
+
+```
+confidence = Math.max(NCC, localContrastConf)
+if (deepScan) {
+  计算 Sobel 梯度相关 gradientConf
+  if (gradientConf < 0.05) confidence = confidence × 0.25    // 无边缘结构匹配 → 强惩罚
+  else confidence = Math.max(confidence, gradientConf)         // 有边缘匹配 → 取高值
+}
+```
+
+### 3.2 Phase 2（detectWatermark 精搜）
+
+```
+confidence = NCC (fullPrecision)
+if (deepScan && confidence > 0.04) {
+  计算梯度相关（复用显存池 _sharedGradientsI / _sharedGradientsA）
+  同上梯度滤波
+}
+```
+
+### 3.3 抖动搜索分支
+
+```
+combined = Math.max(NCC, localContrastConf)
+if (gradientConf < 0.05) conf = combined × 0.25
+else conf = Math.max(combined, gradientConf)
+```
+
+### 3.4 设计说明
+
+- **目的**: 防止纯亮度噪声（如正弦纹理、高频图案）产生假阳性 NCC 高值
+- **原理**: Sobel 梯度相关测量图像边缘结构与水印模板边缘结构的对齐程度；无边缘匹配的 NCC 高分极可能是噪声假阳性
+- **阈值 0.05**: 区分"有/无边缘匹配"的分界线，低于此值说明梯度相关可忽略
+- **惩罚系数 0.25**: 将假阳性置信度压制到 0.22（FINAL_FREE）以下；同时真水印的 gradientConf ≥ 0.05，走 Math.max 通路不受影响
+- **动态对齐**: 三处使用完全一致的公式，确保评分尺度统一
+
+## 4. 新增 profile 或模板的流程
 
 1. 在 `src/core/profiles.js` 注册 profile。
 2. 在 `src/core/catalog.js` 补齐官方尺寸、锚点或近似尺寸。
@@ -52,31 +94,34 @@
    - Web/CLI 一致性
 7. 最后同步文档，不要只改代码不改说明。
 
-## 4. 设计规则
+## 5. 设计规则
 
 1. profile、catalog、assets 必须同步变化。
 2. Web 与 CLI 不得各自实现不同的检测策略。
 3. UI 不得自己猜测检测坐标，必须使用引擎返回的 `pos` 与 `confidence`。
 4. 批处理成功与失败都要推进状态，不能让进度条停住。
 5. 任何批量文件名渲染都必须使用 DOM API 和 `textContent`，不能回退到 `innerHTML` 拼接。
+6. 梯度滤波的三个应用点必须保持公式一致，任何调整必须同步三处。
 
-## 5. 调试重点
+## 6. 调试重点
 
-当用户反馈“明显水印也检测不到”时，优先检查：
+当用户反馈"明显水印也检测不到"时，优先检查：
 
-- 是否命中 catalog 精确尺寸
-- 是否命中近似尺寸候选
+- 是否命中 catalog 精确尺寸（registry.MAX_SCALE_MISMATCH = 0.02）
+- 是否命中近似尺寸候选（catalog.getScaledCatalogConfigs）
 - `detector.js` 的置信度是否被局部纹理稀释
-- `detectionPipeline.js` 的全局回退是否过严
+- `detectionPipeline.js` 的全局回退是否过严（minGlobalConfidence = 0.25）
+- 梯度滤波是否错误地将真水印判定为假阳性（检查 gradientConf 值）
 - `tests/gemini_regression.test.js` 是否已有对应样本
 
-当用户反馈“误报太多”时，优先检查：
+当用户反馈"误报太多"时，优先检查：
 
 - 低置信度全局回退是否过宽
 - 负样本测试是否充分
-- `deepScan` 是否把噪声背景抬成了假阳性
+- `deepScan` 梯度滤波是否生效
+- `isNearExpectedAnchor` 位置容差是否过宽（当前 5%）
 
-## 6. 测试策略
+## 7. 测试策略
 
 当前验证基线应至少包括：
 
@@ -92,12 +137,12 @@ python -m unittest tests\test_bridge_integration.py
 
 对检测算法做修改时，必须同时看：
 
-- 回归样本
-- 负样本
-- 前端契约
-- CLI 行为
+- 回归样本（gemini_regression.test.js）
+- 负样本（test 5：无水印假阳性检测）
+- 前端契约（frontend_contract.test.js）
+- CLI 行为（CLI Integration Tests）
 - Python bridge 输出
 
-## 7. 文档维护规则
+## 8. 文档维护规则
 
-文档里如果写到版本号、测试总数、流程状态或当前架构，必须是当前基线。历史数值应当进入 `MASTER_PLAN.md` 或 `COMPREHENSIVE_PLAN.md` 的历史段落，而不是混在用户指南里。
+文档里如果写到版本号、测试总数、流程状态或当前架构，必须是当前基线。历史数值应当进入 `COMPREHENSIVE_PLAN.md` 或 `DIAGNOSTIC_PLAN.md` 的历史段落，而不是混在用户指南里。
