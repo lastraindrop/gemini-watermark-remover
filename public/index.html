@@ -145,9 +145,75 @@
           </label>
         </div>
 
-        <button id="resetAreaBtn" class="sm:ml-auto p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl transition-all" title="Reset" aria-label="Reset">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-        </button>
+        <div class="flex items-center gap-2 sm:ml-auto">
+            <button id="toggleAdvancedBtn" class="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl transition-all" title="Advanced Settings" aria-label="Advanced Settings">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            </button>
+            <button id="resetAreaBtn" class="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl transition-all" title="Reset" aria-label="Reset">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            </button>
+        </div>
+      </div>
+
+      <!-- Advanced Panel (v2.1) -->
+      <div id="advancedPanel" class="mt-4 animate-fade-up [animation-delay:400ms] hidden">
+          <div class="glass-premium rounded-3xl p-6 space-y-6">
+              <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+                  <h4 class="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white" data-i18n="settings.advanced">Advanced Configuration</h4>
+                  <span class="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter">Manual Overrides Active</span>
+              </div>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <!-- Sliders -->
+                  <div class="space-y-6">
+                      <div class="space-y-2">
+                          <div class="flex justify-between">
+                              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest" data-i18n="settings.threshold">Detection Threshold</label>
+                              <span id="thresholdVal" class="text-[10px] font-mono font-bold text-emerald-500">0.25</span>
+                          </div>
+                          <input type="range" id="thresholdSlider" min="0.05" max="0.80" step="0.01" value="0.25" class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                      </div>
+
+                      <div class="space-y-2">
+                          <div class="flex justify-between">
+                              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest" data-i18n="settings.penalty">Gradient Penalty</label>
+                              <span id="penaltyVal" class="text-[10px] font-mono font-bold text-emerald-500">0.30</span>
+                          </div>
+                          <input type="range" id="penaltySlider" min="0.10" max="0.90" step="0.01" value="0.30" class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                      </div>
+                  </div>
+
+                  <!-- Manual Coordinates -->
+                  <div class="space-y-4">
+                      <label class="flex items-center gap-3 cursor-pointer group">
+                        <div class="relative w-10 h-6 bg-slate-200 dark:bg-slate-800 rounded-full transition-colors has-[:checked]:bg-indigo-500">
+                          <input type="checkbox" id="manualModeToggle" class="sr-only peer">
+                          <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+                        </div>
+                        <span class="text-xs font-bold text-slate-600 dark:text-slate-300 group-hover:text-indigo-500 transition-colors" data-i18n="settings.manualMode">Manual Area Selection</span>
+                      </label>
+
+                      <div id="manualCoords" class="grid grid-cols-2 gap-3 opacity-40 pointer-events-none transition-opacity">
+                          <div class="space-y-1">
+                              <span class="text-[9px] font-bold text-slate-400 uppercase ml-1">X Coord</span>
+                              <input type="number" id="manualX" placeholder="0" class="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-xs font-mono outline-none border border-transparent focus:border-indigo-500/30">
+                          </div>
+                          <div class="space-y-1">
+                              <span class="text-[9px] font-bold text-slate-400 uppercase ml-1">Y Coord</span>
+                              <input type="number" id="manualY" placeholder="0" class="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-xs font-mono outline-none border border-transparent focus:border-indigo-500/30">
+                          </div>
+                          <div class="space-y-1">
+                              <span class="text-[9px] font-bold text-slate-400 uppercase ml-1">Width</span>
+                              <input type="number" id="manualW" placeholder="96" class="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-xs font-mono outline-none border border-transparent focus:border-indigo-500/30">
+                          </div>
+                          <div class="space-y-1">
+                              <span class="text-[9px] font-bold text-slate-400 uppercase ml-1">Height</span>
+                              <input type="number" id="manualH" placeholder="96" class="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-xs font-mono outline-none border border-transparent focus:border-indigo-500/30">
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
       </div>
     </div>
 

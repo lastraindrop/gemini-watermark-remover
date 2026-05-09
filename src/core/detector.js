@@ -46,7 +46,15 @@ const SEARCH_CONFIG = {
  */
 export function detectWatermark(imageData, alphaMaps, options = { deepScan: true, noiseReduction: false }) {
     const { width, height } = imageData;
-    const { deepScan, noiseReduction } = options;
+    const { deepScan, noiseReduction, overrides = {} } = options;
+    
+    // v2.1: Dynamic Configuration Merging
+    const config = {
+        ...SEARCH_CONFIG,
+        ...overrides,
+        THRESHOLDS: { ...SEARCH_CONFIG.THRESHOLDS, ...(overrides.THRESHOLDS || {}) }
+    };
+    const gradientPenalty = options.gradientPenalty ?? 0.30;
 
     let searchData = imageData;
     if (noiseReduction) {
@@ -98,7 +106,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         
         // Jitter search if not already perfect (v1.9.0)
         if (bestConf > 0.12 && bestConf < 0.95) {
-            const jitter = cfg.isOfficial ? 4 : 6;
+            const jitter = cfg.isOfficial ? 4 : (config.jitterRange || 6);
             for (let dy = -jitter; dy <= jitter; dy++) {
                 for (let dx = -jitter; dx <= jitter; dx++) {
                     if (dx === 0 && dy === 0) continue;
@@ -114,7 +122,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
             }
         }
 
-        const threshold = cfg.isOfficial ? SEARCH_CONFIG.THRESHOLDS.ANCHORED_OFFICIAL : SEARCH_CONFIG.THRESHOLDS.ANCHORED_OTHER; 
+        const threshold = cfg.isOfficial ? config.THRESHOLDS.ANCHORED_OFFICIAL : config.THRESHOLDS.ANCHORED_OTHER; 
         if (bestConf >= threshold) {
             allCandidates.push({ x: bestX, y: bestY, width: logoW, height: logoH, confidence: bestConf, mode: 'anchored' });
         }
@@ -123,12 +131,12 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     if (allCandidates.length > 0) {
         allCandidates.sort((a, b) => b.confidence - a.confidence);
         // Removed early exit (v1.9.1): Always run full pipeline to ensure best match
-        // if (allCandidates[0].confidence > SEARCH_CONFIG.THRESHOLDS.STRICT_EXIT) return allCandidates[0];
+        // if (allCandidates[0].confidence > config.THRESHOLDS.STRICT_EXIT) return allCandidates[0];
     }
 
     // --- Phase 2: Heuristic Global Search (All known sizes) ---
-    const searchRangeX = Math.floor(width * SEARCH_CONFIG.RANGE_X);
-    const searchRangeY = Math.floor(height * SEARCH_CONFIG.RANGE_Y);
+    const searchRangeX = Math.floor(width * config.RANGE_X);
+    const searchRangeY = Math.floor(height * config.RANGE_Y);
     
     // Dynamic sizes: derive from catalog entries (supports rectangular watermarks)
     const dynamicSizes = new Map();
@@ -231,8 +239,8 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                             detectWatermark._sharedGradientsI, 
                             detectWatermark._sharedGradientsA
                         );
-                        // v1.9.9 Refined: Gradient filter — heavy penalty when no edge structure matches (false positive guard)
-                        if (gradientConf < 0.05) confidence = confidence * 0.25;
+                        // v2.1 Dynamic Penalty
+                        if (gradientConf < 0.05) confidence = confidence * gradientPenalty;
                         else confidence = Math.max(confidence, gradientConf);
                     }
 
@@ -283,7 +291,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
 
         // Scoring Bias: Aligned or Anchored get a significant boost (v1.9.0 hardened)
         if (mode === 'anchored') score += 0.3;
-        else if (mode === 'aligned') score += 0.15;
+        else if (mode === 'aligned') score += 0.10;
 
         if (score > maxScore) {
             maxScore = score;
@@ -432,7 +440,7 @@ export function calculateLocalContrastCorrelation(imageData, x, y, logoW, logoH,
  * Verify if a watermark is likely present at the given position
  */
 export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'gemini', options = {}) {
-    const { deepScan = false } = options;
+    const { deepScan = false, gradientPenalty = 0.30 } = options;
     
     if (profile === 'doubao') {
         const logoW = pos.width;
@@ -474,7 +482,7 @@ let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.he
           const gradientsA = new Float32Array(logoW * logoH);
           const gradientConf = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
           
-          if (gradientConf < 0.05) confidence = confidence * 0.25;
+          if (gradientConf < 0.05) confidence = confidence * gradientPenalty;
           else confidence = Math.max(confidence, gradientConf);
       }
       
@@ -497,7 +505,7 @@ let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.he
                     const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const gradientConf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, gradientsI, gradientsA);
                     const combined = Math.max(nccConf, localConf);
-                    conf = gradientConf < 0.05 ? combined * 0.25 : Math.max(combined, gradientConf);
+                    conf = gradientConf < 0.05 ? combined * gradientPenalty : Math.max(combined, gradientConf);
                 } else {
                     const nccConf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);

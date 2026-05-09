@@ -13,11 +13,12 @@ describe('Official Size Catalog Matching', () => {
         });
     }
 
-    test('Tolerance match: Standard +/- 2% should still match', () => {
+    test('Tolerance match: Standard +/- 0.2% should still match', () => {
         // Find a representative entry
         const entry = GEMINI_SIZE_CATALOG[0];
-        const config = getCatalogConfig(entry.width + 5, entry.height - 5);
-        assert.ok(config, 'Fuzzy matching should still work within 2% margin');
+        // 512 * 0.002 = 1.024px. Use 1px to stay within 0.6% (3.07px)
+        const config = getCatalogConfig(entry.width + 1, entry.height - 1);
+        assert.ok(config, 'Fuzzy matching should still work within 0.6% margin');
         assert.strictEqual(config.isOfficial, true);
     });
 

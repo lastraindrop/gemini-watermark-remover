@@ -39,6 +39,16 @@
 
 禁止在某一端私自引入新语义、改名或自行硬编码阈值。真正的策略应进入 `config.js`、`catalog.js`、`detector.js` 或 `detectionPipeline.js`。
 
+### 2.1 动态参数覆盖 (v2.1)
+
+引擎现在支持从入口层（Web UI/CLI/Python）透传参数覆盖。开发者在调用 `removeWatermarkFromImage` 时可提供以下可选参数：
+
+- `probeThreshold`: (Number) 覆盖默认的探针灵敏度 (0.18)。
+- `fallbackThreshold`: (Number) 覆盖默认的全局回退阈值 (0.25)。
+- `gradientPenalty`: (Number) 覆盖梯度滤波惩罚 multiplier (0.30)。
+- `manualConfig`: (Object) `{ x, y, width, height }` 直接指定水印位置，绕过搜索管线。
+- `overrides`: (Object) 允许覆盖 `detector.js` 中的 `SEARCH_CONFIG` 全量常量（如 `RANGE_X`, `jitterRange` 等）。
+
 ## 3. 梯度滤波机制（v1.9.9）
 
 `deepScan` 启用时，检测引擎在三个位置应用梯度滤波：

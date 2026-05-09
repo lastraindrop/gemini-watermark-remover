@@ -99,7 +99,7 @@ function isCatalogBacked(match) {
     return match?.config?.isOfficial || match?.config?.scaledFrom || match?.source === 'catalog-probe';
 }
 
-function isNearExpectedAnchor(imageData, detection, profileId) {
+function isNearExpectedAnchor(imageData, detection, profileId, options = {}) {
     if (profileId !== 'gemini') return true;
 
     const potentialConfigs = [
@@ -110,7 +110,7 @@ function isNearExpectedAnchor(imageData, detection, profileId) {
     for (const config of potentialConfigs) {
         const pos = calculateWatermarkPosition(imageData.width, imageData.height, config);
         const sizeTolerance = Math.max(4, Math.min(pos.width, pos.height) * 0.15);
-        const positionTolerance = Math.max(4, Math.min(pos.width, pos.height) * 0.05);
+        const positionTolerance = Math.max(4, Math.min(pos.width, pos.height) * (options.positionTolerance ?? 0.05));
         const sizeMatches = Math.abs(detection.width - pos.width) <= sizeTolerance &&
             Math.abs(detection.height - pos.height) <= sizeTolerance;
         const positionMatches = Math.abs(detection.x - pos.x) <= positionTolerance &&
@@ -137,9 +137,43 @@ export async function detectProfileWatermarks({
     const profile = getProfile(profileId);
     const detectionOptions = {
         deepScan: options.deepScan !== false,
-        noiseReduction: options.noiseReduction === true
+        noiseReduction: options.noiseReduction === true,
+        gradientPenalty: options.gradientPenalty,
+        overrides: options.overrides
     };
-    const threshold = options.threshold ?? DEFAULT_PROBE_THRESHOLD;
+
+    // v2.1: Manual Override Mode
+    if (options.manualConfig) {
+        const { x, y, width, height, assetKey } = options.manualConfig;
+        const alphaMap = await tryGetAlphaMap(getAlphaMap, assetKey || profile.defaultAsset || '96', width, height);
+        if (alphaMap) {
+            const verification = calculateProbeConfidence(imageData, { x, y, width, height }, alphaMap.data, profile.id, detectionOptions);
+            return {
+                profileId: profile.id,
+                matches: [{
+                    config: { isOfficial: false, manual: true, logoWidth: width, logoHeight: height },
+                    pos: { x, y, width, height, anchor: 'manual' },
+                    alphaMap: alphaMap.data,
+                    confidence: verification.confidence,
+                    profileId: profile.id,
+                    source: 'manual-input'
+                }],
+                winner: {
+                    config: { isOfficial: false, manual: true, logoWidth: width, logoHeight: height },
+                    pos: { x, y, width, height, anchor: 'manual' },
+                    alphaMap: alphaMap.data,
+                    confidence: verification.confidence,
+                    profileId: profile.id,
+                    source: 'manual-input'
+                },
+                confidence: verification.confidence
+            };
+        }
+    }
+
+    const probeThreshold = options.probeThreshold ?? DEFAULT_PROBE_THRESHOLD;
+    const fallbackThreshold = options.fallbackThreshold ?? DEFAULT_GLOBAL_FALLBACK_THRESHOLD;
+    
     const matches = [];
     const alphaMaps = {};
 
@@ -160,7 +194,7 @@ export async function detectProfileWatermarks({
             profile.id,
             detectionOptions
         );
-        if (verification.confidence > threshold) {
+        if (verification.confidence > probeThreshold) {
             upsertMatch(matches, {
                 config,
                 pos: { ...pos, x: verification.x, y: verification.y },
@@ -184,11 +218,11 @@ export async function detectProfileWatermarks({
     }
     if (shouldRunGlobalFallback && Object.keys(alphaMaps).length > 0) {
         const detection = detectWatermark(imageData, alphaMaps, detectionOptions);
-        const minGlobalConfidence = options.globalFallbackMinConfidence ?? DEFAULT_GLOBAL_FALLBACK_THRESHOLD;
+        const minGlobalConfidence = options.fallbackThreshold ?? DEFAULT_GLOBAL_FALLBACK_THRESHOLD;
         const minFreeGlobalConfidence = options.globalFreeMinConfidence ?? 0.50;
         const acceptsGlobalDetection = detection &&
             detection.confidence >= minGlobalConfidence &&
-            (isNearExpectedAnchor(imageData, detection, profile.id) || detection.confidence >= minFreeGlobalConfidence);
+            (isNearExpectedAnchor(imageData, detection, profile.id, options) || detection.confidence >= minFreeGlobalConfidence);
         if (acceptsGlobalDetection) {
             const alphaMap = alphaMaps[`${detection.width}x${detection.height}`] ||
                 alphaMaps[String(detection.width)] ||

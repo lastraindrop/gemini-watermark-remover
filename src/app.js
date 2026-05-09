@@ -33,7 +33,20 @@ const elements = {
     resetAreaBtn: document.getElementById('resetAreaBtn'),
     clearAllBtn: document.getElementById('clearAllBtn'),
     auditConsole: document.getElementById('auditConsole'),
-    auditConsoleToggle: document.getElementById('auditConsoleToggle')
+    auditConsoleToggle: document.getElementById('auditConsoleToggle'),
+    // v2.1 Advanced Elements
+    toggleAdvancedBtn: document.getElementById('toggleAdvancedBtn'),
+    advancedPanel: document.getElementById('advancedPanel'),
+    thresholdSlider: document.getElementById('thresholdSlider'),
+    thresholdVal: document.getElementById('thresholdVal'),
+    penaltySlider: document.getElementById('penaltySlider'),
+    penaltyVal: document.getElementById('penaltyVal'),
+    manualModeToggle: document.getElementById('manualModeToggle'),
+    manualCoords: document.getElementById('manualCoords'),
+    manualX: document.getElementById('manualX'),
+    manualY: document.getElementById('manualY'),
+    manualW: document.getElementById('manualW'),
+    manualH: document.getElementById('manualH')
 };
 
 const dragState = {
@@ -141,6 +154,26 @@ function setupEventListeners() {
         if (e.target instanceof Element && e.target.closest('#exportLogBtn')) return;
         elements.auditConsole?.classList.toggle('translate-y-0');
         elements.auditConsole?.classList.toggle('translate-y-[calc(100%-48px)]');
+    });
+
+    // v2.1 Advanced Listeners
+    elements.toggleAdvancedBtn?.addEventListener('click', () => {
+        elements.advancedPanel?.classList.toggle('hidden');
+    });
+
+    elements.thresholdSlider?.addEventListener('input', (e) => {
+        elements.thresholdVal.textContent = e.target.value;
+    });
+
+    elements.penaltySlider?.addEventListener('input', (e) => {
+        elements.penaltyVal.textContent = e.target.value;
+    });
+
+    elements.manualModeToggle?.addEventListener('change', (e) => {
+        const active = e.target.checked;
+        elements.manualCoords?.classList.toggle('opacity-40', !active);
+        elements.manualCoords?.classList.toggle('pointer-events-none', !active);
+        if (active) AuditLog.log('Manual Mode enabled: define area in Advanced Panel', 'warn');
     });
 
     elements.modeSliderBtn?.addEventListener('click', () => switchViewMode('slider'));
@@ -538,12 +571,27 @@ function resetWorkspace(clearQueue = true) {
 }
 
 function getEngineOptions() {
-    return {
+    const opts = {
         profileId: elements.profileSelect?.value || 'gemini',
         deepScan: document.getElementById('deepScanToggle')?.checked ?? true,
         noiseReduction: document.getElementById('noiseReductionToggle')?.checked ?? false,
-        autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false
+        autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false,
+        // v2.1 Advanced Parameters
+        probeThreshold: parseFloat(elements.thresholdSlider?.value || '0.22'),
+        fallbackThreshold: parseFloat(elements.thresholdSlider?.value || '0.35'),
+        gradientPenalty: parseFloat(elements.penaltySlider?.value || '0.30')
     };
+
+    if (elements.manualModeToggle?.checked) {
+        opts.manualConfig = {
+            x: parseInt(elements.manualX?.value || '0'),
+            y: parseInt(elements.manualY?.value || '0'),
+            width: parseInt(elements.manualW?.value || '96'),
+            height: parseInt(elements.manualH?.value || '96')
+        };
+    }
+
+    return opts;
 }
 
 function setupSlider() {

@@ -91,7 +91,8 @@ class Engine {
             getAlphaMap: (assetKey, width, height) => this.getAlphaMap(assetKey, width, height),
             options: {
                 deepScan: options.deepScan !== false,
-                noiseReduction: options.noiseReduction === true
+                noiseReduction: options.noiseReduction === true,
+                ...options // v2.1 Custom overrides
             }
         });
 
@@ -156,6 +157,10 @@ export function parseArgs(args) {
         else if (arg === '--pipe') opts.pipe = true;
         else if (arg === '--no-deepScan') opts.deepScan = false;
         else if (arg === '--noiseReduction') opts.noiseReduction = true;
+        // v2.1 Advanced CLI Flags
+        else if (arg === '--probeThreshold') opts.probeThreshold = parseFloat(args[++i]);
+        else if (arg === '--fallbackThreshold') opts.fallbackThreshold = parseFloat(args[++i]);
+        else if (arg === '--gradientPenalty') opts.gradientPenalty = parseFloat(args[++i]);
         else if (!arg.startsWith('-')) opts._.push(arg);
     }
     return opts;

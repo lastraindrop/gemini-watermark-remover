@@ -46,10 +46,11 @@ class GeminiWatermarkRemover:
         except (subprocess.CalledProcessError, FileNotFoundError):
             raise RuntimeError("Node.js is not installed or not in PATH.")
 
-    def remove_watermark(self, input_path: str, output_path: str, deep_scan: bool = True, noise_reduction: bool = False, profile: str = "gemini") -> List[Dict[str, Any]]:
+    def remove_watermark(self, input_path: str, output_path: str, deep_scan: bool = True, noise_reduction: bool = False, profile: str = "gemini", **kwargs) -> List[Dict[str, Any]]:
         """
         Processes a single image or a directory.
         Returns a list of result dictionaries.
+        Supports v2.1 advanced parameters: probe_threshold, fallback_threshold, gradient_penalty.
         """
         
         try:
@@ -59,6 +60,14 @@ class GeminiWatermarkRemover:
             
             if not deep_scan: final_cmd.append("--no-deepScan")
             if noise_reduction: final_cmd.append("--noiseReduction")
+            
+            # v2.1 Advanced Argument Passing
+            if "probe_threshold" in kwargs:
+                final_cmd.extend(["--probeThreshold", str(kwargs["probe_threshold"])])
+            if "fallback_threshold" in kwargs:
+                final_cmd.extend(["--fallbackThreshold", str(kwargs["fallback_threshold"])])
+            if "gradient_penalty" in kwargs:
+                final_cmd.extend(["--gradientPenalty", str(kwargs["gradient_penalty"])])
             
             # v1.9.8 Enhancement: Use explicit timeout and capture all output
             result = subprocess.run(final_cmd, capture_output=True, text=True, check=False, timeout=60)

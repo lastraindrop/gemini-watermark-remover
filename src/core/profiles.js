@@ -19,10 +19,10 @@ export const PROFILES = {
             const pixels = w * h;
             const shortSide = Math.min(w, h);
             let tier;
-            // 800x800=640k, 1024x1024=1.04M, 1536x672=1.03M, 1500x500=750k
-            if (shortSide <= 600 || (pixels <= 820000 && shortSide <= 1024)) tier = '0.5k';
-            else if (pixels <= 1100000 || shortSide <= 1400) tier = '1k';
-            else if (pixels <= 4200000) tier = '2k';
+            // v2.0: Optimized thresholds for better panorama support
+            if (shortSide <= 720 || (pixels <= 900000 && shortSide <= 1080)) tier = '0.5k';
+            else if (pixels <= 1500000 || shortSide <= 1600) tier = '1k';
+            else if (pixels <= 4500000) tier = '2k';
             else tier = '4k';
             return { ...PROFILES.gemini.tiers[tier], isOfficial: false };
         }

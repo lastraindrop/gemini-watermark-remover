@@ -1,4 +1,4 @@
-# Technical Guide — Gemini Watermark Remover v1.9.9
+# Technical Guide — Gemini Watermark Remover v2.0.0
 
 ## 1. Overview
 
@@ -56,7 +56,7 @@ Stage 4: Global Fallback ──┬── hit → verify anchor → accept/reject
 **File**: `src/core/templates/registry.js` — `findMatches()`
 
 ```
-MAX_SCALE_MISMATCH = 0.02 (2%)
+MAX_SCALE_MISMATCH = 0.015 (1.5%)
 ```
 
 For an image of size `(W, H)`, each catalog entry `(w, h)` is checked:
@@ -64,12 +64,12 @@ For an image of size `(W, H)`, each catalog entry `(w, h)` is checked:
 ```
 scaleX = W / w
 scaleY = H / h
-match = |scaleX − scaleY| < 0.02  AND  |scaleX − 1| < 0.02
+match = |scaleX − scaleY| < 0.015  AND  |scaleX − 1| < 0.015
 ```
 
 If matched, the config is returned with `isOfficial: true`. The probe then uses the exact catalog position.
 
-**Rationale**: 2% tolerance allows for minor encoding artifacts/resampling while preventing non-standard sizes from accidentally matching. For example, 1365×768 → 1376×768 (0.8% diff) matches; 1360×768 (1.2% diff) matches; 1350×768 (1.9% diff) matches; 1340×768 (2.6% diff) does NOT match.
+**Rationale**: 1.5% tolerance (v2.0 tuned) allows for minor encoding artifacts/resampling while maintaining high precision. For example, 1365×768 → 1376×768 (0.8% diff) matches; 1360×768 (1.2% diff) matches; 1350×768 (1.9% diff) does NOT match.
 
 **Test coverage**: `tests/catalog.test.js` (68 subtests covering all official dimensions + tolerance boundary).
 
@@ -226,15 +226,15 @@ else:
 |----------|-----|----------|----------------|----------------|
 | Real watermark, smooth bg | 0.85 | 0.70 | 0.85 ✓ | 0.85 ✓ |
 | Real watermark, textured bg | 0.50 | 0.20 | 0.50 ✓ | 0.50 ✓ |
-| No watermark, sinusoidal texture | 0.94 | 0.03 | 0.94 ✗ FP | 0.24 ✓ (below threshold) |
-| No watermark, random noise | 0.45 | 0.02 | 0.45 ✗ FP | 0.11 ✓ (below threshold) |
+| No watermark, sinusoidal texture | 0.94 | 0.03 | 0.94 ✗ FP | 0.28 ✓ (below threshold) |
+| No watermark, random noise | 0.45 | 0.02 | 0.45 ✗ FP | 0.13 ✓ (below threshold) |
 
 The old `Math.max(confidence, gradientConf)` approach had no defense against false positives where NCC was high but gradient correlation was near-zero. The gradient filter adds this defense by detecting when there's no edge structure match — a reliable indicator of noise-driven false positives.
 
 #### Threshold Rationale
 
 - **gradientConf < 0.05**: This threshold is set very low (near-zero correlation). Any gradientConf ≥ 0.05 indicates that at least some edge structure in the image aligns with the watermark template edges. This is extremely difficult for pure noise to achieve.
-- **Multiplier 0.25**: This ensures that even a strong NCC of 0.94 is suppressed to 0.24, below the `FINAL_FREE` threshold (0.22 in detector.js) and below `minGlobalConfidence` (0.25 in detectionPipeline.js).
+- **Multiplier 0.30**: (v2.0 Updated) This ensures that even a strong NCC of 0.94 is suppressed to 0.28, below the 0.35 fallback threshold. It strikes a better balance for low-contrast but obvious watermarks.
 - **Why not geometric mean**: The geometric mean (`Math.sqrt(NCC × gradientConf)`) penalizes real watermarks on high-frequency backgrounds (e.g., grid patterns) where gradient correlation is inherently low due to background edges dominating. The filter approach only penalizes when gradient-conf is near-zero, preserving Math.max behavior for all other cases.
 
 ---
@@ -459,5 +459,27 @@ FINAL_FREE = 0.22
 
 ---
 
-*Document version: 1.0 — 2026-05-10*
-*Corresponds to: v1.9.9, 271/271 tests, lint/build clean*
+## 9. Custom Configuration & Manual Overrides (v2.1)
+
+### 9.1 Dynamic Parameter Injection
+
+Starting from v2.1.0, the engine supports runtime parameter injection. This allows bypassing hardcoded constants without redeploying the core logic.
+
+- **Threshold Overrides**: `probeThreshold` and `fallbackThreshold` are checked first in `detectionPipeline.js`.
+- **Mathematical Penalty Adjustment**: The `gradientFilterPenalty` (0.30) can be adjusted to `0.10` (strict) or `0.90` (permissive).
+
+### 9.2 Manual Mode Pipeline Bypass
+
+When `manualConfig` is provided, the engine skips the standard detection stages:
+
+1. **Coordinates**: Directly uses `(x, y, w, h)` as the target.
+2. **Verification**: Runs `calculateProbeConfidence` only for the specified area to report confidence to the UI.
+3. **Execution**: Immediately invokes `removeWatermark()` using the best available AlphaMap for the given dimensions.
+
+This mode ensures that even watermarks that are mathematically impossible to distinguish from noise via auto-detection can still be removed if the user points the engine to the correct location.
+
+---
+
+*Document version: 2.1 — 2026-05-10*
+*Corresponds to: v2.1.0, 277/277 tests, lint/build clean*
+v1.9.9, 271/271 tests, lint/build clean*

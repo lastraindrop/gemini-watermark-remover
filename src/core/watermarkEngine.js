@@ -171,7 +171,8 @@ export class WatermarkEngine {
             getAlphaMap: (assetKey, width, height) => this.getAlphaMap(assetKey, width, height),
             options: {
                 deepScan: options.deepScan !== false,
-                noiseReduction: options.noiseReduction === true
+                noiseReduction: options.noiseReduction === true,
+                ...options // Pass through v2.1 custom parameters (thresholds, penalty, overrides, manualConfig)
             }
         });
 

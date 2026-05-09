@@ -44,6 +44,12 @@ if (args.includes('-i') || args.includes('--input')) {
         if (args.includes('--json')) adaptedArgs.push('--json');
         if (args.includes('--noiseReduction')) adaptedArgs.push('--noiseReduction');
         if (args.includes('--no-deepScan')) adaptedArgs.push('--no-deepScan');
+        
+        // v2.1 Advanced Flags Passthrough
+        ['--probeThreshold', '--fallbackThreshold', '--gradientPenalty'].forEach(flag => {
+            const idx = args.indexOf(flag);
+            if (idx !== -1) adaptedArgs.push(flag, args[idx + 1]);
+        });
         const profileIdx = args.findIndex(a => a === '--profile' || a === '-p');
         if (profileIdx !== -1) adaptedArgs.push('--profile', args[profileIdx + 1]);
         

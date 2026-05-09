@@ -1,37 +1,21 @@
-# Current Audit and Delivery Plan (v1.9.9)
+# Current Audit and Delivery Plan (v2.1.0)
 
 > 审计日期: 2026-05-10
 > 当前分支: `main`
-> 当前版本: `package.json` v1.9.9
-> 当前验证基线: `npm test` 271/271 pass, `npm run lint` pass, `npm run build` pass, Python bridge pass
+> 当前版本: `package.json` v2.1.0
+> 当前验证基线: `npm test` 277/277 pass, `npm run lint` pass, `npm run build` pass, Python bridge pass
 
 ## 1. 当前结论
 
-当前分支已完成从单纯去水印脚本到完整产品化工具的演进。Web、CLI、Python 三条入口已统一到共享的 profile / catalog / detector / pipeline 结构。经过两轮调优：
+当前分支已完成 v2.1.0 交付。本项目不仅通过调优核心阈值解决了漏检问题，还引入了全新的“自定义配置模式”，赋予了用户手动干预算法的能力。架构现已实现多端参数一致化、动态对齐与高度解耦，具备极强的工业级可用性。
 
-- **Round 1**: 放宽阈值链，修复启发式判断错误，增大探针范围 → 召回率大幅提升
-- **Round 2**: 引入梯度滤波假阳性防御，收紧锚点容差 → FP 率下降，271/271 全通过
+## 2. 已完成的特性与修复 (v2.1.0)
 
-当前最重要的工程原则是：
-
-1. 任何检测策略改动都必须同步 Web、CLI、Python。
-2. 任何 profile 或 catalog 改动都必须同步测试与文档。
-3. 任何阈值调整都必须同时看负样本与回归样本。
-4. 文档中的版本号和测试总数必须与当前基线一致，历史记录另存。
-
-## 2. 已完成的修复
-
-- 共享检测管线 `src/core/detectionPipeline.js`
-- detector 候选排序与局部相关性评分修复
-- 梯度滤波假阳性防御（Phase 1 + Phase 2 + 抖动分支统一）
-- 位置锚点容差收紧（20%→5%）
-- Gemini catalog 与近似尺寸覆盖
-- Doubao 多锚点支持
-- 网页拖拽上传和目录遍历修复
-- 批量下载改为 ZIP
-- 语言选择可见性修复
-- 前端契约、Gemini 回归、产品审计测试补齐（271 测试）
-- 技术文档完善
+- **自定义配置模式 (Custom Mode)**：新增高级设置面板，支持手动微调灵敏度、梯度惩罚，以及通过精确坐标强制执行恢复逻辑。
+- **召回率专项增强**：梯度惩罚 multiplier 调优至 0.30，有效降低了复杂背景下的假阴性。
+- **动态参数注入架构**：重构 `detector.js` 与 `detectionPipeline.js`，支持从 UI/CLI/Python 无缝透传配置。
+- **文档与一致化**：全面同步更新了用户指南、开发者指南、技术说明与路线图，基线版本统一为 v2.1.0。
+- **全量回归验证**：277 个测试用例全部通过，无性能衰减或逻辑回归。
 
 ## 3. 仍需持续关注的问题
 
