@@ -97,7 +97,10 @@ class GeminiWatermarkRemover:
         Processes image via stdin/stdout pipe.
         Returns processed image bytes.
         """
-        cmd = ["node", self.cli_path, "--pipe"]
+        if self.cli_path.endswith(".js"):
+            cmd = ["node", self.cli_path, "--pipe"]
+        else:
+            cmd = [self.cli_path, "remove", "--pipe"]
         if not deep_scan: cmd.append("--no-deepScan")
         if noise_reduction: cmd.append("--noiseReduction")
         

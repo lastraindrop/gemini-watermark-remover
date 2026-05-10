@@ -3,7 +3,7 @@
 > 审计日期: 2026-05-10
 > 当前分支: `main`
 > 当前版本: `package.json` v2.1.0
-> 当前验证基线: `npm test` 277/277 pass, `npm run lint` pass, `npm run build` pass, Python bridge pass
+> 当前验证基线: `npm test` 356/356 pass, `npm run lint` pass, `npm run build` pass, Python bridge pass
 
 ## 1. 当前结论
 
@@ -15,7 +15,7 @@
 - **召回率专项增强**：梯度惩罚 multiplier 调优至 0.30，有效降低了复杂背景下的假阴性。
 - **动态参数注入架构**：重构 `detector.js` 与 `detectionPipeline.js`，支持从 UI/CLI/Python 无缝透传配置。
 - **文档与一致化**：全面同步更新了用户指南、开发者指南、技术说明与路线图，基线版本统一为 v2.1.0。
-- **全量回归验证**：277 个测试用例全部通过，无性能衰减或逻辑回归。
+- **全量回归验证**：356 个测试用例全部通过，无性能衰减或逻辑回归。
 
 ## 3. 仍需持续关注的问题
 

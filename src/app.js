@@ -571,14 +571,16 @@ function resetWorkspace(clearQueue = true) {
 }
 
 function getEngineOptions() {
+    const thresholdSliderVal = parseFloat(elements.thresholdSlider?.value || '0.25');
+    const fallbackToProbeRatio = 0.25 / 0.18;
     const opts = {
         profileId: elements.profileSelect?.value || 'gemini',
         deepScan: document.getElementById('deepScanToggle')?.checked ?? true,
         noiseReduction: document.getElementById('noiseReductionToggle')?.checked ?? false,
         autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false,
-        // v2.1 Advanced Parameters
-        probeThreshold: parseFloat(elements.thresholdSlider?.value || '0.22'),
-        fallbackThreshold: parseFloat(elements.thresholdSlider?.value || '0.35'),
+        // v2.1 Advanced Parameters - probe/fallback maintain proportional relationship
+        probeThreshold: thresholdSliderVal / fallbackToProbeRatio,
+        fallbackThreshold: thresholdSliderVal,
         gradientPenalty: parseFloat(elements.penaltySlider?.value || '0.30')
     };
 

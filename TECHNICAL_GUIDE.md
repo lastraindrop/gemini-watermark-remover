@@ -1,4 +1,4 @@
-# Technical Guide — Gemini Watermark Remover v2.0.0
+# Technical Guide — Gemini Watermark Remover v2.1.0
 
 ## 1. Overview
 
@@ -480,6 +480,64 @@ This mode ensures that even watermarks that are mathematically impossible to dis
 
 ---
 
-*Document version: 2.1 — 2026-05-10*
-*Corresponds to: v2.1.0, 277/277 tests, lint/build clean*
-v1.9.9, 271/271 tests, lint/build clean*
+## 10. v2.1 维护版本更新
+
+### 10.1 测试覆盖扩展 (356/356 测试通过)
+
+v2.1 维护版本完成了测试覆盖缺口的补充，从 277 测试增加至 356 测试：
+
+| 新增测试文件 | 覆盖范围 | 测试点 |
+|-------------|---------|--------|
+| `registry.test.js` | `templates/registry.js` | 单例验证、注册/查询、目录添加、容差边界 |
+| `scaled_catalog.test.js` | `catalog.js getScaledCatalogConfigs` | 宽高比容差、缩放比容差、min/maxLogoSize、limit 参数 |
+| `local_contrast.test.js` | `detector.js calculateLocalContrastCorrelation` | 噪声背景相关性、注入水印后相关性、边界安全处理 |
+| `box_blur.test.js` | `detector.js fastBoxBlur` | 均匀图像 blur 后不变、边缘像素保留、中心像素均值计算 |
+| `overrides_dynamic.test.js` | `detector.js` v2.1 overrides | jitterRange 覆盖、FINAL/STAGE2/COARSE 阈值覆盖、gradientPenalty 覆盖 |
+| `metrics_precision.test.js` | `restorationMetrics.js` | MSE 计算、PSNR 计算、estimateQualityFromPSNR 0-1 映射 |
+| `detection_fallback_chain.test.js` | `detectionPipeline.js` | catalog-probe → heuristic-probe → global-search 回退链、autoNonCatalogMinConfidence 阈值 |
+| `i18n_completeness.test.js` | `src/i18n/*.json` | 7 语言 key 一致性、无空值、参数化 key 占位符匹配 |
+
+### 10.2 动态参数覆盖机制 (v2.1)
+
+**参数透传路径**: Web UI → `app.js getEngineOptions()` → `watermarkEngine.js` → `detector.js` → `detectionPipeline.js`
+
+**已验证生效的参数**:
+
+```javascript
+// 入口层 (Web UI / CLI / Python)
+{
+    probeThreshold: 0.18,           // 覆盖 detectionPipeline.js DEFAULT_PROBE_THRESHOLD
+    fallbackThreshold: 0.25,        // 覆盖 detectionPipeline.js DEFAULT_GLOBAL_FALLBACK_THRESHOLD
+    gradientPenalty: 0.30,          // 覆盖 detector.js 梯度滤波惩罚系数
+    manualConfig: { x, y, width, height },  // 绕过搜索管线
+    overrides: {                     // 深度覆盖 detector.js SEARCH_CONFIG
+        THRESHOLDS: {
+            ANCHORED_OFFICIAL: 0.18,
+            COARSE: 0.10,
+            STAGE2_CLEAN: 0.12,
+            STAGE2_FALLBACK: 0.18,
+            FINAL_FREE: 0.22,
+            FINAL_ANCHORED: 0.25
+        },
+        jitterRange: 4,             // Phase 1 抖动搜索范围
+        FINE_TUNE_RANGE: 6,         // Phase 3 微调范围
+        PROXIMITY_THRESHOLD: 8,     // 候选去重阈值
+        CANDIDATES_LIMIT_PER_SIZE: 3
+    }
+}
+```
+
+### 10.3 已修复的一致性问题
+
+| 问题 | 位置 | 修复前 | 修复后 |
+|------|------|--------|--------|
+| 版本号不一致 | `gui.py:14`, `README_zh.md:3` | v1.9.9 | v2.1.0 |
+| 测试数量不一致 | 多处文档 | 271 / 277 | 356 |
+| slider 比例问题 | `app.js:573-583` | 共用同一 slider | 固定 0.25/0.18 比例 |
+| 多文件检测逻辑 | `gui.py:263` | 字符串比较 | 数字比较 |
+| CLI 路径判断 | `remover.py:100` | 仅检查 `.js` 文件 | 支持全局安装 |
+
+---
+
+*Document version: 2.1.1 — 2026-05-10*
+*Corresponds to: v2.1.0, 356/356 tests, lint/build clean*

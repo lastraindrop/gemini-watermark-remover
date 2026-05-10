@@ -1,6 +1,6 @@
 [English](README.md)
 
-# Gemini & Doubao 无损去水印工具 (v1.9.9)
+# Gemini & Doubao 无损去水印工具 (v2.1.0)
 
 用于检测、分析并去除 Gemini、Doubao 和 DALL-E 3（实验性）图片中可见 AI 水印的生产级客户端工具。
 
@@ -12,12 +12,12 @@
 - **Deep Scan 梯度滤波** 假阳性防御
 - 前端拖拽上传与批量 ZIP 下载
 - 多语言界面与契约测试
-- 271 个回归测试覆盖困难样本
+- 356 个回归测试覆盖困难样本
 
 ## 验证基线
 
 ```bash
-npm test          # 271/271 通过
+npm test          # 356/356 通过
 npm run lint      # clean
 npm run build     # clean
 node --test tests/gemini_regression.test.js

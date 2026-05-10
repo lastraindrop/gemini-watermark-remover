@@ -11,7 +11,7 @@ from remover import GeminiWatermarkRemover
 class ModernGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Gemini Watermark Remover (Desktop) v1.9.9")
+        self.root.title("Gemini Watermark Remover (Desktop) v2.1.0")
         self.root.geometry("960x700")
 
         # Centralized Theme & Configuration (v1.6)
@@ -260,7 +260,7 @@ class ModernGUI:
             self.root.after(0, lambda: self.status_dot_color(self.THEME["warn"]))
             
             # Simple heuristic for multi-file detection
-            is_valid_multi = isinstance(self.input_paths, (list, tuple)) and str(self.input_paths) == src
+            is_valid_multi = isinstance(self.input_paths, (list, tuple)) and len(self.input_paths) > 0
             
             if is_valid_multi:
                 total = len(self.input_paths)

@@ -196,12 +196,12 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                 const confidence = calculateCorrelation(searchData, x, y, sizeW, sizeH, alphaMap);
                 const currentVar = _lastVar;
                 
-                if (confidence > SEARCH_CONFIG.THRESHOLDS.COARSE) {
+                if (confidence > config.THRESHOLDS.COARSE) {
                     const candidate = { x, y, width: sizeW, height: sizeH, confidence, mode: 'heuristic', _lastVar: currentVar };
                     let tooClose = false;
                     for (let i = 0; i < sizeCandidates.length; i++) {
                         const dist = Math.abs(sizeCandidates[i].x - x) + Math.abs(sizeCandidates[i].y - y);
-                        if (dist < SEARCH_CONFIG.PROXIMITY_THRESHOLD) {
+                        if (dist < config.PROXIMITY_THRESHOLD) {
                             tooClose = true;
                             if (confidence > sizeCandidates[i].confidence) sizeCandidates[i] = candidate;
                             break;
@@ -209,7 +209,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                     }
 
                     if (!tooClose) {
-                        if (sizeCandidates.length < SEARCH_CONFIG.CANDIDATES_LIMIT_PER_SIZE) {
+                        if (sizeCandidates.length < config.CANDIDATES_LIMIT_PER_SIZE) {
                             sizeCandidates.push(candidate);
                         } else if (confidence > sizeCandidates[sizeCandidates.length - 1].confidence) {
                             sizeCandidates[sizeCandidates.length - 1] = candidate;
@@ -223,7 +223,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         }
 
         for (const candidate of sizeCandidates) {
-            const fineRange = SEARCH_CONFIG.FINE_TUNE_RANGE;
+            const fineRange = config.FINE_TUNE_RANGE;
             for (let fy = Math.max(startY, candidate.y - fineRange); fy <= Math.min(height - sizeH / 2, candidate.y + fineRange); fy++) {
                 for (let fx = Math.max(startX, candidate.x - fineRange); fx <= Math.min(width - sizeW / 2, candidate.x + fineRange); fx++) {
                     let confidence = calculateCorrelation(searchData, fx, fy, sizeW, sizeH, alphaMap, true);
@@ -244,7 +244,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                         else confidence = Math.max(confidence, gradientConf);
                     }
 
-                    const stage2Threshold = noiseReduction ? SEARCH_CONFIG.THRESHOLDS.STAGE2_NR : SEARCH_CONFIG.THRESHOLDS.STAGE2_CLEAN;
+                    const stage2Threshold = noiseReduction ? config.THRESHOLDS.STAGE2_NR : config.THRESHOLDS.STAGE2_CLEAN;
                     if (confidence > stage2Threshold) {
                         const marginX = width - fx - sizeW;
                         const marginY = height - fy - sizeH;
@@ -301,11 +301,11 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
 
     if (bestResult) {
         const thresholds = { 
-            'anchored': SEARCH_CONFIG.THRESHOLDS.FINAL_ANCHORED, 
-            'aligned': SEARCH_CONFIG.THRESHOLDS.FINAL_ALIGNED, 
-            'free': SEARCH_CONFIG.THRESHOLDS.FINAL_FREE 
+            'anchored': config.THRESHOLDS.FINAL_ANCHORED, 
+            'aligned': config.THRESHOLDS.FINAL_ALIGNED, 
+            'free': config.THRESHOLDS.FINAL_FREE 
         }; 
-        if (bestResult.confidence >= (thresholds[bestResult.mode] || SEARCH_CONFIG.THRESHOLDS.FINAL_FREE)) {
+        if (bestResult.confidence >= (thresholds[bestResult.mode] || config.THRESHOLDS.FINAL_FREE)) {
             return bestResult;
         }
     }

@@ -1,6 +1,6 @@
 [中文说明](README_zh.md)
 
-# Gemini & Doubao Lossless Watermark Remover (v1.9.9)
+# Gemini & Doubao Lossless Watermark Remover (v2.1.0)
 
 A production-grade, client-side tool for detecting, analyzing, and removing visible AI watermarks from Gemini, Doubao, and DALL-E 3 (experimental) images.
 
@@ -13,12 +13,12 @@ A production-grade, client-side tool for detecting, analyzing, and removing visi
 - Frontend drag-and-drop upload
 - ZIP batch download
 - Localized UI and contract tests
-- Reproducible regression coverage for difficult watermark samples (271 tests)
+- Reproducible regression coverage for difficult watermark samples (356 tests)
 
 ## Verification baseline
 
 ```bash
-npm test          # 271/271 passing
+npm test          # 356/356 passing
 npm run lint      # clean
 npm run build     # clean
 node --test tests/gemini_regression.test.js

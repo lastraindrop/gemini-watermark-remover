@@ -172,7 +172,6 @@ export async function detectProfileWatermarks({
     }
 
     const probeThreshold = options.probeThreshold ?? DEFAULT_PROBE_THRESHOLD;
-    const fallbackThreshold = options.fallbackThreshold ?? DEFAULT_GLOBAL_FALLBACK_THRESHOLD;
     
     const matches = [];
     const alphaMaps = {};
