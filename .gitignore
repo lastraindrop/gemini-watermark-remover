@@ -32,3 +32,6 @@ python/__pycache__/
 # other
 .github
 code_review.*
+
+# archive (temporary work files)
+archive/
