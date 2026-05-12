@@ -101,8 +101,10 @@ class Engine {
 
         if (!winner) {
             // No watermark detected with high enough confidence
+            const format = options.format || 'png';
+            const outputBuffer = await sharp(buffer)[format]().toBuffer();
             return {
-                buffer: buffer, // Return original buffer
+                buffer: outputBuffer,
                 detection: 'none',
                 confidence: 0.0,
                 removedCount: 0
@@ -170,6 +172,16 @@ export async function runRemoveCommand(args, io) {
     const opts = parseArgs(args);
     const engine = new Engine();
     const startTime = performance.now();
+
+    const profile = PROFILES[opts.profile];
+    if (!profile) {
+        io.stderr.write(`Error: Unknown profile: ${opts.profile}\n`);
+        return 1;
+    }
+    if (profile.experimental) {
+        io.stderr.write(`Error: Experimental profile is not supported by the CLI yet: ${opts.profile}\n`);
+        return 1;
+    }
 
     // --- Pipe mode: read from stdin, write to stdout ---
     if (opts.pipe) {

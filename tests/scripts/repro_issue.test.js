@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { detectWatermarkConfig } from '../src/core/config.js';
-import { detectWatermark } from '../src/core/detector.js';
+import { detectWatermarkConfig } from '../../src/core/config.js';
+import { detectWatermark } from '../../src/core/detector.js';
 
 test('Reproduction: 1589x672 should use 48px watermark according to user report', () => {
     const w = 1589;

@@ -67,4 +67,30 @@ describe('Custom Configuration Validation (v2.1)', () => {
         assert.strictEqual(result.winner.pos.x, 10, 'Should use manual X');
         assert.strictEqual(result.winner.source, 'manual-input', 'Source should be manual-input');
     });
+
+    test('Manual Config: Rejects invalid or out-of-bounds regions', async () => {
+        const img = createMockImageData(200, 200, 'solid', 50);
+        const alphaMap = new Float32Array(48 * 48).fill(1.0);
+        const getAlphaMap = async () => ({ data: alphaMap, width: 48, height: 48 });
+
+        const invalidConfigs = [
+            { x: -1, y: 0, width: 48, height: 48 },
+            { x: 0, y: 0, width: 0, height: 48 },
+            { x: 180, y: 180, width: 48, height: 48 },
+            { x: Number.NaN, y: 0, width: 48, height: 48 }
+        ];
+
+        for (const manualConfig of invalidConfigs) {
+            await assert.rejects(
+                () => detectWatermarks({
+                    imageData: img,
+                    profileId: 'gemini',
+                    getAlphaMap,
+                    options: { manualConfig }
+                }),
+                RangeError,
+                `Expected manual config to be rejected: ${JSON.stringify(manualConfig)}`
+            );
+        }
+    });
 });

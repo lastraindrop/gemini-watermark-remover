@@ -3,15 +3,15 @@
 ## 当前状态
 
 - **版本**: v2.1.0
-- **验证基线**: `npm test` 356/356 通过, `npm run lint` clean, `npm run build` clean
-- **当前重点**: 交付用户自定义能力、提升极端场景召回率、多端参数一致化
+- **验证基线**: `npm test` 369/369 通过, `npm run lint` clean, `npm run build` clean, Python bridge pass
+- **当前重点**: 独立 fork 产品化、维护自有 SDK/API、提升极端场景召回率、多端参数一致化
 - **架构**: 支持动态参数覆盖的四层检测管线 (Catalog -> Scaled -> Heuristic -> Global)
 
 ## 已完成事项 (v2.1.x 维护版本)
 
 - **[v2.1] 自定义配置模式**: 支持手动调整阈值、梯度惩罚与手动指定坐标区域。
 - **[v2.1] 多端参数一致化**: Web/CLI/Python 三处参数命名统一，高级参数 (probeThreshold, fallbackThreshold, gradientPenalty, manualConfig, overrides) 在三层均已透传并生效。
-- **[v2.1] 单元测试覆盖率提升**: 从 277 测试增加至 356 测试，覆盖 8 个新领域:
+- **[v2.1] 单元测试覆盖率提升**: 从 277 测试增加至 369 测试，覆盖 SDK/API、URL 生命周期、CLI 参数、手动配置校验等领域:
   - `registry.test.js`: TemplateRegistry 单例、注册、目录查询
   - `scaled_catalog.test.js`: 近似尺寸缩放匹配逻辑
   - `local_contrast.test.js`: 局部对比度相关计算
@@ -31,6 +31,7 @@
 3. 保持 Python Bridge 与 Node CLI 的同步更新。
 4. 补充 CLI pipe 模式的端到端集成测试。
 5. 验证 `manualConfig` 通过 CLI 的完整流程。
+6. ~~明确 worker 下一步：接入 off-main-thread 恢复或移除 worker bundle。~~ ✅ 已接入：像素恢复默认委托 Worker 执行，带 5s 超时回退。
 
 ## 中期计划
 
@@ -62,8 +63,10 @@
 
 ```bash
 npm run lint          # 0 errors, 0 warnings
-npm test              # 356/356 passing
+npm test              # 369/369 passing
 npm run build         # clean
+npm run test:legacy   # maintained legacy smoke regressions
+npm run test:python   # Python bridge
 
 # 分项验证新增测试
 node --test tests/registry.test.js

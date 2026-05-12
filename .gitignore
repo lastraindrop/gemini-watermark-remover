@@ -23,6 +23,7 @@ test_sample/
 .test-output/
 .diagnostics/
 .env
+python/prefs.json
 
 # python
 python/__pycache__/

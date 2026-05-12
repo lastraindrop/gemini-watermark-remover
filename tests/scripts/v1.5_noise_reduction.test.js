@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { detectWatermark } from '../src/core/detector.js';
+import { detectWatermark } from '../../src/core/detector.js';
 
 describe('V1.5 Noise Reduction Tests', () => {
     test('Detection with heavy noise - noiseReduction: true improves confidence', () => {

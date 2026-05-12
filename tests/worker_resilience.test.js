@@ -92,4 +92,74 @@ describe('Worker Resilience (Timeout Fallback)', () => {
         engine.destroy();
         global.Worker = origWorker;
     });
+
+    test('_performWorkerRemoval sends matches to worker and receives modified pixels', async () => {
+        const origWorker = global.Worker;
+        let postedData = null;
+
+        global.Worker = class {
+            constructor() {
+                this.onmessage = null;
+                this.onerror = null;
+            }
+            postMessage(msg, transfer) {
+                postedData = msg;
+                const { imageData, matches, taskId } = msg;
+                for (let i = 0; i < imageData.data.length; i++) {
+                    imageData.data[i] = (imageData.data[i] + 1) & 0xFF;
+                }
+                setTimeout(() => {
+                    if (this.onmessage) {
+                        this.onmessage({ data: { imageData, taskId } });
+                    }
+                }, 10);
+            }
+            terminate() {}
+        };
+
+        const engine = new WatermarkEngine();
+        const imgData = { width: 10, height: 10, data: new Uint8ClampedArray(400).fill(100) };
+        const originalPixel = imgData.data[0];
+
+        const modifiedData = await engine._performWorkerRemoval(imgData, [
+            { alphaMap: new Float32Array(100).fill(0.5), pos: { x: 0, y: 0, width: 10, height: 10 } }
+        ]);
+
+        assert.ok(postedData, 'Worker postMessage should have been called');
+        assert.strictEqual(postedData.matches.length, 1, 'Worker should receive the matches array');
+        assert.strictEqual(modifiedData[0], (originalPixel + 1) & 0xFF, 'Worker should have modified the pixel data');
+        assert.strictEqual(engine.getExecutionMode(), 'worker-assisted', 'Should report worker-assisted');
+
+        engine.destroy();
+        global.Worker = origWorker;
+    });
+
+    test('_performWorkerRemoval falls back correctly when worker times out', async () => {
+        const origWorker = global.Worker;
+
+        global.Worker = class {
+            constructor() {
+                this.onmessage = null;
+                this.onerror = null;
+            }
+            postMessage(msg, transfer) {
+                // Worker never replies
+            }
+            terminate() {}
+        };
+
+        const engine = new WatermarkEngine();
+        const imgData = { width: 4, height: 4, data: new Uint8ClampedArray(64).fill(100) };
+
+        await assert.rejects(
+            () => engine._performWorkerRemoval(imgData, [
+                { alphaMap: new Float32Array(16).fill(0.5), pos: { x: 0, y: 0, width: 4, height: 4 } }
+            ]),
+            /timed out/,
+            'Worker timeout should reject with informative message'
+        );
+
+        engine.destroy();
+        global.Worker = origWorker;
+    });
 });

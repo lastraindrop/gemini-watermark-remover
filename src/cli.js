@@ -40,18 +40,19 @@ if (args.includes('-i') || args.includes('--input')) {
     if (input && output) {
         const isDir = existsSync(input) && statSync(input).isDirectory();
         adaptedArgs = ['remove', input, isDir ? '--out-dir' : '--output', output];
-        // Add other flags
-        if (args.includes('--json')) adaptedArgs.push('--json');
-        if (args.includes('--noiseReduction')) adaptedArgs.push('--noiseReduction');
-        if (args.includes('--no-deepScan')) adaptedArgs.push('--no-deepScan');
-        
-        // v2.1 Advanced Flags Passthrough
-        ['--probeThreshold', '--fallbackThreshold', '--gradientPenalty'].forEach(flag => {
-            const idx = args.indexOf(flag);
-            if (idx !== -1) adaptedArgs.push(flag, args[idx + 1]);
+        ['--json', '--noiseReduction', '--no-deepScan', '--overwrite', '--pipe'].forEach(flag => {
+            if (args.includes(flag)) adaptedArgs.push(flag);
         });
-        const profileIdx = args.findIndex(a => a === '--profile' || a === '-p');
-        if (profileIdx !== -1) adaptedArgs.push('--profile', args[profileIdx + 1]);
+        [
+            ['--profile', '-p'],
+            ['--format', '-f'],
+            ['--probeThreshold'],
+            ['--fallbackThreshold'],
+            ['--gradientPenalty']
+        ].forEach(([longFlag, shortFlag]) => {
+            const idx = args.findIndex(a => a === longFlag || (shortFlag && a === shortFlag));
+            if (idx !== -1 && args[idx + 1]) adaptedArgs.push(longFlag, args[idx + 1]);
+        });
         
         console.warn('⚠️  Warning: Legacy CLI format detected. Please use "gwr remove <input> --output <output>" instead.');
     }

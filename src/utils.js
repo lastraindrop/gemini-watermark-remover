@@ -1,9 +1,9 @@
 import exifr from 'exifr';
 import i18n from './i18n.js';
 
-export async function loadImage(input) {
+export async function loadImage(input, options = {}) {
     if (input instanceof File || input instanceof Blob) {
-        return _createImageFromBlob(input);
+        return _createImageFromBlob(input, options.objectUrlManager);
     }
     
     if (typeof input === 'string') {
@@ -12,7 +12,7 @@ export async function loadImage(input) {
             const response = await fetch(input, { mode: 'cors' });
             if (response.ok) {
                 const blob = await response.blob();
-                return _createImageFromBlob(blob);
+                return _createImageFromBlob(blob, options.objectUrlManager);
             }
         } catch {
             // Fallback to traditional <img> loading
@@ -29,15 +29,20 @@ export async function loadImage(input) {
     throw new Error('Invalid image input type');
 }
 
-function _createImageFromBlob(blob) {
+function _createImageFromBlob(blob, objectUrlManager) {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        const url = URL.createObjectURL(blob);
+        const rawUrl = URL.createObjectURL(blob);
+        const url = objectUrlManager?.register ? objectUrlManager.register(rawUrl) : rawUrl;
         img.onload = () => {
-             // We don't revoke immediately anymore to stay safe across multi-renders
+             // Keep the object URL alive until the workspace reset clears managed URLs.
              resolve(img);
         };
-        img.onerror = () => reject(new Error('Failed to decode local image blob'));
+        img.onerror = () => {
+            if (objectUrlManager?.revoke) objectUrlManager.revoke(url);
+            else URL.revokeObjectURL(url);
+            reject(new Error('Failed to decode local image blob'));
+        };
         img.src = url;
     });
 }

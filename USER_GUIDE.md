@@ -1,6 +1,6 @@
 # Gemini Watermark Remover - 用户指南
 
-本工具用于对 Gemini、Doubao 与 DALL-E 3（实验性）生成图片进行本地检测、分析与去水印。当前实现不是固定尺寸硬编码，而是通过 `profile`、`catalog`、`heuristic`、`deepScan` 梯度滤波四层协同决定检测与恢复流程。
+本工具用于对 Gemini、Doubao 生成图片进行本地检测、分析与去水印。DALL-E 3 目前仅作为实验性研究 profile 保留，真实资产补齐前不在 CLI 生产路径启用。当前实现不是固定尺寸硬编码，而是通过 `profile`、`catalog`、`heuristic`、`deepScan` 梯度滤波四层协同决定检测与恢复流程。
 
 ## 1. 使用入口
 
@@ -100,12 +100,11 @@ results = remover.remove_watermark(
 ## 5. 验证命令
 
 ```bash
-npm run lint
-npm test
-npm run build
-node --test tests/frontend_contract.test.js
-node --test tests/gemini_regression.test.js
-python -m unittest tests\test_bridge_integration.py
+npm run lint          # ESLint
+npm run test:all      # 完整测试集（含 legacy smoke + Python bridge）
+npm run build         # 生产构建
+npm run test:legacy   # 维护型历史回归
+npm run test:python   # Python bridge
 ```
 
 ## 6. 维护原则
@@ -114,4 +113,5 @@ python -m unittest tests\test_bridge_integration.py
 - 调整阈值时，必须同时检查误报和漏报。
 - 梯度滤波的三个应用点（Phase 1 / Phase 2 / 抖动分支）必须同步修改。
 - 调整前端参数时，必须同步 Web/CLI/Python。
+- 版本号、测试总数、URL、包名等元信息在所有文档中必须一致。
 - 如果某个数字是历史快照，必须明确标注为历史，不能写成当前基线。

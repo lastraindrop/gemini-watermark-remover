@@ -10,6 +10,7 @@ const zhPath = resolve(process.cwd(), 'src/i18n/zh-CN.json');
 const html = readFileSync(htmlPath, 'utf8');
 const appSource = readFileSync(resolve(process.cwd(), 'src/app.js'), 'utf8');
 const processingSource = readFileSync(resolve(process.cwd(), 'src/app/processing.js'), 'utf8');
+const userscriptSource = readFileSync(resolve(process.cwd(), 'src/userscript/index.js'), 'utf8');
 const cssSource = readFileSync(resolve(process.cwd(), 'public/index.css'), 'utf8');
 const i18nSource = readFileSync(resolve(process.cwd(), 'src/i18n.js'), 'utf8');
 const enUS = JSON.parse(readFileSync(enPath, 'utf8'));
@@ -126,5 +127,16 @@ describe('Frontend Contract Verification', () => {
         });
         assert.ok(cssSource.includes('#langSelect'), 'Language selector should have explicit styling');
         assert.ok(cssSource.includes('select option'), 'Native select options need explicit foreground/background colors');
+    });
+
+    test('image encoding failures are handled explicitly', () => {
+        assert.ok(processingSource.includes('Failed to encode processed image as PNG'), 'Frontend should reject null canvas.toBlob results');
+        assert.ok(userscriptSource.includes('Failed to encode processed image'), 'Userscript should reject null canvas.toBlob results');
+    });
+
+    test('userscript avoids production console.log noise and revokes transient URLs on failure paths', () => {
+        assert.ok(!userscriptSource.includes('console.log'), 'Userscript should not emit production console.log noise');
+        assert.ok(userscriptSource.includes('finally'), 'Userscript transient object URLs should be revoked from finally blocks');
+        assert.ok(userscriptSource.includes('URL.revokeObjectURL(blobUrl)'), 'Fetch interception blob URLs must be revoked');
     });
 });

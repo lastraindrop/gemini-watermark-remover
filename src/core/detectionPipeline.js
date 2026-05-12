@@ -99,6 +99,23 @@ function isCatalogBacked(match) {
     return match?.config?.isOfficial || match?.config?.scaledFrom || match?.source === 'catalog-probe';
 }
 
+function validateManualConfig(imageData, manualConfig) {
+    const { x, y, width, height, assetKey } = manualConfig || {};
+    const values = { x, y, width, height };
+    for (const [key, value] of Object.entries(values)) {
+        if (!Number.isFinite(value)) {
+            throw new RangeError(`Invalid manualConfig.${key}: expected a finite number`);
+        }
+    }
+    if (width <= 0 || height <= 0) {
+        throw new RangeError('Invalid manualConfig: width and height must be greater than 0');
+    }
+    if (x < 0 || y < 0 || x + width > imageData.width || y + height > imageData.height) {
+        throw new RangeError('Invalid manualConfig: region must be inside the image bounds');
+    }
+    return { x, y, width, height, assetKey };
+}
+
 function isNearExpectedAnchor(imageData, detection, profileId, options = {}) {
     if (profileId !== 'gemini') return true;
 
@@ -144,7 +161,7 @@ export async function detectProfileWatermarks({
 
     // v2.1: Manual Override Mode
     if (options.manualConfig) {
-        const { x, y, width, height, assetKey } = options.manualConfig;
+        const { x, y, width, height, assetKey } = validateManualConfig(imageData, options.manualConfig);
         const alphaMap = await tryGetAlphaMap(getAlphaMap, assetKey || profile.defaultAsset || '96', width, height);
         if (alphaMap) {
             const verification = calculateProbeConfidence(imageData, { x, y, width, height }, alphaMap.data, profile.id, detectionOptions);

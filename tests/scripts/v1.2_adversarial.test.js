@@ -1,8 +1,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { detectWatermarkConfig, calculateWatermarkPosition } from '../src/core/config.js';
-import { detectWatermark } from '../src/core/detector.js';
-import { removeWatermark } from '../src/core/blendModes.js';
+import { detectWatermarkConfig, calculateWatermarkPosition } from '../../src/core/config.js';
+import { detectWatermark } from '../../src/core/detector.js';
+import { removeWatermark } from '../../src/core/blendModes.js';
 
 // Seeded PRNG for reproducibility
 let _seed = 42;

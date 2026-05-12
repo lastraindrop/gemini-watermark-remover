@@ -1,18 +1,17 @@
 {
-  "name": "@pilio/gemini-watermark-remover",
+  "name": "@lastraindrop/gemini-watermark-remover",
   "description": "Automatically removes watermarks from Gemini AI generated images",
   "version": "2.1.0",
-  "author": "journey-ad",
+  "author": "lastraindrop contributors",
   "repository": {
     "type": "git",
-    "url": "https://github.com/journey-ad/gemini-watermark-remover.git"
+    "url": "https://github.com/lastraindrop/gemini-watermark-remover.git"
   },
   "license": "MIT",
   "type": "module",
   "files": [
     "src",
     "bin",
-    "skills",
     "dist",
     "public",
     "python",
@@ -24,11 +23,26 @@
     "gwr": "./bin/gwr.mjs",
     "gemini-watermark-remover": "./bin/gwr.mjs"
   },
+  "types": "./src/sdk/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/sdk/index.d.ts",
+      "import": "./src/sdk/index.js"
+    },
+    "./sdk": {
+      "types": "./src/sdk/index.d.ts",
+      "import": "./src/sdk/index.js"
+    }
+  },
   "scripts": {
     "dev": "node build.js",
     "build": "node build.js --production",
     "serve": "npx serve dist",
     "test": "node --test --test-concurrency=4 \"tests/*.test.js\"",
+    "test:unit": "node --test --test-concurrency=4 \"tests/*.test.js\"",
+    "test:legacy": "node --test \"tests/scripts/v1.5_edge_crop.test.js\" \"tests/scripts/v1.5_noise_reduction.test.js\"",
+    "test:all": "node --test --test-concurrency=4 \"tests/*.test.js\" \"tests/scripts/v1.5_edge_crop.test.js\" \"tests/scripts/v1.5_noise_reduction.test.js\"",
+    "test:python": "python -m unittest tests\\test_bridge_integration.py",
     "test:stress": "node --import ./scripts/stress-env.mjs --test \"tests/memory_pressure.test.js\"",
     "cli": "node src/cli.js",
     "gui": "python python/gui.py",

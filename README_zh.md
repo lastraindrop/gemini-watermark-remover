@@ -2,7 +2,7 @@
 
 # Gemini & Doubao 无损去水印工具 (v2.1.0)
 
-用于检测、分析并去除 Gemini、Doubao 和 DALL-E 3（实验性）图片中可见 AI 水印的生产级客户端工具。
+用于检测、分析并去除 Gemini、Doubao 图片中可见 AI 水印的独立 fork 生产级客户端工具。DALL-E 3 仍为实验性研究 profile，真实资产补齐前不在 CLI 中启用。
 
 ## 当前版本覆盖
 
@@ -12,16 +12,18 @@
 - **Deep Scan 梯度滤波** 假阳性防御
 - 前端拖拽上传与批量 ZIP 下载
 - 多语言界面与契约测试
-- 356 个回归测试覆盖困难样本
+- 独立 SDK/API 入口：`@lastraindrop/gemini-watermark-remover`
+- 369 个回归测试覆盖困难样本
 
 ## 验证基线
 
 ```bash
-npm test          # 356/356 通过
+npm test          # 369/369 通过
 npm run lint      # clean
 npm run build     # clean
+npm run test:legacy
 node --test tests/gemini_regression.test.js
-python -m unittest tests\\test_bridge_integration.py
+npm run test:python
 ```
 
 ## 架构概览
@@ -37,7 +39,7 @@ python -m unittest tests\\test_bridge_integration.py
 
 - **梯度滤波**: Sobel 边缘相关抑制纯亮度假阳性，保留真水印
 - **多阶段检测**: 目录→近似→启发式→全局回退，逐级阈值
-- **Profile 系统**: 可插拔 profile（Gemini、Doubao、DALL-E 3）
+- **Profile 系统**: 可插拔 profile（Gemini、Doubao；DALL-E 3 为实验研究项）
 - **尺寸目录**: 标准尺寸 2% 容差匹配，近似覆盖裁切/缩放导出
 - **纯客户端**: 所有处理在本地完成
 

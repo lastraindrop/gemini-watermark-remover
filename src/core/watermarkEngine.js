@@ -74,6 +74,53 @@ export class WatermarkEngine {
         return this._worker;
     }
 
+    getExecutionMode() {
+        return this._useWorker && this._getWorker() !== null ? 'worker-assisted' : 'main-thread';
+    }
+
+    async _performWorkerRemoval(imageData, matches) {
+        const worker = this._getWorker();
+        if (!worker || !this._useWorker) {
+            throw new Error('Worker not available');
+        }
+
+        const copy = new Uint8ClampedArray(imageData.data);
+        const taskId = this._nextTaskId++;
+
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this._workerHandlers.delete(taskId);
+                reject(new Error('Worker removal timed out'));
+            }, 5000);
+
+            this._workerHandlers.set(taskId, {
+                resolve: (result) => {
+                    clearTimeout(timer);
+                    resolve(result);
+                },
+                reject: (err) => {
+                    clearTimeout(timer);
+                    reject(err);
+                }
+            });
+
+            try {
+                worker.postMessage(
+                    {
+                        imageData: { width: imageData.width, height: imageData.height, data: copy },
+                        matches,
+                        taskId
+                    },
+                    [copy.buffer]
+                );
+            } catch (err) {
+                clearTimeout(timer);
+                this._workerHandlers.delete(taskId);
+                reject(err);
+            }
+        }).then(resultImageData => resultImageData.data);
+    }
+
     /**
      * Load asset image (browser/bundler compatible)
      */
@@ -135,7 +182,9 @@ export class WatermarkEngine {
     }
 
     /**
-     * Remove watermark from image with multi-probe support
+     * Remove watermark from image with multi-probe support.
+     * Detection runs on the main thread; pixel restoration is delegated to the
+     * worker when available, with transparent fallback to the main thread.
      * @param {HTMLImageElement|HTMLCanvasElement} image - Input image
      * @param {Object} options - { profileId, deepScan, noiseReduction }
      * @returns {Promise<Object>} Detection results
@@ -177,9 +226,25 @@ export class WatermarkEngine {
         });
 
         if (overallBest.matches.length > 0) {
-            for (const result of overallBest.matches) {
-                removeWatermark(imageData, result.alphaMap, result.pos);
+            let workerUsed = false;
+            const worker = this._getWorker();
+
+            if (worker && this._useWorker) {
+                try {
+                    const modifiedData = await this._performWorkerRemoval(imageData, overallBest.matches);
+                    imageData.data.set(modifiedData);
+                    workerUsed = true;
+                } catch (err) {
+                    console.warn('Worker removal failed, falling back to main thread:', err.message || err);
+                }
             }
+
+            if (!workerUsed) {
+                for (const result of overallBest.matches) {
+                    removeWatermark(imageData, result.alphaMap, result.pos);
+                }
+            }
+
             removedCount = overallBest.matches.length;
             bestConfidence = overallBest.confidence;
             lastResult = {

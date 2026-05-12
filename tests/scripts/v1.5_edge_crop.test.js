@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { detectWatermark } from '../src/core/detector.js';
-import { removeWatermark } from '../src/core/blendModes.js';
+import { detectWatermark } from '../../src/core/detector.js';
+import { removeWatermark } from '../../src/core/blendModes.js';
 
 describe('V1.5 Edge Crop Tests', () => {
     test('Detect and remove watermark on bottom edge (partially outside)', () => {

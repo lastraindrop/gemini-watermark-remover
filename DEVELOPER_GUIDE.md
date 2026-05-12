@@ -10,8 +10,9 @@
 - `src/core/config.js`：根据图片尺寸生成候选参数（官方目录 → 近似尺寸 → 启发式）
 - `src/core/detector.js`：候选评分（NCC、局部对比度、梯度相关）、置信度计算与抖动搜索
 - `src/core/detectionPipeline.js`：统一 Web/CLI 的接受策略（probe → fallback → anchor 校验）
-- `src/core/watermarkEngine.js`：主引擎，负责候选执行与结果归一化
+- `src/core/watermarkEngine.js`：主引擎，候选执行、结果归一化、Worker 协调
 - `src/core/blendModes.js`：反向 alpha 混合恢复
+- `src/core/worker.js`：Web Worker 入口，批量处理像素恢复
 - `src/core/templates/registry.js`：Profile 与 Catalog 注册中心
 
 ### 应用层
@@ -21,9 +22,14 @@
 - `src/app/ui.js`：界面交互辅助
 - `public/index.html`、`public/index.css`：前端骨架与样式
 
+### SDK 层
+
+- `src/sdk/index.js`：独立 fork 公开 API 入口
+- `src/sdk/index.d.ts`：TypeScript 类型声明
+
 ### 入口层
 
-- `src/cli.js`、`src/cli/gwrRemoveCommand.js`：CLI
+- `src/cli.js`、`src/cli/gwrCli.js`、`src/cli/gwrRemoveCommand.js`：CLI
 - `python/remover.py`、`python/gui.py`：Python bridge 与 GUI
 - `src/userscript/index.js`：userscript 入口
 - `build.js`：打包与静态资源内联
@@ -49,7 +55,7 @@
 - `manualConfig`: (Object) `{ x, y, width, height }` 直接指定水印位置，绕过搜索管线。
 - `overrides`: (Object) 允许覆盖 `detector.js` 中的 `SEARCH_CONFIG` 全量常量（如 `RANGE_X`, `jitterRange` 等）。
 
-## 3. 梯度滤波机制（v1.9.9）
+## 3. 梯度滤波机制（v2.1.0）
 
 `deepScan` 启用时，检测引擎在三个位置应用梯度滤波：
 
@@ -137,12 +143,11 @@ else conf = Math.max(combined, gradientConf)
 
 ```bash
 npm run lint
-npm test
+npm test           # 主测试集
+npm run test:legacy   # 维护型历史回归 (edge crop, noise reduction)
+npm run test:python   # Python bridge
+npm run test:all      # 全部
 npm run build
-node --test tests/frontend_contract.test.js
-node --test tests/gemini_regression.test.js
-node --test tests/product_audit.test.js
-python -m unittest tests\test_bridge_integration.py
 ```
 
 对检测算法做修改时，必须同时看：
@@ -155,4 +160,4 @@ python -m unittest tests\test_bridge_integration.py
 
 ## 8. 文档维护规则
 
-文档里如果写到版本号、测试总数、流程状态或当前架构，必须是当前基线。历史数值应当进入 `COMPREHENSIVE_PLAN.md` 或 `DIAGNOSTIC_PLAN.md` 的历史段落，而不是混在用户指南里。
+文档里如果写到版本号、测试总数、流程状态或当前架构，必须是当前基线。历史数值应当进入 `COMPREHENSIVE_PLAN.md` 或 `ROADMAP.md` 的历史段落，而不是混在用户指南里。

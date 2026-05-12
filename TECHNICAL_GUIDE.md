@@ -376,11 +376,10 @@ The gradient filter drops the false positive from 0.94 to 0.24, below the 0.25 a
 
 ```bash
 npm run lint          # ESLint
-npm test              # Full 271-test suite
+npm run test:all      # Full 369-test suite (includes legacy smoke + Python bridge)
 npm run build         # Production build
-node --test tests/gemini_regression.test.js   # Targeted regression
-node --test tests/product_audit.test.js        # Full product audit
-python -m unittest tests\test_bridge_integration.py  # Python bridge
+npm run test:legacy   # Maintained legacy regression (edge crop, noise reduction)
+npm run test:python   # Python bridge
 ```
 
 ### 6.3 Regression Test Design (gemini_regression.test.js)
@@ -482,9 +481,9 @@ This mode ensures that even watermarks that are mathematically impossible to dis
 
 ## 10. v2.1 维护版本更新
 
-### 10.1 测试覆盖扩展 (356/356 测试通过)
+### 10.1 测试覆盖扩展 (369/369 测试通过)
 
-v2.1 维护版本完成了测试覆盖缺口的补充，从 277 测试增加至 356 测试：
+v2.1 维护版本完成了测试覆盖缺口的补充，从 277 测试增加至 369 测试：
 
 | 新增测试文件 | 覆盖范围 | 测试点 |
 |-------------|---------|--------|
@@ -496,6 +495,8 @@ v2.1 维护版本完成了测试覆盖缺口的补充，从 277 测试增加至 
 | `metrics_precision.test.js` | `restorationMetrics.js` | MSE 计算、PSNR 计算、estimateQualityFromPSNR 0-1 映射 |
 | `detection_fallback_chain.test.js` | `detectionPipeline.js` | catalog-probe → heuristic-probe → global-search 回退链、autoNonCatalogMinConfidence 阈值 |
 | `i18n_completeness.test.js` | `src/i18n/*.json` | 7 语言 key 一致性、无空值、参数化 key 占位符匹配 |
+| `sdk_api.test.js` | `src/sdk`, `package.json` | 独立 fork SDK/API 导出与 package metadata |
+| `object_url_lifecycle.test.js` | `utils.js`, `state.js` | 本地上传 object URL 生命周期与 workspace 清理 |
 
 ### 10.2 动态参数覆盖机制 (v2.1)
 
@@ -532,12 +533,59 @@ v2.1 维护版本完成了测试覆盖缺口的补充，从 277 测试增加至 
 | 问题 | 位置 | 修复前 | 修复后 |
 |------|------|--------|--------|
 | 版本号不一致 | `gui.py:14`, `README_zh.md:3` | v1.9.9 | v2.1.0 |
-| 测试数量不一致 | 多处文档 | 271 / 277 | 356 |
+| 测试数量不一致 | 多处文档 | 271 / 277 / 356 | 369 |
 | slider 比例问题 | `app.js:573-583` | 共用同一 slider | 固定 0.25/0.18 比例 |
 | 多文件检测逻辑 | `gui.py:263` | 字符串比较 | 数字比较 |
 | CLI 路径判断 | `remover.py:100` | 仅检查 `.js` 文件 | 支持全局安装 |
 
+### 10.4 Worker Execution Architecture (v2.1)
+
+**Module**: `src/core/worker.js`, `src/core/watermarkEngine.js`
+
+The pixel restoration step (`removeWatermark`) is now delegated to a Web Worker when the browser environment supports it:
+
+```
+Main Thread                           Worker Thread
+───────────                           ─────────────
+detectWatermarks()  ──┐
+                       ├── detection result (matches[])
+                       │
+clone buffer          │
+                      │
+worker.postMessage()  ├── { imageData, matches[] } ──→  for each match:
+  (transfer buffer)   │                                  removeWatermark()
+                      │                              ←── { imageData, taskId }
+onmessage handler    │
+  ↓                   │
+imageData.data.set()  │
+  ↓                   │
+ctx.putImageData()    │
+```
+
+**Key design decisions**:
+
+| Aspect | Decision | Rationale |
+|--------|----------|-----------|
+| Detection location | Main thread | Detection requires profile catalog, alpha maps, and stateful configuration. Moving it to a worker would require duplicating the entire engine context. |
+| Restoration location | Worker (primary), main thread (fallback) | Restoration is pure pixel math — stateless and ideal for off-main-thread work. |
+| Buffer transfer | Transfer ownership via `postMessage(data, [buffer])` | Avoids copying large (60MB+) 4K image buffers. The main thread clones once, then transfers ownership to the worker. |
+| Timeout | 5000 ms | If the worker fails to respond within 5 seconds (crashed, hung, or terminated), the promise rejects and the main thread performs restoration inline. |
+| Fallback path | Transparent | `removeWatermarkFromImage()` catches worker failures and silently falls back to main-thread `removeWatermark()`. The user never sees a difference in output quality. |
+
+**Execution mode reporting**:
+
+`WatermarkEngine.getExecutionMode()` returns:
+- `'worker-assisted'` — Worker is successfully created and will be used for restoration
+- `'main-thread'` — Worker unavailable (Node.js, Tampermonkey userscript, or disabled due to prior failure)
+
+The Web UI's initialization log uses this to report the actual execution mode.
+
+**Test coverage**: `tests/worker_resilience.test.js`:
+- Worker path: verification that `postMessage` is called and pixels are modified correctly
+- Timeout path: hanging worker triggers 5-second timeout → rejection → main thread fallback
+- Constructor failure: `Worker()` throw → `_useWorker = false` → `_getWorker()` returns `null`
+
 ---
 
-*Document version: 2.1.1 — 2026-05-10*
-*Corresponds to: v2.1.0, 356/356 tests, lint/build clean*
+*Document version: 2.1.3 — 2026-05-12*
+*Corresponds to: v2.1.0, 369/369 tests, lint/build/Python bridge clean*

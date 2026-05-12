@@ -108,6 +108,30 @@ describe('CLI Integration Tests', () => {
             `Unexpected detection value: ${json.detection}`);
     });
 
+    test('Legacy -i/-o adapter preserves format and overwrite flags', async () => {
+        const input = join(TMP_DIR, 'input.png');
+        const output = join(TMP_DIR, 'legacy_format.webp');
+
+        const first = spawnSync('node', ['src/cli.js', '-i', input, '-o', output, '--format', 'webp']);
+        const second = spawnSync('node', ['src/cli.js', '-i', input, '-o', output, '--format', 'webp', '--overwrite']);
+
+        assert.strictEqual(first.status, 0, `Initial CLI run failed: ${first.stderr.toString()}`);
+        assert.strictEqual(second.status, 0, `Overwrite CLI run failed: ${second.stderr.toString()}`);
+
+        const meta = await sharp(readFileSync(output)).metadata();
+        assert.strictEqual(meta.format, 'webp');
+    });
+
+    test('Experimental profiles fail explicitly in CLI', () => {
+        const input = join(TMP_DIR, 'input.png');
+        const output = join(TMP_DIR, 'output_dalle.png');
+
+        const result = spawnSync('node', ['src/cli.js', '-i', input, '-o', output, '--profile', 'dalle3']);
+
+        assert.strictEqual(result.status, 1);
+        assert.match(result.stderr.toString(), /Experimental profile/);
+    });
+
     test('Error handling: Missing arguments', () => {
         const result = spawnSync('node', ['src/cli.js', '-i', 'missing.png']);
         assert.strictEqual(result.status, 1);

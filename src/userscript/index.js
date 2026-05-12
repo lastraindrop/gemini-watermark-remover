@@ -2,6 +2,10 @@ import { WatermarkEngine } from '../core/watermarkEngine.js';
 
 let engine = null;
 const processingQueue = new Set();
+const DEBUG = false;
+const debugLog = (...args) => {
+  if (DEBUG) console.debug('[Gemini Watermark Remover]', ...args);
+};
 
 const debounce = (func, wait) => {
   let timeout;
@@ -19,7 +23,12 @@ const loadImage = (src) => new Promise((resolve, reject) => {
 });
 
 const canvasToBlob = (canvas, type = 'image/png') =>
-  new Promise(resolve => canvas.toBlob(resolve, type));
+  new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob) resolve(blob);
+      else reject(new Error('Failed to encode processed image'));
+    }, type);
+  });
 
 const isValidGeminiImage = (img) => img.closest('generated-image,.generated-image-container') !== null;
 
@@ -52,12 +61,16 @@ async function processImage(imgElement) {
   try {
     imgElement.src = '';
     const normalSizeBlob = await fetchBlob(replaceWithNormalSize(originalSrc));
-    const normalSizeBlobUrl = URL.createObjectURL(normalSizeBlob);
-    const normalSizeImg = await loadImage(normalSizeBlobUrl);
-    const { canvas } = await engine.removeWatermarkFromImage(normalSizeImg);
-    const processedBlob = await canvasToBlob(canvas);
-
-    URL.revokeObjectURL(normalSizeBlobUrl);
+    let normalSizeBlobUrl = null;
+    let processedBlob;
+    try {
+      normalSizeBlobUrl = URL.createObjectURL(normalSizeBlob);
+      const normalSizeImg = await loadImage(normalSizeBlobUrl);
+      const { canvas } = await engine.removeWatermarkFromImage(normalSizeImg);
+      processedBlob = await canvasToBlob(canvas);
+    } finally {
+      if (normalSizeBlobUrl) URL.revokeObjectURL(normalSizeBlobUrl);
+    }
 
     if (imgElement.dataset.watermarkBlobUrl) {
       URL.revokeObjectURL(imgElement.dataset.watermarkBlobUrl);
@@ -67,7 +80,7 @@ async function processImage(imgElement) {
     imgElement.dataset.watermarkBlobUrl = processedUrl;
     imgElement.dataset.watermarkProcessed = 'true';
 
-    console.log('[Gemini Watermark Remover] Processed image');
+    debugLog('Processed image');
   } catch (error) {
     console.warn('[Gemini Watermark Remover] Failed to process image:', error);
     imgElement.dataset.watermarkProcessed = 'failed';
@@ -81,7 +94,7 @@ const processAllImagesThrottled = debounce(() => {
   const images = findGeminiImages().filter(img => !img.dataset.watermarkProcessed);
   if (images.length === 0) return;
 
-  console.log(`[Gemini Watermark Remover] Found ${images.length} new images to process`);
+  debugLog(`Found ${images.length} new images to process`);
   images.forEach(processImage);
 }, 300);
 
@@ -101,16 +114,19 @@ const setupMutationObserver = () => {
     attributes: true,
     attributeFilter: ['src']
   });
-  console.log('[Gemini Watermark Remover] High-perf MutationObserver active');
+  debugLog('High-perf MutationObserver active');
 };
 
 
 async function processImageBlob(blob) {
   const blobUrl = URL.createObjectURL(blob);
-  const img = await loadImage(blobUrl);
-  const { canvas } = await engine.removeWatermarkFromImage(img);
-  URL.revokeObjectURL(blobUrl);
-  return canvasToBlob(canvas);
+  try {
+    const img = await loadImage(blobUrl);
+    const { canvas } = await engine.removeWatermarkFromImage(img);
+    return await canvasToBlob(canvas);
+  } finally {
+    URL.revokeObjectURL(blobUrl);
+  }
 }
 
 // Only match gemini generated assets(copy & download), ignore user-upload previews.
@@ -121,7 +137,7 @@ const { fetch: origFetch } = unsafeWindow;
 unsafeWindow.fetch = async (...args) => {
   const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
   if (GEMINI_URL_PATTERN.test(url)) {
-    console.log('[Gemini Watermark Remover] Intercepting:', url);
+    debugLog('Intercepting:', url);
 
     const origUrl = replaceWithNormalSize(url);
     if (typeof args[0] === 'string') args[0] = origUrl;
@@ -148,13 +164,13 @@ unsafeWindow.fetch = async (...args) => {
 
 (async function init() {
   try {
-    console.log('[Gemini Watermark Remover] Initializing...');
+    debugLog('Initializing...');
     engine = await WatermarkEngine.create();
 
     processAllImagesThrottled();
     setupMutationObserver();
 
-    console.log('[Gemini Watermark Remover] Ready');
+    debugLog('Ready');
   } catch (error) {
     console.error('[Gemini Watermark Remover] Initialization failed:', error);
   }

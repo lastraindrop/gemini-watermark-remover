@@ -87,8 +87,7 @@ async function init() {
 
         state.engine = await WatermarkEngine.create();
         
-        const hasWorker = state.engine._getWorker() !== null;
-        AuditLog.log(`Core optimized (Threads: ${hasWorker ? 'Multi' : 'Single'})`, 'success');
+        AuditLog.log(`Core ready (Execution: ${state.engine.getExecutionMode()})`, 'success');
 
         hideLoading();
         setupEventListeners();
@@ -585,11 +584,20 @@ function getEngineOptions() {
     };
 
     if (elements.manualModeToggle?.checked) {
+        const manualConfig = {
+            x: Number(elements.manualX?.value),
+            y: Number(elements.manualY?.value),
+            width: Number(elements.manualW?.value || '96'),
+            height: Number(elements.manualH?.value || '96')
+        };
+        for (const [key, value] of Object.entries(manualConfig)) {
+            if (!Number.isFinite(value)) throw new Error(`Invalid manual ${key}: expected a number`);
+        }
         opts.manualConfig = {
-            x: parseInt(elements.manualX?.value || '0'),
-            y: parseInt(elements.manualY?.value || '0'),
-            width: parseInt(elements.manualW?.value || '96'),
-            height: parseInt(elements.manualH?.value || '96')
+            x: Math.trunc(manualConfig.x),
+            y: Math.trunc(manualConfig.y),
+            width: Math.trunc(manualConfig.width),
+            height: Math.trunc(manualConfig.height)
         };
     }
 

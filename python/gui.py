@@ -45,7 +45,7 @@ class ModernGUI:
 
         self._build_ui()
         self._load_prefs()
-        self.log("Desktop Environment v1.6 Initialized.", "success")
+        self.log("Desktop Environment Initialized.", "success")
 
     def _get_prefs_path(self):
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), "prefs.json")

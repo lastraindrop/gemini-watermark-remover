@@ -18,6 +18,10 @@ export const objectUrlManager = {
     urls: new Set(),
     create(blob) {
         const url = URL.createObjectURL(blob);
+        return this.register(url);
+    },
+    register(url) {
+        if (!url) return url;
         this.urls.add(url);
         this.updateUI();
         return url;

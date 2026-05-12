@@ -1,9 +1,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { calculateAlphaMap } from '../src/core/alphaMap.js';
-import { removeWatermark } from '../src/core/blendModes.js';
-import { detectWatermarkConfig, calculateWatermarkPosition } from '../src/core/config.js';
-import { detectWatermark } from '../src/core/detector.js';
+import { calculateAlphaMap } from '../../src/core/alphaMap.js';
+import { removeWatermark } from '../../src/core/blendModes.js';
+import { detectWatermarkConfig, calculateWatermarkPosition } from '../../src/core/config.js';
+import { detectWatermark } from '../../src/core/detector.js';
 
 describe('Unit Tests - Core Logic (v1.1 Optimized)', () => {
     

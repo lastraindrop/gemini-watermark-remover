@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { detectWatermarkConfig } from '../src/core/config.js';
-import { detectWatermark } from '../src/core/detector.js';
+import { detectWatermarkConfig } from '../../src/core/config.js';
+import { detectWatermark } from '../../src/core/detector.js';
 
 describe('V1.2 Precision & Robustness Tests', () => {
 

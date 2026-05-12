@@ -2,7 +2,7 @@
 
 # Gemini & Doubao Lossless Watermark Remover (v2.1.0)
 
-A production-grade, client-side tool for detecting, analyzing, and removing visible AI watermarks from Gemini, Doubao, and DALL-E 3 (experimental) images.
+A production-grade, independent fork for detecting, analyzing, and removing visible AI watermarks from Gemini and Doubao images. DALL-E 3 remains an experimental research profile and is not enabled in the CLI until its real asset is available.
 
 ## What this release covers
 
@@ -13,16 +13,18 @@ A production-grade, client-side tool for detecting, analyzing, and removing visi
 - Frontend drag-and-drop upload
 - ZIP batch download
 - Localized UI and contract tests
-- Reproducible regression coverage for difficult watermark samples (356 tests)
+- Independent SDK/API entrypoint under `@lastraindrop/gemini-watermark-remover`
+- Reproducible regression coverage for difficult watermark samples (369 tests)
 
 ## Verification baseline
 
 ```bash
-npm test          # 356/356 passing
+npm test          # 369/369 passing
 npm run lint      # clean
 npm run build     # clean
+npm run test:legacy
 node --test tests/gemini_regression.test.js
-python -m unittest tests\\test_bridge_integration.py
+npm run test:python
 ```
 
 ## Architecture overview
@@ -60,7 +62,7 @@ results = remover.remove_watermark("./input_dir", "./output_dir", deep_scan=True
 
 - **Gradient filtering**: Sobel edge correlation suppresses luminance-only false positives (sinusoidal textures, noise) while preserving real watermarks
 - **Multi-phase detection**: Catalog→scaled→heuristic→global fallback, each phase with appropriate thresholds
-- **Profile system**: Pluggable profiles for Gemini, Doubao, and DALL-E 3 (experimental)
+- **Profile system**: Pluggable profiles for Gemini and Doubao; DALL-E 3 remains experimental/research-only
 - **Catalog-driven sizing**: Standard sizes matched within 2% tolerance; scaled catalog covers cropped/resized exports
 - **Client-only**: All processing local, no server upload
 
