@@ -2,78 +2,85 @@
 
 ## 当前状态
 
-- **版本**: v2.1.0
-- **验证基线**: `npm test` 369/369 通过, `npm run lint` clean, `npm run build` clean, Python bridge pass
-- **当前重点**: 独立 fork 产品化、维护自有 SDK/API、提升极端场景召回率、多端参数一致化
-- **架构**: 支持动态参数覆盖的四层检测管线 (Catalog -> Scaled -> Heuristic -> Global)
+- **版本**: v2.2.0
+- **验证基线**: `npm test` 421/421 通过, `npm run lint` 0 errors 0 warnings, `npm run build` clean, Python bridge pass
+- **当前重点**: 独立 fork 产品化、维持高召回低误报、多端参数一致化
+- **架构**: 六层检测管线 (Catalog → Scaled → Heuristic → Adaptive → Global → Decision)
 
-## 已完成事项 (v2.1.x 维护版本)
+## 已完成事项 (v2.2.0)
 
-- **[v2.1] 自定义配置模式**: 支持手动调整阈值、梯度惩罚与手动指定坐标区域。
-- **[v2.1] 多端参数一致化**: Web/CLI/Python 三处参数命名统一，高级参数 (probeThreshold, fallbackThreshold, gradientPenalty, manualConfig, overrides) 在三层均已透传并生效。
-- **[v2.1] 单元测试覆盖率提升**: 从 277 测试增加至 369 测试，覆盖 SDK/API、URL 生命周期、CLI 参数、手动配置校验等领域:
-  - `registry.test.js`: TemplateRegistry 单例、注册、目录查询
-  - `scaled_catalog.test.js`: 近似尺寸缩放匹配逻辑
-  - `local_contrast.test.js`: 局部对比度相关计算
-  - `box_blur.test.js`: 快速盒式模糊算法
-  - `overrides_dynamic.test.js`: v2.1 动态参数覆盖机制
-  - `metrics_precision.test.js`: 恢复质量指标 (MSE/PSNR) 精度
-  - `detection_fallback_chain.test.js`: 检测回退链 (catalog → global) 完整流程
-  - `i18n_completeness.test.js`: 7 语言国际化完整性校验
-- **[v2.0] 召回率专项增强**: 梯度滤波惩罚系数调优 (0.30) 与位置容差 (5%) 平衡。
-- **[v1.9] 共享检测管线**: Web / CLI / Python 共享同一套 profile、catalog 和 detector。
-- 前端拖拽上传、多语言支持、批量 ZIP 下载。
+### 诊断与基础修复
+- Registry 目录匹配容差 1.5% → 5%，覆盖常见截图/缩放场景
+- `standardMargins` 清理为标准值 [32, 64, 96]
+- 初始模板比较: `resolveBestTemplateOrder()` 在探测前动态选择 48px/96px 最优模板
 
-## 短期计划 (v2.2 规划)
+### 检测引擎重大升级
+- **3D 多维评分**: spatial NCC (0.5) + gradient NCC (0.3) + variance (0.2)，替代原单维 NCC
+- **自适应检测器**: `adaptiveDetector.js` — 粗到细多尺度搜索，Top-K 候选 + 精细 2px 步进搜索
+- **模板插值与变形**: `interpolateAlphaMap()` + `warpAlphaMap()` 支持非标准尺寸和亚像素对齐
 
-1. 继续优化复杂纹理（如高频正弦波、细密网格）下的误报过滤算法。
-2. 收集更多非标准 Gemini 导出尺寸并补齐 Catalog。
-3. 保持 Python Bridge 与 Node CLI 的同步更新。
-4. 补充 CLI pipe 模式的端到端集成测试。
-5. 验证 `manualConfig` 通过 CLI 的完整流程。
-6. ~~明确 worker 下一步：接入 off-main-thread 恢复或移除 worker bundle。~~ ✅ 已接入：像素恢复默认委托 Worker 执行，带 5s 超时回退。
+### 移除质量增强
+- **多遍移除**: `multiPassRemoval.js` — 带近黑/纹理安全检查的迭代移除
+- **Alpha 增益校准**: `alphaCalibration.js` — 14 档粗搜索 + 精细调整找最优增益
+- **亚像素精炼**: `refineSubpixelOutline()` — 27 种位移×缩放×增益组合搜索
+
+### 决策与可解释性
+- **分层决策策略**: `decisionPolicy.js` — `direct-match` / `needs-validation` / `insufficient` 三级
+- 每个检测结果附带 `decisionTier` 和 `reason` 字段
+
+### BUG 修复
+- Python pipe 命令补全 `"remove"` 关键字
+- Worker 超时自适应化
+- `probeThreshold` 计算简化
+- auto profile 并发修复
+- `removeWatermark()` alphaGain 静默忽略修复 (CRITICAL)
+
+### 测试体系
+- 新增 36 个专项测试，总测试数 **369 → 421**
+- 诊断基线测试覆盖 7 类 18 个场景
+
+## 短期计划 (v2.3 规划)
+
+1. 将多遍移除 + Alpha 校准扩展到 doubao 和其他非 gemini profile
+2. 实现边缘残余清理（blend-based，预览锚点专用）
+3. WASM 加速 NCC 和 Sobel 梯度计算，降低 4K 图像处理时间
+4. 补齐 CLI pipe 模式的端到端集成测试
 
 ## 中期计划
 
-1. 引入 **WebAssembly (WASM)** 加速核心 NCC 互相关运算与 Sobel 梯度计算，提升 4K 图像处理速度。
-2. 探索基于频率域（Spectral Analysis）的假阳性防御机制。
-3. 为 DALL-E 3 profile 准备真实 alphaMap 资产。
-4. 统一 Web/CLI Engine: 抽象 `AssetLoader` 接口，让 `watermarkEngine.js` 在 Node.js 下使用 sharp 而非 DOM。
+1. 频率域假阳性防御机制 (Spectral Analysis)
+2. 为 DALL-E 3 profile 准备真实 alphaMap 资产
+3. 统一 Web/CLI Engine: 抽象 AssetLoader 接口
+4. 智能参数自适应：根据图像熵值 (Entropy) 自动微调检测阈值
 
 ## 长期计划
 
-1. 实现智能参数自适应系统：根据图像熵值（Entropy）自动微调检测阈值。
-2. 维护可回归、可解释、可验证的纯数学去水印基准。
-3. 产品化增强：Chrome 扩展、Page 集成、SDK 发布。
+1. 维护可回归、可解释、可验证的纯数学去水印基准
+2. 产品化增强：Chrome 扩展、Page 集成、SDK 发布
+3. 持续扩充真实样本库，优先覆盖复杂背景和轻微缩放导出
 
-## 已修复的 BUG 汇总 (v2.1 维护版本)
+## 已修复的 BUG 汇总 (v2.2 维护版本)
 
 | 编号 | 问题描述 | 位置 | 修复状态 |
 |------|---------|------|---------|
-| 1 | `detectionPipeline.js:175` 未使用的 `fallbackThreshold` 变量 | 已移除 | ✅ 修复 |
-| 2 | `detector.js` Phase 2/3 阈值使用硬编码 `SEARCH_CONFIG` 而非 merged config | 已替换 | ✅ 修复 |
-| 3 | `app.js` 阈值 slider: probeThreshold/fallbackThreshold 共用同一 slider，无比例关系 | 已修复为 0.25/0.18 固定比例 | ✅ 修复 |
-| 4 | `gui.py:14` 版本号硬编码 `v1.9.9` | 已更新为 `v2.1.0` | ✅ 修复 |
-| 5 | `README.md:3` 版本号 `v1.9.9` 与 package.json `v2.1.0` 不一致 | 已同步 | ✅ 修复 |
-| 6 | `README_zh.md` 版本号 `v1.9.9`、测试数 `271` 未同步 | 已同步 | ✅ 修复 |
-| 7 | `gui.py:263` 多文件判断逻辑: `str(fileSize)` 比较字符串而非数字 | 已修复为数字比较 | ✅ 修复 |
-| 8 | `remover.py:100` pipe 模式: CLI 路径判断未正确处理全局安装 | 已修复为检查 `.js` 后缀 | ✅ 修复 |
+| BUG-01 | 缺少初始模板比较 (48px/96px) | `detectionPipeline.js` | ✅ 修复 |
+| BUG-02 | 梯度惩罚过于激进 | 原有代码 (3D评分替代) | ✅ 已替代 |
+| BUG-04 | Registry 匹配容差过严 (1.5%) | `registry.js:54` | ✅ 放宽至 5% |
+| BUG-06 | `standardMargins` 含非标准值 | `detector.js:251` | ✅ 清理 |
+| BUG-08 | Python pipe 缺少 `remove` 命令 | `remover.py:101` | ✅ 修复 |
+| BUG-09 | Worker 超时固定 5s | `watermarkEngine.js` | ✅ 自适应 |
+| BUG-10 | `_lastVar` 死代码 | `detector.js` | ✅ 移除 |
+| BUG-11 | `probeThreshold` 比例换算不直观 | `app.js:572` | ✅ 简化 |
+| BUG-12 | auto profile 并发限制过严 | `processing.js:67` | ✅ 1→2 |
+| BUG-13 | Python pipe 模式路径缺失 | `remover.py:100` | ✅ 修复 |
+| ISSUE-1 | `removeWatermark()` 缺少 alphaGain 参数 | `blendModes.js:62` | ✅ 修复 |
 
 ## 验证命令
 
 ```bash
 npm run lint          # 0 errors, 0 warnings
-npm test              # 369/369 passing
+npm test              # 421/421 passing
 npm run build         # clean
 npm run test:legacy   # maintained legacy smoke regressions
 npm run test:python   # Python bridge
-
-# 分项验证新增测试
-node --test tests/registry.test.js
-node --test tests/scaled_catalog.test.js
-node --test tests/local_contrast.test.js
-node --test tests/overrides_dynamic.test.js
-node --test tests/metrics_precision.test.js
-node --test tests/detection_fallback_chain.test.js
-node --test tests/i18n_completeness.test.js
 ```

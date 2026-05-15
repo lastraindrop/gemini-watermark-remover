@@ -71,10 +71,10 @@ describe('Edge Cases & Stress Tests', () => {
   });
 
   test('Slightly scaled image (non-catalog)', () => {
-    const img = createMockImageData(1050, 1050, 'gradient');
-    const config = detectWatermarkConfig(1050, 1050);
+    const img = createMockImageData(1100, 1100, 'gradient');
+    const config = detectWatermarkConfig(1100, 1100);
 
-    // Should use heuristic, not catalog
+    // 1100x1100 is ~7.4% larger than 1024x1024, outside 5% catalog tolerance
     assert.strictEqual(config.isOfficial, false);
     assert.strictEqual(config.logoSize, 96);
   });

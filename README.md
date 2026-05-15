@@ -1,13 +1,17 @@
 [中文说明](README_zh.md)
 
-# Gemini & Doubao Lossless Watermark Remover (v2.1.0)
+# Gemini & Doubao Lossless Watermark Remover (v2.2.0)
 
-A production-grade, independent fork for detecting, analyzing, and removing visible AI watermarks from Gemini and Doubao images. DALL-E 3 remains an experimental research profile and is not enabled in the CLI until its real asset is available.
+A production-grade, independent fork for detecting, analyzing, and removing visible AI watermarks from Gemini and Doubao images. Features six-stage detection pipeline with 3D scoring, adaptive multi-scale search, multi-pass removal with safety gates, and alpha gain calibration.
 
 ## What this release covers
 
-- Shared detection pipeline for Web, CLI, and Python bridge
-- Gemini catalog-first matching with heuristic fallback and scaled catalog
+- **Six-stage detection pipeline**: Catalog → Scaled → Heuristic → Adaptive → Global → Decision
+- **3D multidimensional scoring**: spatial NCC (0.5) + gradient NCC (0.3) + variance (0.2)
+- **Adaptive detector**: coarse-to-fine multi-scale search for non-catalog resolutions
+- **Multi-pass removal**: iterative removal with near-black safety and texture protection
+- **Alpha gain calibration**: automatic search for optimal alpha multiplier
+- Gemini catalog-first matching with heuristic and adaptive fallback
 - Doubao multi-anchor (top-left + bottom-right) support
 - **Deep Scan gradient filtering** for false positive defense
 - Frontend drag-and-drop upload

@@ -1,6 +1,6 @@
-# Gemini Watermark Remover - 用户指南
+# Gemini Watermark Remover - 用户指南 (v2.2.0)
 
-本工具用于对 Gemini、Doubao 生成图片进行本地检测、分析与去水印。DALL-E 3 目前仅作为实验性研究 profile 保留，真实资产补齐前不在 CLI 生产路径启用。当前实现不是固定尺寸硬编码，而是通过 `profile`、`catalog`、`heuristic`、`deepScan` 梯度滤波四层协同决定检测与恢复流程。
+本工具用于对 Gemini、Doubao 生成图片进行本地检测、分析与去水印。DALL-E 3 目前仅作为实验性研究 profile 保留。当前实现是在原有梯度滤波基础上，新增了自适应检测、三维多维评分、多遍移除与 Alpha 增益校准等增强。
 
 ## 1. 使用入口
 

@@ -1,6 +1,8 @@
 import { calculateWatermarkPosition, getAllPotentialConfigs } from './config.js';
-import { calculateProbeConfidence, detectWatermark } from './detector.js';
+import { calculateProbeConfidence, calculateCorrelation, detectWatermark } from './detector.js';
+import { detectAdaptiveWatermarkRegion } from './adaptiveDetector.js';
 import { PROFILES } from './profiles.js';
+import { decideDetectionTier } from './decisionPolicy.js';
 
 const DEFAULT_PROBE_THRESHOLD = 0.18;
 const DEFAULT_GLOBAL_FALLBACK_THRESHOLD = 0.25;
@@ -145,6 +147,44 @@ async function ensureFallbackAlphaMaps(profileId, getAlphaMap, alphaMaps) {
     }
 }
 
+/**
+ * Phase 1.4: Compare 48px vs 96px template NCC at their respective anchor
+ * positions. If one size scores significantly better, reorder configs to
+ * favor the better-scoring template. This prevents using 96px when the
+ * actual watermark is 48px (e.g. cropped/zoomed images).
+ */
+async function resolveBestTemplateOrder(imageData, configs, getAlphaMap) {
+    const MIN_SWITCH_SCORE = 0.25;
+    const MIN_SCORE_DELTA = 0.10;
+    const positions = [];
+    for (const config of configs) {
+        const sz = config.logoSize || config.logoWidth || 96;
+        if (sz !== 48 && sz !== 96) continue;
+        const pos = calculateWatermarkPosition(imageData.width, imageData.height, config);
+        const alphaMap = await tryGetAlphaMap(getAlphaMap, String(sz), pos.width, pos.height);
+        if (!alphaMap) continue;
+        const ncc = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap.data, true);
+        positions.push({ config, sz, pos, ncc });
+    }
+
+    if (positions.length < 2) return configs;
+
+    positions.sort((a, b) => b.ncc - a.ncc);
+    const best = positions[0];
+    const second = positions[1];
+
+    if (best.ncc >= MIN_SWITCH_SCORE && best.ncc > second.ncc + MIN_SCORE_DELTA && best.sz !== second.sz) {
+        const reordered = [best.config, ...configs.filter(c => c !== best.config && c !== second.config)];
+        if (second.ncc > 0.10) reordered.push(second.config);
+        for (const c of configs) {
+            if (!reordered.includes(c)) reordered.push(c);
+        }
+        return reordered;
+    }
+
+    return configs;
+}
+
 export async function detectProfileWatermarks({
     imageData,
     profileId,
@@ -193,7 +233,13 @@ export async function detectProfileWatermarks({
     const matches = [];
     const alphaMaps = {};
 
-    const potentialConfigs = getAllPotentialConfigs(imageData.width, imageData.height, profile.id);
+    // Phase 1.4: Resolve initial template config - compare 48px vs 96px NCC
+    // to dynamically select the best template size before full probe
+    const potentialConfigsRaw = getAllPotentialConfigs(imageData.width, imageData.height, profile.id);
+    let potentialConfigs = potentialConfigsRaw;
+    if (profileId === 'gemini' && potentialConfigsRaw.length >= 2) {
+        potentialConfigs = await resolveBestTemplateOrder(imageData, potentialConfigsRaw, getAlphaMap);
+    }
     for (const config of potentialConfigs) {
         const pos = calculateWatermarkPosition(imageData.width, imageData.height, config);
         if (pos.width <= 0 || pos.height <= 0) continue;
@@ -226,6 +272,51 @@ export async function detectProfileWatermarks({
 
     const fallbackBelow = options.globalFallbackBelow ?? 0.30;
     const hasCatalogBackedMatch = matches.some(match => isCatalogBacked(match));
+
+    // Phase 2.3: Adaptive multi-scale detection when catalog probes are weak
+    const shouldRunAdaptive = options.adaptiveMode !== false && options.adaptiveMode !== 'off' &&
+        profileId === 'gemini' &&
+        (matches.length === 0 || (!hasCatalogBackedMatch && matches[0].confidence < fallbackBelow));
+    if (shouldRunAdaptive) {
+        await ensureFallbackAlphaMaps(profile.id, getAlphaMap, alphaMaps);
+        const defaultConfig = profile.getHeuristicConfig
+            ? profile.getHeuristicConfig(imageData.width, imageData.height)
+            : { logoSize: 96, marginRight: 64, marginBottom: 64 };
+        const adaptiveResult = detectAdaptiveWatermarkRegion({
+            imageData,
+            alphaMaps,
+            defaultConfig,
+            threshold: options.adaptiveMinConfidence ?? 0.35
+        });
+        if (adaptiveResult) {
+            const size = adaptiveResult.region.width;
+            const alphaMap = alphaMaps[String(size)] || alphaMaps[`${size}x${size}`];
+            if (alphaMap) {
+                const config = createConfigFromDetection(imageData, {
+                    x: adaptiveResult.region.x,
+                    y: adaptiveResult.region.y,
+                    width: adaptiveResult.region.width,
+                    height: adaptiveResult.region.height,
+                    mode: 'adaptive'
+                });
+                upsertMatch(matches, {
+                    config,
+                    pos: {
+                        x: adaptiveResult.region.x,
+                        y: adaptiveResult.region.y,
+                        width: adaptiveResult.region.width,
+                        height: adaptiveResult.region.height,
+                        anchor: config.anchor
+                    },
+                    alphaMap,
+                    confidence: adaptiveResult.confidence,
+                    profileId: profile.id,
+                    source: 'adaptive-search'
+                });
+            }
+        }
+    }
+
     const shouldRunGlobalFallback = options.globalFallback !== false &&
         (matches.length === 0 || (!hasCatalogBackedMatch && matches[0].confidence < fallbackBelow));
 
@@ -264,12 +355,14 @@ export async function detectProfileWatermarks({
     }
 
     matches.sort((a, b) => b.confidence - a.confidence);
-    return {
+    const result = {
         profileId: profile.id,
         matches,
         winner: matches[0] || null,
         confidence: matches[0]?.confidence || 0
     };
+    result.decisionTier = decideDetectionTier(result).tier;
+    return result;
 }
 
 export async function detectWatermarks({

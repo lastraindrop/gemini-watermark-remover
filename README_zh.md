@@ -1,8 +1,8 @@
 [English](README.md)
 
-# Gemini & Doubao 无损去水印工具 (v2.1.0)
+# Gemini & Doubao 无损去水印工具 (v2.2.0)
 
-用于检测、分析并去除 Gemini、Doubao 图片中可见 AI 水印的独立 fork 生产级客户端工具。DALL-E 3 仍为实验性研究 profile，真实资产补齐前不在 CLI 中启用。
+用于检测、分析并去除 Gemini、Doubao 图片中可见 AI 水印的独立 fork 生产级客户端工具。v2.2.0 新增六层检测管线、三维评分、自适应多尺度搜索、多遍安全移除与 Alpha 增益校准。
 
 ## 当前版本覆盖
 

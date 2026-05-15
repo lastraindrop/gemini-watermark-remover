@@ -98,7 +98,7 @@ class GeminiWatermarkRemover:
         Returns processed image bytes.
         """
         if self.cli_path.endswith(".js"):
-            cmd = ["node", self.cli_path, "--pipe"]
+            cmd = ["node", self.cli_path, "remove", "--pipe"]
         else:
             cmd = [self.cli_path, "remove", "--pipe"]
         if not deep_scan: cmd.append("--no-deepScan")

@@ -16,9 +16,9 @@ describe('Scale Tolerance (1%) Validation', () => {
         assert.strictEqual(matches.length, 1, 'Should match 0.58% difference');
     });
 
-    test('T1.3: Catalog rejects beyond 1% mismatch', () => {
-        // Test 1040x1040 -> 1040/1024 = 1.0156 (1.56% mismatch) -> SHOULD REJECT
-        const matches = registry.findMatches('gemini', 1040, 1040);
-        assert.strictEqual(matches.length, 0, 'Should reject 1.56% difference');
+    test('T1.3: Catalog rejects beyond 5% mismatch', () => {
+        // Test 1080x1080 -> 1080/1024 = 1.0547 (5.47% mismatch) -> SHOULD REJECT
+        const matches = registry.findMatches('gemini', 1080, 1080);
+        assert.strictEqual(matches.length, 0, 'Should reject 5.47% difference');
     });
 });

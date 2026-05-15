@@ -87,8 +87,8 @@ describe('TemplateRegistry Core Tests', () => {
             { width: 1000, height: 1000 }
         ]);
         
-        const withinTol = r.findMatches('boundary-test', 1014, 1014);
-        const outsideTol = r.findMatches('boundary-test', 1020, 1020);
+        const withinTol = r.findMatches('boundary-test', 1049, 1049);
+        const outsideTol = r.findMatches('boundary-test', 1051, 1051);
         
         assert.strictEqual(withinTol.length, 1);
         assert.strictEqual(outsideTol.length, 0);

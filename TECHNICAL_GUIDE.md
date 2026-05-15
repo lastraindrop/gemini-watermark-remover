@@ -1,4 +1,4 @@
-# Technical Guide — Gemini Watermark Remover v2.1.0
+# Technical Guide — Gemini Watermark Remover v2.2.0
 
 ## 1. Overview
 
@@ -33,12 +33,12 @@ The alpha map `A` is calibrated from known watermark assets (`bg_96.png`, `bg_48
 
 ## 2. Detection Pipeline Architecture
 
-### 2.1 Four-Stage Pipeline
+### 2.1 Six-Stage Pipeline
 
-The detection process in `detectProfileWatermarks()` (`detectionPipeline.js`) operates in four ordered stages:
+The detection process in `detectProfileWatermarks()` (`detectionPipeline.js`) operates in six ordered stages:
 
 ```
-Stage 1: Catalog Probe ──┬── hit → add match, skip rest
+Stage 1: Catalog Probe ──┬── hit → add match, probe
                           └── miss → continue
 
 Stage 2: Scaled Catalog ──┬── hit → add match, probe
@@ -47,8 +47,13 @@ Stage 2: Scaled Catalog ──┬── hit → add match, probe
 Stage 3: Heuristic ───────┬── hit → add match, probe
                           └── miss → continue
 
-Stage 4: Global Fallback ──┬── hit → verify anchor → accept/reject
-                           └── miss → return null
+Stage 4: Adaptive Search ─┬── hit → add match, probe
+                          └── miss → continue
+
+Stage 5: Global Fallback ─┬── hit → verify anchor → accept/reject
+                          └── miss → return null
+
+Stage 6: Decision Policy ─── classify tiers (direct-match / needs-validation / insufficient)
 ```
 
 ### 2.2 Stage 1: Catalog Exact Match
@@ -56,7 +61,7 @@ Stage 4: Global Fallback ──┬── hit → verify anchor → accept/reject
 **File**: `src/core/templates/registry.js` — `findMatches()`
 
 ```
-MAX_SCALE_MISMATCH = 0.015 (1.5%)
+MAX_SCALE_MISMATCH = 0.05 (5%)
 ```
 
 For an image of size `(W, H)`, each catalog entry `(w, h)` is checked:
@@ -64,12 +69,12 @@ For an image of size `(W, H)`, each catalog entry `(w, h)` is checked:
 ```
 scaleX = W / w
 scaleY = H / h
-match = |scaleX − scaleY| < 0.015  AND  |scaleX − 1| < 0.015
+match = |scaleX − scaleY| < 0.05  AND  |scaleX − 1| < 0.05
 ```
 
 If matched, the config is returned with `isOfficial: true`. The probe then uses the exact catalog position.
 
-**Rationale**: 1.5% tolerance (v2.0 tuned) allows for minor encoding artifacts/resampling while maintaining high precision. For example, 1365×768 → 1376×768 (0.8% diff) matches; 1360×768 (1.2% diff) matches; 1350×768 (1.9% diff) does NOT match.
+**Rationale**: 5% tolerance (v2.2 widened from 1.5% in v2.0) covers common user scenarios: screenshots, minor resizes, and encoding artifacts. For example, 1365×768 → 1376×768 (0.8% diff) matches; 1080×1080 → 1024×1024 (5.5% diff) does NOT match. The adaptive detector (Stage 4) provides a separate path for non-catalog resolutions.
 
 **Test coverage**: `tests/catalog.test.js` (68 subtests covering all official dimensions + tolerance boundary).
 
@@ -135,6 +140,86 @@ acceptsGlobalDetection = detection.confidence ≥ minGlobalConfidence
 | `isNearExpectedAnchor` tolerance | 5% position | Checks if detection is close to a known anchor position |
 
 **Anchor position tolerance**: `max(4, min(logoWidth, logoHeight) × 0.05)`. For a 96px watermark: max(4, 4.8) = 5px. This prevents spurious detections that happen to land near corners from being accepted.
+
+### 2.6 Stage 5: Adaptive Detection (v2.2 new)
+
+**File**: `src/core/adaptiveDetector.js` — `detectAdaptiveWatermarkRegion()`
+
+When catalog probes fail, the adaptive detector performs a coarse-to-fine multi-scale search:
+
+1. **Seed check**: Test the default catalog anchor position
+2. **Coarse search**: Iterate over size × margin grid (8px step)
+3. **Top-K collection**: Keep the 5 best coarse candidates
+4. **Fine search**: Refine each top-K with 2px step over ±8px × ±10px size range
+
+**3D Scoring Formula**:
+
+```
+confidence = spatial × 0.5 + gradient × 0.3 + variance × 0.2
+```
+
+| Component | Weight | Source |
+|-----------|--------|--------|
+| Spatial (NCC) | 0.5 | `calculateCorrelation()` |
+| Gradient (Sobel NCC) | 0.3 | `calculateGradientCorrelation()` |
+| Variance | 0.2 | `stdDev(watermark) / stdDev(reference)` |
+
+**Variance score**: compares luminance std dev of the candidate watermark region against a reference region above it. Real watermarks typically reduce local variance (semi-transparent overlay smooths details), producing lower watermark std dev relative to the background.
+
+**Parameters**:
+| Parameter | Value | Purpose |
+|-----------|-------|---------|
+| `threshold` | 0.35 | Minimum confidence to accept |
+| `minSize` | 24 | Lower bound for watermark size |
+| `maxSize` | 192 | Upper bound for watermark size |
+| `minMarginRight/Bottom` | config ± 75% | Search range for position |
+
+### 2.7 Stage 6: Decision Policy (v2.2 new)
+
+**File**: `src/core/decisionPolicy.js`
+
+Each detection result is classified into one of three tiers:
+
+| Tier | Meaning | Action |
+|------|---------|--------|
+| `direct-match` | Strong evidence, confident removal | Apply full removal pipeline |
+| `needs-validation` | Some evidence, moderate confidence | Apply with caution |
+| `insufficient` | No reliable evidence | Skip removal |
+
+**Classification rules**:
+
+| Source | direct-match | needs-validation |
+|--------|-------------|-----------------|
+| catalog-probe | confidence ≥ 0.60 | confidence < 0.60 |
+| adaptive-search | confidence ≥ 0.48 | confidence < 0.48 |
+| heuristic-probe | confidence ≥ 0.70 | confidence < 0.70 |
+| global-search | confidence ≥ 0.55 | 0.35 ≤ confidence < 0.55 |
+
+### 2.8 Removal Pipeline (v2.2 new)
+
+**Files**: `multiPassRemoval.js`, `alphaCalibration.js`, `blendModes.js`
+
+For Gemini profile, the removal pipeline runs after successful detection:
+
+```
+removal → multiPassRemoval (up to 4 passes)
+    ├── Near-black safety gate (stops if region becomes too dark)
+    ├── Texture collapse detection (stops if structure is destroyed)
+    └── Residual threshold (stops when NCC < 0.25)
+    
+if residual remains high:
+    alphaCalibration (14 coarse + fine tuning)
+    → Search for optimal alphaGain [1.05, 2.6]
+    → Minimize post-removal spatial correlation
+```
+
+**alphaGain parameter**: Multiplies the alpha value before the reverse blend:
+```
+effectiveAlpha = min(alpha × alphaGain, 0.99)
+original = (watermarked - effectiveAlpha × 255) / (1 - effectiveAlpha)
+```
+
+Higher alphaGain helps when the calibrated alpha map under-estimates the actual watermark opacity (e.g., due to rescaling artifacts).
 
 ---
 

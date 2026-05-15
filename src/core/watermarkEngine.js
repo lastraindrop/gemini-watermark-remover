@@ -7,6 +7,8 @@ import { calculateAlphaMap } from './alphaMap.js';
 import { removeWatermark } from './blendModes.js';
 import { resetDetectorBuffers } from './detector.js';
 import { detectWatermarks } from './detectionPipeline.js';
+import { removeRepeatedWatermarkLayers } from './multiPassRemoval.js';
+import { shouldRecalibrateAlphaStrength, recalibrateAlphaStrength } from './alphaCalibration.js';
 
 export class WatermarkEngine {
     constructor() {
@@ -91,7 +93,7 @@ export class WatermarkEngine {
             const timer = setTimeout(() => {
                 this._workerHandlers.delete(taskId);
                 reject(new Error('Worker removal timed out'));
-            }, 5000);
+            }, Math.max(5000, (imageData.width * imageData.height) / 500000));
 
             this._workerHandlers.set(taskId, {
                 resolve: (result) => {
@@ -241,7 +243,49 @@ export class WatermarkEngine {
 
             if (!workerUsed) {
                 for (const result of overallBest.matches) {
-                    removeWatermark(imageData, result.alphaMap, result.pos);
+                    const useMultiPass = result.profileId === 'gemini';
+                    if (useMultiPass) {
+                        // Phase 3.1: Multi-pass removal with safety checks
+                        const multiPassResult = removeRepeatedWatermarkLayers({
+                            imageData,
+                            alphaMap: result.alphaMap,
+                            position: result.pos,
+                            maxPasses: 4,
+                            residualThreshold: 0.25
+                        });
+
+                        // Phase 3.2: Alpha gain calibration if high residual remains
+                        const lastPassAfter = multiPassResult.passes && multiPassResult.passes.length > 0
+                            ? multiPassResult.passes[multiPassResult.passes.length - 1].afterSpatialScore
+                            : 0;
+
+                        if (multiPassResult.stopReason !== 'residual-low') {
+                            const originalSpatialScore = result.confidence;
+                            const suppressionGain = Math.abs(originalSpatialScore) - Math.abs(lastPassAfter);
+
+                            if (shouldRecalibrateAlphaStrength({
+                                originalScore: Math.abs(originalSpatialScore),
+                                processedScore: Math.abs(lastPassAfter),
+                                suppressionGain
+                            })) {
+                                const recalibrated = recalibrateAlphaStrength({
+                                    sourceImageData: multiPassResult.imageData,
+                                    alphaMap: result.alphaMap,
+                                    position: result.pos,
+                                    originalSpatialScore: Math.abs(originalSpatialScore),
+                                    processedSpatialScore: Math.abs(lastPassAfter)
+                                });
+                                if (recalibrated) {
+                                    imageData.data.set(recalibrated.imageData.data);
+                                    continue;
+                                }
+                            }
+                        }
+
+                        imageData.data.set(multiPassResult.imageData.data);
+                    } else {
+                        removeWatermark(imageData, result.alphaMap, result.pos);
+                    }
                 }
             }
 

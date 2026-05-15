@@ -64,7 +64,7 @@ function yieldToBrowser() {
 export function getBatchConcurrency(options = {}, queue = state.imageQueue) {
     const requested = Number(options.batchConcurrency);
     if (Number.isInteger(requested) && requested > 0) return Math.min(requested, 4);
-    if (options.profileId === 'auto' || options.deepScan !== false || options.noiseReduction === true) return 1;
+    if (options.profileId === 'auto' || options.deepScan !== false || options.noiseReduction === true) return 2;
     return queue.length > 8 ? 1 : 2;
 }
 

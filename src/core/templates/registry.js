@@ -51,7 +51,7 @@ export class TemplateRegistry {
      */
     findMatches(profileId, width, height) {
         const catalog = this.getCatalog(profileId);
-        const MAX_SCALE_MISMATCH = 0.015;
+        const MAX_SCALE_MISMATCH = 0.05;
         
         return catalog.filter(entry => {
             const scaleX = width / entry.width;

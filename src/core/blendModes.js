@@ -57,10 +57,12 @@ function sampleBilinearAlpha(alphaMap, x, y, width, height) {
  * @param {ImageData|Object} imageData - Image data to process (will be modified in place)
  * @param {Float32Array} alphaMap - Alpha channel data
  * @param {Object} position - Watermark position {x, y, width, height}
+ * @param {Object} [options] - Optional config { alphaGain: number }
  */
-export function removeWatermark(imageData, alphaMap, position) {
+export function removeWatermark(imageData, alphaMap, position, options = {}) {
     const { x, y, width, height } = position;
     const { data, width: imgWidth, height: imgHeight } = imageData;
+    const alphaGain = Number.isFinite(options.alphaGain) && options.alphaGain > 0 ? options.alphaGain : 1;
 
     const logoVal = Math.fround(LOGO_VALUE);
 
@@ -87,7 +89,8 @@ export function removeWatermark(imageData, alphaMap, position) {
             // Skip invalid or very small alpha values
             if (isNaN(alpha) || alpha < ALPHA_THRESHOLD) continue;
 
-            const effectiveAlpha = Math.min(alpha, MAX_ALPHA);
+            const rawEffectiveAlpha = Math.min(alpha, MAX_ALPHA) * alphaGain;
+            const effectiveAlpha = Math.min(rawEffectiveAlpha, MAX_ALPHA);
             const oneMinusAlpha = Math.fround(1.0 - effectiveAlpha);
             const alphaLogo = Math.fround(effectiveAlpha * logoVal);
 

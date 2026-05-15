@@ -1,6 +1,10 @@
 export { WatermarkEngine } from '../core/watermarkEngine.js';
 export { detectWatermarks, detectProfileWatermarks, getProfilesToTry } from '../core/detectionPipeline.js';
-export { detectWatermark, calculateProbeConfidence, calculateCorrelation, resetDetectorBuffers } from '../core/detector.js';
+export { detectWatermark, calculateProbeConfidence, calculateCorrelation, calculateGradientCorrelation, resetDetectorBuffers } from '../core/detector.js';
+export { detectAdaptiveWatermarkRegion, interpolateAlphaMap, warpAlphaMap, refineSubpixelOutline } from '../core/adaptiveDetector.js';
+export { classifyStandardWatermarkSignal, classifyAdaptiveWatermarkSignal, decideDetectionTier } from '../core/decisionPolicy.js';
+export { removeRepeatedWatermarkLayers } from '../core/multiPassRemoval.js';
+export { recalibrateAlphaStrength, shouldRecalibrateAlphaStrength } from '../core/alphaCalibration.js';
 export { calculateAlphaMap } from '../core/alphaMap.js';
 export { removeWatermark } from '../core/blendModes.js';
 export { PROFILES, DEFAULT_PROFILE, GEMINI_PROFILE, getProfile, getAllProfiles } from '../core/profiles.js';

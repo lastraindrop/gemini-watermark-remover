@@ -9,14 +9,11 @@
  * 2. Heuristic Global Search (Exhaustive)
  * 3. Confidence Ranking & Post-processing
  * 4. Entropy-Adaptive Weighting (v1.7)
+ * 5. Multi-Dimensional Scoring (v2.2): spatial(NCC) + gradient(Sobel) + variance(stdDev)
  */
 
 import { getCatalogConfig, getAllCatalogConfigs } from './catalog.js';
 import { registry } from './templates/registry.js';
-
-// Module-scoped state for variance tracking during coarse search
-// Used internally by calculateCorrelation to communicate variance info to Phase 2
-let _lastVar = 0;
 
 const SEARCH_CONFIG = {
     RANGE_X: 0.45,
@@ -54,7 +51,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         ...overrides,
         THRESHOLDS: { ...SEARCH_CONFIG.THRESHOLDS, ...(overrides.THRESHOLDS || {}) }
     };
-    const gradientPenalty = options.gradientPenalty ?? 0.30;
+    // gradientPenalty consumed by calculateProbeConfidence (probe path)
 
     let searchData = imageData;
     if (noiseReduction) {
@@ -194,10 +191,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         for (let y = startY; y < height - sizeH / 2; y += step) {
             for (let x = startX ; x < width - sizeW / 2; x += step) {
                 const confidence = calculateCorrelation(searchData, x, y, sizeW, sizeH, alphaMap);
-                const currentVar = _lastVar;
                 
                 if (confidence > config.THRESHOLDS.COARSE) {
-                    const candidate = { x, y, width: sizeW, height: sizeH, confidence, mode: 'heuristic', _lastVar: currentVar };
+                    const candidate = { x, y, width: sizeW, height: sizeH, confidence, mode: 'heuristic' };
                     let tooClose = false;
                     for (let i = 0; i < sizeCandidates.length; i++) {
                         const dist = Math.abs(sizeCandidates[i].x - x) + Math.abs(sizeCandidates[i].y - y);
@@ -239,16 +235,18 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                             detectWatermark._sharedGradientsI, 
                             detectWatermark._sharedGradientsA
                         );
-                        // v2.1 Dynamic Penalty
-                        if (gradientConf < 0.05) confidence = confidence * gradientPenalty;
-                        else confidence = Math.max(confidence, gradientConf);
+                        // Phase 2.1: Multi-dimensional scoring (spatial + gradient + variance)
+                        const varianceScore = calculateVarianceScore(searchData, fx, fy, sizeW, sizeH);
+                        const spatial = Math.max(0, confidence);
+                        const gradient = Math.max(0, gradientConf);
+                        confidence = spatial * 0.5 + gradient * 0.3 + varianceScore * 0.2;
                     }
 
                     const stage2Threshold = noiseReduction ? config.THRESHOLDS.STAGE2_NR : config.THRESHOLDS.STAGE2_CLEAN;
                     if (confidence > stage2Threshold) {
                         const marginX = width - fx - sizeW;
                         const marginY = height - fy - sizeH;
-                        const standardMargins = [32, 64, 96, 24, 10, 4, 38, 25, 39, 16];
+                        const standardMargins = [32, 64, 96];
                         const rightAligned = standardMargins.some(m => Math.abs(marginX - m) <= 4);
                         const bottomAligned = standardMargins.some(m => Math.abs(marginY - m) <= 4);
                         const isAligned = rightAligned && bottomAligned;
@@ -528,12 +526,61 @@ let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.he
 
 
 /**
+ * Compute luminance standard deviation for a square region of image data.
+ * Used internally by calculateVarianceScore to compare watermark region
+ * against a neighboring reference region.
+ */
+function regionStdDev(data, imgWidth, x, y, size) {
+    let sum = 0, sq = 0, n = 0;
+    for (let row = 0; row < size; row++) {
+        const base = ((y + row) * imgWidth + x) << 2;
+        for (let col = 0; col < size; col++) {
+            const idx = base + (col << 2);
+            if (idx < 0 || idx + 2 >= data.length) continue;
+            const lum = data[idx] * 0.2126 + data[idx + 1] * 0.7152 + data[idx + 2] * 0.0722;
+            sum += lum;
+            sq += lum * lum;
+            n++;
+        }
+    }
+    if (n === 0) return 0;
+    const mean = sum / n;
+    const variance = Math.max(0, sq / n - mean * mean);
+    return Math.sqrt(variance);
+}
+
+/**
+ * Calculate variance-based watermark likelihood score.
+ * Compares luminance standard deviation of the candidate watermark region
+ * against a reference region above it. Watermarks typically reduce local
+ * variance because the semi-transparent overlay smooths out detail.
+ *
+ * @returns {number} Score [0, 1] where higher means more watermark-like
+ */
+function calculateVarianceScore(imageData, x, y, logoW, logoH) {
+    const { data, width: imgWidth } = imageData;
+    const size = Math.min(logoW, logoH);
+    if (size < 8 || y < size * 2) return 0.5;
+
+    const wmStd = regionStdDev(data, imgWidth, x, y, size);
+    const refY = Math.max(0, y - Math.round(size * 1.2));
+    const refH = Math.min(size, y - refY);
+    if (refH < 8) return 0.5;
+
+    const refStd = regionStdDev(data, imgWidth, x, refY, refH);
+    if (refStd < 1e-6) return 0.5;
+
+    const ratio = wmStd / refStd;
+    return Math.max(0, Math.min(1, 1 - ratio));
+}
+
+/**
  * Sobel Gradient NCC (v1.4)
  * v1.5: Added out-of-bounds safety
  * v1.6: Memory pooling: receives pre-allocated Float32Array for gradients
  * v1.7: Perceptual luminance update
  */
-function calculateGradientCorrelation(imageData, x, y, logoW, logoH, alphaMap, gradientsI, gradientsA) {
+export function calculateGradientCorrelation(imageData, x, y, logoW, logoH, alphaMap, gradientsI, gradientsA) {
     const { data, width: imgWidth, height: imgHeight } = imageData;
     
     const bufferSizeNeeded = logoW * logoH;
