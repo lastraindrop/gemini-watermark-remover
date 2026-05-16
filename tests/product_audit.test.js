@@ -66,7 +66,8 @@ describe('GWR Ultimate Product Audit', () => {
                 add: () => ({}), 
                 remove: () => ({}), 
                 replace: () => ({}),
-                contains: () => false
+                contains: () => false,
+                toggle: () => ({})
             },
             getAttribute: () => '',
             setAttribute: () => '',

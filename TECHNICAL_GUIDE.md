@@ -120,7 +120,7 @@ For Gemini, the tier is determined by a combined pixel count + short side formul
 
 **Test coverage**: `tests/watermark_config.test.js` (boundary conditions: 1500×500, 1024×500).
 
-### 2.5 Stage 4: Global Fallback
+### 2.5 Stage 5: Global Fallback
 
 **File**: `src/core/detectionPipeline.js` — `detectProfileWatermarks()`
 
@@ -141,7 +141,7 @@ acceptsGlobalDetection = detection.confidence ≥ minGlobalConfidence
 
 **Anchor position tolerance**: `max(4, min(logoWidth, logoHeight) × 0.05)`. For a 96px watermark: max(4, 4.8) = 5px. This prevents spurious detections that happen to land near corners from being accepted.
 
-### 2.6 Stage 5: Adaptive Detection (v2.2 new)
+### 2.6 Stage 4: Adaptive Detection (v2.2 new)
 
 **File**: `src/core/adaptiveDetector.js` — `detectAdaptiveWatermarkRegion()`
 
@@ -278,7 +278,7 @@ When `deepScan = true`, the three scoring methods are combined via gradient filt
 ```
 combinedBase = Math.max(NCC, localContrastConf)
 if (gradientConf < 0.05):
-    confidence = combinedBase × 0.25    // No edge structure match → heavy penalty
+    confidence = combinedBase × gradientPenalty    // No edge structure match → penalty (default 0.30)
 else:
     confidence = Math.max(combinedBase, gradientConf)  // Edge match → take best
 ```
@@ -290,7 +290,7 @@ rawNCC = NCC(fullPrecision)
 if (deepScan AND rawNCC > 0.04):
     compute gradientConf
     if (gradientConf < 0.05):
-        rawNCC = rawNCC × 0.25
+        rawNCC = rawNCC × gradientPenalty
     else:
         rawNCC = Math.max(rawNCC, gradientConf)
 ```
@@ -300,7 +300,7 @@ if (deepScan AND rawNCC > 0.04):
 ```
 combined = Math.max(NCC, localContrastConf)
 if (gradientConf < 0.05):
-    conf = combined × 0.25
+    conf = combined × gradientPenalty
 else:
     conf = Math.max(combined, gradientConf)
 ```
@@ -312,15 +312,14 @@ else:
 | Real watermark, smooth bg | 0.85 | 0.70 | 0.85 ✓ | 0.85 ✓ |
 | Real watermark, textured bg | 0.50 | 0.20 | 0.50 ✓ | 0.50 ✓ |
 | No watermark, sinusoidal texture | 0.94 | 0.03 | 0.94 ✗ FP | 0.28 ✓ (below threshold) |
-| No watermark, random noise | 0.45 | 0.02 | 0.45 ✗ FP | 0.13 ✓ (below threshold) |
+| No watermark, random noise | 0.45 | 0.02 | 0.45 ✗ FP | 0.14 ✓ (below threshold) |
 
-The old `Math.max(confidence, gradientConf)` approach had no defense against false positives where NCC was high but gradient correlation was near-zero. The gradient filter adds this defense by detecting when there's no edge structure match — a reliable indicator of noise-driven false positives.
+The `Math.max(combined, gradientConf)` approach had no defense against false positives where NCC was high but gradient correlation was near-zero. The gradient filter with `gradientPenalty` (default 0.30) adds this defense by detecting when there's no edge structure match — a reliable indicator of noise-driven false positives.
 
 #### Threshold Rationale
 
-- **gradientConf < 0.05**: This threshold is set very low (near-zero correlation). Any gradientConf ≥ 0.05 indicates that at least some edge structure in the image aligns with the watermark template edges. This is extremely difficult for pure noise to achieve.
-- **Multiplier 0.30**: (v2.0 Updated) This ensures that even a strong NCC of 0.94 is suppressed to 0.28, below the 0.35 fallback threshold. It strikes a better balance for low-contrast but obvious watermarks.
-- **Why not geometric mean**: The geometric mean (`Math.sqrt(NCC × gradientConf)`) penalizes real watermarks on high-frequency backgrounds (e.g., grid patterns) where gradient correlation is inherently low due to background edges dominating. The filter approach only penalizes when gradient-conf is near-zero, preserving Math.max behavior for all other cases.
+- **gradientConf < 0.05**: This threshold is set very low (near-zero correlation). Any gradientConf ≥ 0.05 indicates that at least some edge structure in the image aligns with the watermark template edges.
+- **gradientPenalty (default 0.30)**: Dynamically configurable (UI slider 0.10-0.90, programmatic `gradientPenalty` option). At default 0.30, a strong NCC of 0.94 is suppressed to 0.28, below the fallback threshold. Lower values (0.10) provide stricter filtering; higher values (0.50+) are more permissive for low-contrast watermarks.
 
 ---
 
@@ -504,7 +503,7 @@ npm run test:python   # Python bridge
 ### 8.1 Catalog Matching (`registry.js`)
 
 ```
-MAX_SCALE_MISMATCH = 0.02   // 2% exact catalog tolerance
+MAX_SCALE_MISMATCH = 0.05   // 5% exact catalog tolerance
 ```
 
 ### 8.2 Scaled Catalog (`catalog.js`)
@@ -519,7 +518,8 @@ maxScaleDistance = 0.30              // 30% max resize factor
 
 ```
 gradientFilterThreshold = 0.05       // Below this → no edge match
-gradientFilterPenalty = 0.25         // Confidence multiplier when filtered
+gradientPenalty = 0.30 (default)     // Dynamic parameter: confidence multiplier when filtered
+// Controlled by UI slider (0.10-0.90) or programmatic gradientPenalty option
 ```
 
 ### 8.4 Pipeline (`detectionPipeline.js`)
@@ -672,5 +672,5 @@ The Web UI's initialization log uses this to report the actual execution mode.
 
 ---
 
-*Document version: 2.1.3 — 2026-05-12*
-*Corresponds to: v2.1.0, 369/369 tests, lint/build/Python bridge clean*
+*Document version: 2.2.0 — 2026-05-16*
+*Corresponds to: v2.2.0, 452/452 tests, lint/build/Python bridge clean*

@@ -9,6 +9,7 @@
 
 import { calculateCorrelation, calculateGradientCorrelation } from './detector.js';
 import { removeWatermark } from './blendModes.js';
+import { regionStdDev } from './utils.js';
 
 const DEFAULT_THRESHOLD = 0.35;
 const EPSILON = 1e-8;
@@ -46,25 +47,6 @@ function sobelMagnitude(gray, width, height) {
         }
     }
     return grad;
-}
-
-function regionStdDev(data, width, x, y, size) {
-    let sum = 0, sq = 0, n = 0;
-    for (let row = 0; row < size; row++) {
-        const base = ((y + row) * width + x) << 2;
-        for (let col = 0; col < size; col++) {
-            const idx = base + (col << 2);
-            if (idx < 0 || idx + 2 >= data.length) continue;
-            const lum = data[idx] * 0.2126 + data[idx + 1] * 0.7152 + data[idx + 2] * 0.0722;
-            sum += lum;
-            sq += lum * lum;
-            n++;
-        }
-    }
-    if (n === 0) return 0;
-    const mean = sum / n;
-    const variance = Math.max(0, sq / n - mean * mean);
-    return Math.sqrt(variance);
 }
 
 // ============================================================

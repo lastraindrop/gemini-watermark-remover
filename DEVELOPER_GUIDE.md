@@ -16,15 +16,22 @@
 - `src/core/decisionPolicy.js`：分层决策策略（direct-match / needs-validation / insufficient）
 - `src/core/watermarkEngine.js`：主引擎，协调检测→移除→校准管线
 - `src/core/blendModes.js`：反向 alpha 混合恢复（支持 alphaGain 参数）
+- `src/core/utils.js`：共享工具函数（cloneImageData, calculateNearBlackRatio, regionStdDev）
 - `src/core/worker.js`：Web Worker 入口，批量处理像素恢复
 - `src/core/templates/registry.js`：Profile 与 Catalog 注册中心
 
 ### 应用层
 
-- `src/app.js`：事件、状态、拖拽、文件导入
+- `src/app.js`：薄入口，协调子模块
+- `src/app/state.js`：全局状态管理、ObjectURL 生命周期
 - `src/app/processing.js`：批处理、并发、下载、ZIP 输出
-- `src/app/ui.js`：界面交互辅助
-- `public/index.html`、`public/index.css`：前端骨架与样式
+- `src/app/ui.js`：界面交互辅助（toast、审计日志、进度条）
+- `src/app/dragDrop.js`：窗口级拖拽、文件验证、URL 获取、文件夹递归
+- `src/app/keyboard.js`：快捷键绑定 (1/2/3/Esc/Ctrl+S)
+- `src/app/settings.js`：参数持久化、语言选择、引擎选项构建
+- `src/app/viewModes.js`：View 切换、对比滑块、Stats UI、Profile 主题
+- `src/app/magnifier.js`：3x 放大镜（Slider 视图专用）
+- `public/index.html`、`public/index.css`：前端骨架与样式（CSS 由 Tailwind 静态构建生成）
 
 ### SDK 层
 

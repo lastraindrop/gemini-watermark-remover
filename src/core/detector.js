@@ -14,6 +14,7 @@
 
 import { getCatalogConfig, getAllCatalogConfigs } from './catalog.js';
 import { registry } from './templates/registry.js';
+import { regionStdDev } from './utils.js';
 
 const SEARCH_CONFIG = {
     RANGE_X: 0.45,
@@ -468,33 +469,33 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
          return { confidence, x: pos.x, y: pos.y };
      }
 
-let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
-      const localContrastConf = calculateLocalContrastCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
-      confidence = Math.max(confidence, localContrastConf);
-      
-      // If deepScan enabled, also compute gradient correlation and use hybrid score
-      if (deepScan) {
-          const logoW = pos.width;
-          const logoH = pos.height;
-          const gradientsI = new Float32Array(logoW * logoH);
-          const gradientsA = new Float32Array(logoW * logoH);
-          const gradientConf = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
-          
-          if (gradientConf < 0.05) confidence = confidence * gradientPenalty;
-          else confidence = Math.max(confidence, gradientConf);
-      }
-      
-      // Sliding window fine-tuning
-      if (confidence < 0.50) {
+    let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
+    const localContrastConf = calculateLocalContrastCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
+    confidence = Math.max(confidence, localContrastConf);
+
+    // If deepScan enabled, also compute gradient correlation and use hybrid score
+    if (deepScan) {
+        const logoW = pos.width;
+        const logoH = pos.height;
+        const gradientsI = new Float32Array(logoW * logoH);
+        const gradientsA = new Float32Array(logoW * logoH);
+        const gradientConf = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
+
+        if (gradientConf < 0.05) confidence = confidence * gradientPenalty;
+        else confidence = Math.max(confidence, gradientConf);
+    }
+
+    // Sliding window fine-tuning
+    if (confidence < 0.50) {
         let bestConf = confidence;
         let bestX = pos.x;
         let bestY = pos.y;
         const jitter = 6;
-        
+
         for(let dy=-jitter; dy<=jitter; dy++) {
             for(let dx=-jitter; dx<=jitter; dx++) {
                 if(dx === 0 && dy === 0) continue;
-                
+
                 let conf;
                 if (deepScan) {
                     const gradientsI = new Float32Array(pos.width * pos.height);
@@ -524,30 +525,6 @@ let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.he
     return { confidence, x: pos.x, y: pos.y };
 }
 
-
-/**
- * Compute luminance standard deviation for a square region of image data.
- * Used internally by calculateVarianceScore to compare watermark region
- * against a neighboring reference region.
- */
-function regionStdDev(data, imgWidth, x, y, size) {
-    let sum = 0, sq = 0, n = 0;
-    for (let row = 0; row < size; row++) {
-        const base = ((y + row) * imgWidth + x) << 2;
-        for (let col = 0; col < size; col++) {
-            const idx = base + (col << 2);
-            if (idx < 0 || idx + 2 >= data.length) continue;
-            const lum = data[idx] * 0.2126 + data[idx + 1] * 0.7152 + data[idx + 2] * 0.0722;
-            sum += lum;
-            sq += lum * lum;
-            n++;
-        }
-    }
-    if (n === 0) return 0;
-    const mean = sum / n;
-    const variance = Math.max(0, sq / n - mean * mean);
-    return Math.sqrt(variance);
-}
 
 /**
  * Calculate variance-based watermark likelihood score.

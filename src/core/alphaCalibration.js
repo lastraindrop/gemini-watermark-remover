@@ -10,6 +10,7 @@
 
 import { removeWatermark } from './blendModes.js';
 import { calculateCorrelation } from './detector.js';
+import { cloneImageData, calculateNearBlackRatio } from './utils.js';
 
 const ALPHA_GAIN_CANDIDATES = [1.05, 1.12, 1.2, 1.28, 1.36, 1.45, 1.52, 1.6, 1.7, 1.85, 2.0, 2.2, 2.4, 2.6];
 const MAX_NEAR_BLACK_RATIO_INCREASE = 0.05;
@@ -17,40 +18,6 @@ const MAX_NEAR_BLACK_RATIO_INCREASE = 0.05;
 const RESIDUAL_RECALIBRATION_THRESHOLD = 0.5;
 const MIN_SUPPRESSION_FOR_SKIP_RECALIBRATION = 0.18;
 const MIN_RECALIBRATION_SCORE_DELTA = 0.10;
-
-// ============================================================
-// Utility functions
-// ============================================================
-
-function cloneImageData(imageData) {
-    return {
-        width: imageData.width,
-        height: imageData.height,
-        data: new Uint8ClampedArray(imageData.data)
-    };
-}
-
-function calculateNearBlackRatio(imageData, position) {
-    const { data, width: imgWidth, height: imgHeight } = imageData;
-    const { x, y, width: w, height: h } = position;
-    let nearBlack = 0;
-    let total = 0;
-
-    for (let row = 0; row < h; row++) {
-        const cy = Math.floor(y + row);
-        if (cy < 0 || cy >= imgHeight) continue;
-        for (let col = 0; col < w; col++) {
-            const cx = Math.floor(x + col);
-            if (cx < 0 || cx >= imgWidth) continue;
-            const idx = ((cy * imgWidth) + cx) << 2;
-            const lum = data[idx] * 0.2126 + data[idx + 1] * 0.7152 + data[idx + 2] * 0.0722;
-            total++;
-            if (lum < 15) nearBlack++;
-        }
-    }
-
-    return total > 0 ? nearBlack / total : 0;
-}
 
 // ============================================================
 // Decision function
@@ -91,7 +58,8 @@ export function recalibrateAlphaStrength(params) {
         processedSpatialScore
     } = params;
 
-    const size = position.width;
+    const sizeW = position.width;
+    const sizeH = position.height;
     const originalNearBlackRatio = calculateNearBlackRatio(sourceImageData, position);
     const maxAllowedNearBlackRatio = Math.min(1, originalNearBlackRatio + MAX_NEAR_BLACK_RATIO_INCREASE);
 
@@ -108,7 +76,7 @@ export function recalibrateAlphaStrength(params) {
             continue;
         }
 
-        const score = Math.abs(calculateCorrelation(candidate, position.x, position.y, size, size, alphaMap, true));
+        const score = Math.abs(calculateCorrelation(candidate, position.x, position.y, sizeW, sizeH, alphaMap, true));
         if (score < bestScore) {
             bestScore = score;
             bestGain = alphaGain;
@@ -132,7 +100,7 @@ export function recalibrateAlphaStrength(params) {
             continue;
         }
 
-        const score = Math.abs(calculateCorrelation(candidate, position.x, position.y, size, size, alphaMap, true));
+        const score = Math.abs(calculateCorrelation(candidate, position.x, position.y, sizeW, sizeH, alphaMap, true));
         if (score < bestScore) {
             bestScore = score;
             bestGain = alphaGain;

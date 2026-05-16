@@ -71,12 +71,28 @@ const copyAssetsPlugin = {
         cpSync('src/i18n', 'dist/i18n', { recursive: true });
         cpSync('src/assets', 'dist/assets', { recursive: true });
         cpSync('public', 'dist', { recursive: true });
+        // Build static Tailwind CSS
+        buildTailwindCSS();
       } catch (err) {
         console.error('❌ Asset copy failed:', err);
       }
     });
   },
 };
+
+function buildTailwindCSS() {
+  try {
+    console.log('🎨 Building static Tailwind CSS...');
+    execSync('npx tailwindcss -i src/tailwind.css -o dist/index.css --minify', {
+      stdio: 'pipe',
+      cwd: process.cwd()
+    });
+    console.log('✅ Static CSS built');
+  } catch (err) {
+    console.error('⚠️ Tailwind CSS build failed (falling back to CDN):', err.message);
+    // Keep the CDN approach as fallback - don't delete the CDN script
+  }
+}
 
 const commonConfig = {
   bundle: true,

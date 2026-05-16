@@ -10,45 +10,12 @@
  */
 
 import { removeWatermark } from './blendModes.js';
-import { calculateCorrelation } from './detector.js';
+import { calculateCorrelation, calculateGradientCorrelation } from './detector.js';
+import { cloneImageData, calculateNearBlackRatio } from './utils.js';
 
 const DEFAULT_MAX_PASSES = 4;
 const DEFAULT_RESIDUAL_THRESHOLD = 0.25;
 const MAX_NEAR_BLACK_RATIO_INCREASE = 0.05;
-
-// ============================================================
-// Utility functions
-// ============================================================
-
-function cloneImageData(imageData) {
-    return {
-        width: imageData.width,
-        height: imageData.height,
-        data: new Uint8ClampedArray(imageData.data)
-    };
-}
-
-function calculateNearBlackRatio(imageData, position) {
-    const { data, width: imgWidth, height: imgHeight } = imageData;
-    const { x, y, width: w, height: h } = position;
-    let nearBlack = 0;
-    let total = 0;
-
-    for (let row = 0; row < h; row++) {
-        const cy = Math.floor(y + row);
-        if (cy < 0 || cy >= imgHeight) continue;
-        for (let col = 0; col < w; col++) {
-            const cx = Math.floor(x + col);
-            if (cx < 0 || cx >= imgWidth) continue;
-            const idx = ((cy * imgWidth) + cx) << 2;
-            const lum = data[idx] * 0.2126 + data[idx + 1] * 0.7152 + data[idx + 2] * 0.0722;
-            total++;
-            if (lum < 15) nearBlack++;
-        }
-    }
-
-    return total > 0 ? nearBlack / total : 0;
-}
 
 function scoreRegion(imageData, alphaMap, position) {
     const { x, y, width, height } = position;
@@ -132,16 +99,22 @@ export function removeRepeatedWatermarkLayers(imageDataOrOptions, alphaMapArg, p
     let appliedPassCount = startingPassIndex;
     let attemptedPassCount = startingPassIndex;
 
+    const bufferSize = position.width * position.height;
+    const gradientsI = new Float32Array(bufferSize);
+    const gradientsA = new Float32Array(bufferSize);
+
     for (let passIndex = 0; passIndex < maxPasses; passIndex++) {
         attemptedPassCount = startingPassIndex + passIndex + 1;
         const before = scoreRegion(currentImageData, alphaMap, position);
+        const beforeGradient = calculateGradientCorrelation(currentImageData, position.x, position.y, position.width, position.height, alphaMap, gradientsI, gradientsA);
         const candidate = cloneImageData(currentImageData);
         removeWatermark(candidate, alphaMap, position, { alphaGain });
 
         const after = scoreRegion(candidate, alphaMap, position);
+        const afterGradient = calculateGradientCorrelation(candidate, position.x, position.y, position.width, position.height, alphaMap, gradientsI, gradientsA);
         const nearBlackRatio = calculateNearBlackRatio(candidate, position);
         const improvement = Math.abs(before.spatialScore) - Math.abs(after.spatialScore);
-        const gradientDelta = 0;
+        const gradientDelta = afterGradient - beforeGradient;
 
         const textureAssessment = assessReferenceTextureAlignment({
             referenceImageData,

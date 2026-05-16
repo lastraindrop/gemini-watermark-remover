@@ -9,9 +9,11 @@ const zhPath = resolve(process.cwd(), 'src/i18n/zh-CN.json');
 
 const html = readFileSync(htmlPath, 'utf8');
 const appSource = readFileSync(resolve(process.cwd(), 'src/app.js'), 'utf8');
+const dragDropSource = readFileSync(resolve(process.cwd(), 'src/app/dragDrop.js'), 'utf8');
 const processingSource = readFileSync(resolve(process.cwd(), 'src/app/processing.js'), 'utf8');
 const userscriptSource = readFileSync(resolve(process.cwd(), 'src/userscript/index.js'), 'utf8');
-const cssSource = readFileSync(resolve(process.cwd(), 'public/index.css'), 'utf8');
+const cssSource = readFileSync(resolve(process.cwd(), 'src/tailwind.css'), 'utf8')
+    + readFileSync(resolve(process.cwd(), 'public/index.css'), 'utf8');
 const i18nSource = readFileSync(resolve(process.cwd(), 'src/i18n.js'), 'utf8');
 const enUS = JSON.parse(readFileSync(enPath, 'utf8'));
 const zhCN = JSON.parse(readFileSync(zhPath, 'utf8'));
@@ -93,14 +95,15 @@ describe('Frontend Contract Verification', () => {
     });
 
     test('window-level drag and drop is wired for files and folders', () => {
-        assert.ok(appSource.includes("window.addEventListener('drop'"), 'Window drop handler should allow dropping files anywhere');
-        assert.ok(appSource.includes('handleDataTransferItems'), 'Directory drag entries should be traversed');
-        assert.ok(appSource.includes('readAllEntries'), 'Directory traversal should read all Chrome entry batches');
+        const dropSource = dragDropSource + appSource;
+        assert.ok(dropSource.includes("window.addEventListener('drop'"), 'Window drop handler should allow dropping files anywhere');
+        assert.ok(dragDropSource.includes('handleDataTransferItems'), 'Directory drag entries should be traversed');
+        assert.ok(dragDropSource.includes('readAllEntries'), 'Directory traversal should read all Chrome entry batches');
     });
 
     test('dragged image files can pass validation even when browser omits MIME type', () => {
-        assert.ok(appSource.includes('isSupportedImageFile'), 'File validation should have a shared helper');
-        assert.ok(appSource.includes('/\\.(jpe?g|png|webp)$/i'), 'File validation should fall back to image extensions');
+        assert.ok(dragDropSource.includes('isSupportedImageFile'), 'File validation should have a shared helper');
+        assert.ok(dragDropSource.includes('/\\.(jpe?g|png|webp)$/i'), 'File validation should fall back to image extensions');
     });
 
     test('batch download uses a ZIP bundle instead of many browser downloads', () => {
