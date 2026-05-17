@@ -6,10 +6,15 @@
   <title>Gemini & Doubao Watermark Studio</title>
   <meta name="description" content="Browser-side visible watermark detection, analysis, and removal for Gemini and Doubao images.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3l-1.9 5.8-5.8 1.9 5.8 1.9 1.9 5.8 1.9-5.8 5.8-1.9-5.8-1.9z'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="index.css">
+  <script>
+    (function () {
+      var path = location.pathname.replace(/\\/g, '/');
+      var isPublicEntry = path.indexOf('/public/') !== -1 || /\/public\/index\.html$/.test(path);
+      var base = isPublicEntry ? '../dist/' : './';
+      window.GWR_ASSET_BASE = base;
+      document.write('<link rel="stylesheet" href="' + base + 'index.css">');
+    })();
+  </script>
 </head>
 <body class="antialiased selection:bg-emerald-500 selection:text-white">
   <!-- Mesh Background blobs -->
@@ -357,6 +362,19 @@
       </div>
   </div>
 
-  <script src="app.js"></script>
+  <script>
+    (function () {
+      var base = window.GWR_ASSET_BASE || './';
+      var script = document.createElement('script');
+      script.src = base + 'app.js';
+      script.onerror = function () {
+        var overlay = document.getElementById('loadingOverlay');
+        if (overlay) overlay.classList.add('hidden');
+        var upload = document.getElementById('uploadArea');
+        if (upload) upload.insertAdjacentHTML('beforebegin', '<div style="margin:16px auto;padding:12px 16px;max-width:720px;border:1px solid #ef4444;border-radius:12px;color:#991b1b;background:#fef2f2;font:14px system-ui">App bundle failed to load. Run <code>pnpm build</code> and open <code>dist/index.html</code>, or serve the project root so <code>../dist/app.js</code> is reachable.</div>');
+      };
+      document.body.appendChild(script);
+    })();
+  </script>
 </body>
 </html>

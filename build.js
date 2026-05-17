@@ -1,8 +1,7 @@
 import * as esbuild from 'esbuild';
-import { cpSync, rmSync, existsSync, mkdirSync, watch, readFileSync, readdirSync } from 'node:fs';
+import { cpSync, rmSync, existsSync, mkdirSync, watch } from 'node:fs';
 import { createRequire } from 'node:module';
 import { execSync } from 'child_process';
-import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const pkg = require('./package.json');
@@ -19,29 +18,13 @@ const getCommitHash = () => {
   return _commitHash;
 };
 
-// v1.9.8: Inlining Optimization - Read assets to be inlined
-const getInlinedAssets = () => {
-  const assetsDir = 'src/assets';
-  const inlined = {};
-  if (existsSync(assetsDir)) {
-    const files = readdirSync(assetsDir).filter(f => f.endsWith('.png'));
-    files.forEach(f => {
-      const name = f.replace('.png', '');
-      const content = readFileSync(path.join(assetsDir, f));
-      inlined[name] = `data:image/png;base64,${content.toString('base64')}`;
-    });
-  }
-  return JSON.stringify(inlined);
-};
-
 const jsBanner = `/*!
  * ${pkg.name} v${pkg.version}+${getCommitHash()}
  * ${pkg.description}
  * (c) ${new Date().getFullYear()} ${pkg.author}
  * ${pkg.repository.url?.replace(/\.git$/, '')}
  * Released under the ${pkg.license} License.
- */
- window.GWR_INLINED_ASSETS = ${getInlinedAssets()};`;
+ */`;
 
 const userscriptBanner = `// ==UserScript==
 // @name         Gemini NanoBanana Watermark Remover
@@ -89,8 +72,15 @@ function buildTailwindCSS() {
     });
     console.log('✅ Static CSS built');
   } catch (err) {
-    console.error('⚠️ Tailwind CSS build failed (falling back to CDN):', err.message);
-    // Keep the CDN approach as fallback - don't delete the CDN script
+    console.error('⚠️ Tailwind CSS build failed:', err.stderr?.toString().trim() || err.message);
+    if (!existsSync('dist/index.css')) {
+      console.log('📋 Copying source tailwind.css as fallback...');
+      try {
+        cpSync('src/tailwind.css', 'dist/index.css');
+      } catch (e2) {
+        console.error('❌ Fallback CSS copy also failed:', e2.message);
+      }
+    }
   }
 }
 

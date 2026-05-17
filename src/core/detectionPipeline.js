@@ -140,10 +140,25 @@ function isNearExpectedAnchor(imageData, detection, profileId, options = {}) {
 }
 
 async function ensureFallbackAlphaMaps(profileId, getAlphaMap, alphaMaps) {
-    if (profileId !== 'gemini') return;
-    for (const size of [48, 96]) {
-        const map = await tryGetAlphaMap(getAlphaMap, String(size), size, size);
+    const profile = getProfile(profileId);
+    if (profile.assets) {
+        for (const assetKey of Object.values(profile.assets)) {
+            const existingKey = Object.keys(alphaMaps).find(k => k === assetKey);
+            if (!existingKey) {
+                const map = await tryGetAlphaMap(getAlphaMap, assetKey, undefined, undefined);
+                if (map) addAlphaMap(alphaMaps, map);
+            }
+        }
+    }
+    if (profile.defaultAsset) {
+        const map = await tryGetAlphaMap(getAlphaMap, String(profile.defaultAsset), undefined, undefined);
         addAlphaMap(alphaMaps, map);
+    }
+    if (profileId === 'gemini') {
+        for (const size of [48, 96]) {
+            const map = await tryGetAlphaMap(getAlphaMap, String(size), size, size);
+            addAlphaMap(alphaMaps, map);
+        }
     }
 }
 

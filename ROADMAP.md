@@ -3,8 +3,8 @@
 ## 当前状态
 
 - **版本**: v2.2.0
-- **验证基线**: `pnpm test` 452/452 通过, `pnpm lint` 0 errors 0 warnings, `pnpm build` clean (静态 Tailwind CSS), Python bridge pass
-- **当前重点**: 代码去重与一致性、前端性能优化、文档同步
+- **验证基线**: `pnpm test` 465/465 通过, `pnpm lint` 0 errors, `pnpm build` clean (静态 Tailwind CSS, 零外部CDN), Python bridge pass
+- **当前重点**: 代码去重与一致性、前端性能优化、文档同步 ✅ 已完成
 - **架构**: 六层检测管线 (Catalog → Scaled → Heuristic → Adaptive → Global → Decision) + 共享工具层
 
 ## 已完成事项 (v2.2.0 发布版)
@@ -33,12 +33,16 @@
 - `app.js` 拆分 (730行 → 286行入口 + 6 个子模块)
 - CLI Engine 添加多遍移除 + Alpha 校准路径
 - advanced panel `overrides` 正确传递到检测管线
-- 前端: Tailwind CDN → 静态 CSS 构建 (32KB, 无 CDN 依赖)
-- 前端: 全局拖拽遮罩 + 错误处理 + mesh-blob GPU 优化
-- 前端: thresholdSlider 默认值统一 0.18, loadingOverlay flex 修复, statsView 列数修复
+- 前端: Tailwind CDN → 静态 CSS 构建 (32KB, 零外部 CDN, 零 Google Fonts 依赖) ✅ 已完成
+- 前端: 系统字体栈 (PingFang SC, Microsoft YaHei, Segoe UI) 替代 Google Fonts
+- 前端: 全局拖拽遮罩 + 错误处理 + mesh-blob GPU 优化 ✅ 已完成
+- 前端: thresholdSlider 默认值统一 0.18, loadingOverlay flex 修复, statsView 列数修复 ✅ 已完成
+- 前端: 容错资源加载 (自动回退 dist/ 路径, Worker URL 回退, loadingOverlay 超时兜底) ✅ 已完成
+- 前端: Service Worker 升级 v2.2.1 (network-first 策略, 旧缓存自动注销) ✅ 已完成
+- 根目录 index.html 自动跳转至 dist/index.html ✅ 已完成
 
 ### 测试体系
-- 新增 83 个测试 (原文369 → 452)
+- 新增 96 个测试 (原文369 → 465)
 - 新增健壮性边界测试 (26 用例), 多遍次回归测试 (5 用例)
 
 ### BUG 修复 (v2.2 维护版本)
@@ -93,7 +97,7 @@
 
 ```bash
 pnpm lint                  # 0 errors, 0 warnings
-pnpm test                  # 452/452 passing
+pnpm test                  # 465/465 passing
 pnpm build                 # clean (static Tailwind CSS)
 pnpm test:legacy           # maintained legacy smoke regressions
 pnpm test:python           # Python bridge

@@ -1,6 +1,6 @@
 [中文说明](README_zh.md)
 
-# Gemini & Doubao Lossless Watermark Remover (v2.2.0)
+# Gemini & Doubao Lossless Watermark Remover (v2.2.1)
 
 A production-grade, independent fork for detecting, analyzing, and removing visible AI watermarks from Gemini and Doubao images. Features six-stage detection pipeline with 3D scoring, adaptive multi-scale search, multi-pass removal with safety gates, alpha gain calibration, and a decision policy tier system.
 
@@ -25,7 +25,7 @@ A production-grade, independent fork for detecting, analyzing, and removing visi
 ## Verification baseline
 
 ```bash
-pnpm test        # 452/452 passing
+pnpm test        # 465/465 passing
 pnpm lint        # clean
 pnpm build       # clean (static Tailwind CSS, no CDN dependency)
 pnpm test:legacy

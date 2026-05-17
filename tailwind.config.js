@@ -4,11 +4,6 @@ export default {
   darkMode: 'media',
   theme: {
     extend: {
-      colors: {
-        emerald: { 500: '#10B981', 600: '#059669' },
-        indigo: { 500: '#4F46E5', 600: '#4338CA' },
-        slate: { 950: '#020617' }
-      },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'fade-up': 'fadeUp 0.6s ease-out forwards',

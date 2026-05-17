@@ -1,6 +1,6 @@
-# GWR Developer Guide (v2.2.0)
+# GWR Developer Guide (v2.2.1)
 
-本指南说明当前分支的工程结构、参数一致化规则、检测管线（六层）、测试策略，以及新增模板或修改检测策略时必须遵守的流程。
+本指南说明当前分支的工程结构、参数一致化规则、检测管线（六层）、前端构建架构、测试策略，以及新增模板或修改检测策略时必须遵守的流程。
 
 ## 1. 当前架构
 
@@ -31,7 +31,7 @@
 - `src/app/settings.js`：参数持久化、语言选择、引擎选项构建
 - `src/app/viewModes.js`：View 切换、对比滑块、Stats UI、Profile 主题
 - `src/app/magnifier.js`：3x 放大镜（Slider 视图专用）
-- `public/index.html`、`public/index.css`：前端骨架与样式（CSS 由 Tailwind 静态构建生成）
+- `public/index.html`、`src/tailwind.css`：前端骨架与样式（Tailwind 静态构建，无外部CDN；使用系统字体栈；`public/index.html` 容错加载 `../dist/` 资源以兼容多部署场景）
 
 ### SDK 层
 

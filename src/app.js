@@ -53,7 +53,17 @@ const elements = {
 };
 
 async function init() {
+    const loadingTimeout = setTimeout(() => {
+        hideLoading();
+    }, 8000);
+
     try {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations()
+                .then(registrations => registrations.forEach(registration => registration.unregister()))
+                .catch(() => {});
+        }
+
         AuditLog.log('Neural engine initializing...', 'process');
 
         if (elements.profileSelect) {
@@ -87,9 +97,11 @@ async function init() {
         AuditLog.log(`Core ready (Execution: ${state.engine.getExecutionMode()})`, 'success');
 
         hideLoading();
+        clearTimeout(loadingTimeout);
         setupEventListeners();
         loadSettings(elements);
     } catch (error) {
+        clearTimeout(loadingTimeout);
         AuditLog.log(`Critical Fault: ${error.message}`, 'err');
         showLoadingFail(error.message);
     }

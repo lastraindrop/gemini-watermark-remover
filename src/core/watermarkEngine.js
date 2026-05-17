@@ -38,7 +38,15 @@ export class WatermarkEngine {
         if (typeof window === 'undefined' || !window.Worker || window.GM_info || this._workerFailed) return null;
         if (!this._worker) {
             try {
-                const workerUrl = new URL('worker.js', import.meta.url);
+                let workerUrl;
+                try {
+                    workerUrl = new URL('worker.js', import.meta.url);
+                } catch {
+                    const scripts = document.getElementsByTagName('script');
+                    const appScript = scripts.length > 0 ? scripts[scripts.length - 1].src : '';
+                    const base = appScript || (typeof window !== 'undefined' ? window.location.href : '');
+                    workerUrl = new URL('worker.js', base);
+                }
                 this._worker = new Worker(workerUrl);
                 this._worker.onmessage = (e) => {
                     const { taskId, imageData, error } = e.data;
@@ -139,7 +147,8 @@ export class WatermarkEngine {
         if (typeof window !== 'undefined' && window.GWR_INLINED_ASSETS && window.GWR_INLINED_ASSETS[assetName]) {
             src = window.GWR_INLINED_ASSETS[assetName];
         } else {
-            src = `assets/${assetName}.png`;
+            const assetBase = typeof window !== 'undefined' && window.GWR_ASSET_BASE ? window.GWR_ASSET_BASE : './';
+            src = `${assetBase}assets/${assetName}.png`;
         }
 
         const img = await new Promise((resolve, reject) => {

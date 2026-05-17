@@ -1,6 +1,6 @@
 # Gemini Watermark Remover — 详细改进实施计划
 
-> 基于 ANALYSIS_AND_PLAN.md 分析报告 | 目标版本: v2.3.0 | 制定日期: 2026-05-16
+> 基于 ANALYSIS_AND_PLAN.md 分析报告 | 目标版本: v2.2.1 | 制定日期: 2026-05-16 | 完成日期: 2026-05-17
 
 ---
 

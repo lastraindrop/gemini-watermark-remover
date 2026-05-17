@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gwr-v2.2.0-cache';
+const CACHE_NAME = 'gwr-v2.2.1-cache';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -32,8 +32,6 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
+    fetch(event.request).catch(() => caches.match(event.request))
   );
 });

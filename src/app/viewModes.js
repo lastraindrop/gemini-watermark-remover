@@ -1,5 +1,3 @@
-import i18n from '../i18n.js';
-
 export function switchViewMode(mode, elements) {
     const btns = [elements.modeSliderBtn, elements.modeSideBtn, elements.modeStatsBtn];
     const views = [elements.comparisonSlider, elements.sideBySideView, elements.statsView];
@@ -19,11 +17,11 @@ export function switchViewMode(mode, elements) {
     }
 }
 
-export function updateStatsUI(config, pos, confidence, profileId, elements) {
-    const statAnchor = elements.statAnchor || document.getElementById('statAnchor');
-    const statCoord = elements.statCoord || document.getElementById('statCoord');
-    const statConfidence = elements.statConfidence || document.getElementById('statConfidence');
-    const statAlgo = elements.statAlgo || document.getElementById('statAlgo');
+export function updateStatsUI(config, pos, confidence, profileId) {
+    const statAnchor = document.getElementById('statAnchor');
+    const statCoord = document.getElementById('statCoord');
+    const statConfidence = document.getElementById('statConfidence');
+    const statAlgo = document.getElementById('statAlgo');
     if (statAnchor) statAnchor.textContent = (config.anchor || 'BOTTOM-RIGHT').toUpperCase();
     if (statCoord) statCoord.textContent = pos ? `${Math.round(pos.x)}, ${Math.round(pos.y)}` : 'AUTO';
     if (statConfidence) statConfidence.textContent = `${confidence}%`;

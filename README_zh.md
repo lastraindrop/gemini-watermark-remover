@@ -1,8 +1,8 @@
 [English](README.md)
 
-# Gemini & Doubao 无损去水印工具 (v2.2.0)
+# Gemini & Doubao 无损去水印工具 (v2.2.1)
 
-用于检测、分析并去除 Gemini、Doubao 图片中可见 AI 水印的独立 fork 生产级客户端工具。v2.2.0 包含六阶段检测管线、三维评分、自适应多尺度搜索、多遍安全移除、Alpha 增益校准与决策分阶系统。
+用于检测、分析并去除 Gemini、Doubao 图片中可见 AI 水印的独立 fork 生产级客户端工具。v2.2.1 包含六阶段检测管线、三维评分、自适应多尺度搜索、多遍安全移除、Alpha 增益校准与决策分阶系统。前端已实现零外部CDN/零Google Fonts依赖的完全本地化部署。
 
 ## 当前版本覆盖
 
@@ -21,12 +21,12 @@
 - 前端拖拽上传（含全局遮罩反馈）与批量 ZIP 下载
 - 7 语言界面与契约测试
 - 独立 SDK/API 入口：`@lastraindrop/gemini-watermark-remover`
-- 452 个回归测试
+- 465 个回归测试
 
 ## 验证基线
 
 ```bash
-pnpm test        # 452/452 通过
+pnpm test        # 465/465 通过
 pnpm lint        # clean
 pnpm build       # clean (静态 Tailwind CSS，无 CDN 依赖)
 pnpm test:legacy

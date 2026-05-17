@@ -1,4 +1,4 @@
-# Technical Guide — Gemini Watermark Remover v2.2.0
+# Technical Guide — Gemini Watermark Remover v2.2.1
 
 ## 1. Overview
 
@@ -672,5 +672,42 @@ The Web UI's initialization log uses this to report the actual execution mode.
 
 ---
 
-*Document version: 2.2.0 — 2026-05-16*
-*Corresponds to: v2.2.0, 452/452 tests, lint/build/Python bridge clean*
+## 14. Frontend & Build Architecture (v2.2.1)
+
+### 14.1 Zero External CDN
+
+The web app operates entirely offline with zero external HTTP dependencies:
+
+- **CSS**: Tailwind CSS statically compiled at build time (`dist/index.css`, ~32 KB minified). No `<link>` to any CDN.
+- **Fonts**: System font stack:` -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei'`. No Google Fonts CDN request.
+- **JS**: `app.js` (277 KB) and `worker.js` (9.6 KB) are esbuild-bundled, no external scripts.
+- **Assets**: Watermark template PNGs loaded from `dist/assets/` directory (same-origin), not inlined as base64 to keep the JS bundle small.
+
+### 14.2 Resilient Resource Loading
+
+`public/index.html` serves as a development entry point with automatic path resolution:
+
+- Detects whether opened from `/public/` path and adjusts asset base to `../dist/`
+- Sets `window.GWR_ASSET_BASE` for consistent CSS/JS/worker/asset loading
+- CSS loaded via `document.write('<link>')` at base path
+- JS loaded via dynamically created `<script>` element with `onerror` handling showing user-facing error
+- Worker URL resolved via `import.meta.url` with fallback to `document.currentScript.src` / `location.href`
+
+### 14.3 Service Worker (Network-First)
+
+`dist/sw.js` uses cache version `gwr-v2.2.1` with network-first strategy:
+
+- `fetch(event.request).catch(() => caches.match(event.request))`
+- Old service workers (< v2.2.1) are auto-unregistered by `app.js` on init
+- Pre-caches core assets on install for offline fallback
+
+### 14.4 Loading Overlay Safety
+
+- 8-second timeout: if engine initialization hangs, overlay auto-hides
+- Error surface: critical faults display on the overlay with error message
+- `hidden` class correctly toggled (both `flex` and `hidden` on element)
+
+---
+
+*Document version: 2.2.1 — 2026-05-17*
+*Corresponds to: v2.2.1, 465/465 tests, 0 eslint errors, build clean*
