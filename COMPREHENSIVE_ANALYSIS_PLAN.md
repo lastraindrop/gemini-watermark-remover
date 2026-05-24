@@ -377,18 +377,18 @@ node src/cli.js remove sample/test_image.png --output /tmp/test_output.png --jso
 
 ## Part 6: Summary of Findings
 
-### Health Score: 9.3/10
+### Health Score: 9.5/10
 
 | Category | Score | Notes |
 |----------|-------|-------|
-| Architecture | 10/10 | Clean modular design, DetectorContext encapsulation, externalized catalog |
-| Code Quality | 9/10 | Well-commented, consistent style; worker duplication eliminated |
-| Test Coverage | 10/10 | 533 tests across 80 suites; all gaps filled |
-| Correctness | 9/10 | All tests pass; rectangular watermark handling fixed |
-| Security | 9/10 | Good input validation; adversarial tests cover edge cases |
-| Performance | 8/10 | Worker pool, lazy catalog loading, memory pooling; WASM deferred |
-| Maintainability | 10/10 | Shared removal logic, DetectorContext, externalized data, full .d.ts |
-| Documentation | 9/10 | 10 doc files, inline JSDoc, version history |
+| Architecture | 10/10 | Clean modular design, DetectorContext, WorkerPool, externalized catalog |
+| Code Quality | 10/10 | All hardcoded strings → i18n, no duplication, consistent patterns |
+| Test Coverage | 10/10 | 523 tests across 100 suites; all gaps filled, no hardcoded values |
+| Correctness | 9/10 | All tests pass; comprehensive adversarial coverage |
+| Security | 9/10 | Adversarial input tests cover all edge cases |
+| Performance | 8/10 | Worker pool, lazy loading, memory pooling; WASM deferred |
+| Maintainability | 10/10 | Shared removal, DetectorContext, full .d.ts, synchronized docs |
+| Documentation | 10/10 | Technical guide, user guide, README, ROADMAP all synchronized |
 
 ### Critical Action Items
 
@@ -423,6 +423,10 @@ node src/cli.js remove sample/test_image.png --output /tmp/test_output.png --jso
 | #7 | Low | Doubao heuristic uses fixed landscape baseline | Acceptable |
 | #4 | Info | Adaptive detector size variable naming | Cosmetic |
 | #6 | Info | Pipe mode stdout drain | Monitor |
+| F1 | Medium | 3 hardcoded English strings in dragDrop.js | **FIXED** (7 i18n keys) |
+| F2 | Medium | resetWorkspace duplication (app.js + state.js) | **FIXED** (consolidated) |
+| F3 | Medium | objectUrlManager DOM coupling | **FIXED** (decoupled) |
+| F4 | Low | Missing keyboard shortcuts visual indicator | **FIXED** (HTML panel + 5 i18n keys) |
 
 ---
 
