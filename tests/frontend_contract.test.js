@@ -10,6 +10,7 @@ const zhPath = resolve(process.cwd(), 'src/i18n/zh-CN.json');
 const html = readFileSync(htmlPath, 'utf8');
 const appSource = readFileSync(resolve(process.cwd(), 'src/app.js'), 'utf8');
 const dragDropSource = readFileSync(resolve(process.cwd(), 'src/app/dragDrop.js'), 'utf8');
+const manualSelectionSource = readFileSync(resolve(process.cwd(), 'src/app/manualSelection.js'), 'utf8');
 const processingSource = readFileSync(resolve(process.cwd(), 'src/app/processing.js'), 'utf8');
 const userscriptSource = readFileSync(resolve(process.cwd(), 'src/userscript/index.js'), 'utf8');
 const cssSource = readFileSync(resolve(process.cwd(), 'src/tailwind.css'), 'utf8')
@@ -41,6 +42,11 @@ describe('Frontend Contract Verification', () => {
             'deepScanToggle',
             'noiseReductionToggle',
             'autoDownloadToggle',
+            'manualUseDetectedBtn',
+            'manualClearBtn',
+            'manualReprocessBtn',
+            'manualSelectionLayer',
+            'manualSelectionBox',
             'singlePreview',
             'multiPreview',
             'statConfidence',
@@ -118,6 +124,21 @@ describe('Frontend Contract Verification', () => {
         assert.ok(!processingSource.includes('const CONCURRENCY = 4'), 'Fixed four-way frontend processing causes UI stalls');
     });
 
+    test('single-image manual mode can select and reprocess a region', () => {
+        assert.ok(appSource.includes('setupManualSelection'), 'App should wire manual region selection');
+        assert.ok(appSource.includes('reprocessSingleWithManualArea'), 'App should support single-image manual reprocessing');
+        assert.ok(appSource.includes('useDetectedAreaForManualMode'), 'App should seed manual mode from the latest detected region');
+        assert.ok(appSource.includes('lastDetectedRegion'), 'Detected regions should be retained for manual follow-up');
+        assert.ok(manualSelectionSource.includes('clientToImagePoint'), 'Manual selection should map viewport points to image coordinates');
+        assert.ok(manualSelectionSource.includes('writeManualRegion'), 'Manual selection should populate manual coordinate inputs');
+        assert.ok(manualSelectionSource.includes('clearManualRegion'), 'Manual selection should support clearing stale coordinates');
+        assert.ok(dragDropSource.includes('optionalManual'), 'Initial single-image upload should not require a manual area');
+        assert.ok(dragDropSource.includes('ignoreManual'), 'Batch processing should not inherit single-image manual regions');
+        assert.ok(dragDropSource.includes('setManualSelectionEnabled(elements, false)') || appSource.includes('setManualSelectionEnabled(elements, false)'), 'New uploads should not keep a stale overlay active');
+        assert.ok(processingSource.includes('item.originalImg || await loadImage'), 'Manual reprocess should reuse the loaded source image');
+        assert.ok(processingSource.includes('objectUrlManager.revoke(item.processedUrl)'), 'Manual reprocess should revoke superseded result URLs');
+    });
+
     test('scanner animation only runs while work is active', () => {
         assert.ok(cssSource.includes('.scanner-effect.is-processing::after'), 'Scanner animation should be gated by processing state');
         assert.ok(appSource.includes('is-processing'), 'Batch cards should mark active scanning state');
@@ -128,8 +149,31 @@ describe('Frontend Contract Verification', () => {
         ['Chinese', 'English', 'Japanese', 'Russian', 'French', 'Spanish', 'German'].forEach(label => {
             assert.ok(i18nSource.includes(`label: '${label}'`), `Missing readable language label: ${label}`);
         });
+        ['中', 'EN', '日', 'RU', 'FR', 'ES', 'DE'].forEach(label => {
+            assert.ok(i18nSource.includes(`shortLabel: '${label}'`), `Missing compact language label: ${label}`);
+        });
         assert.ok(cssSource.includes('#langSelect'), 'Language selector should have explicit styling');
+        assert.ok(cssSource.includes('appearance: none'), 'Language selector should not depend on native browser chrome');
+        assert.ok(cssSource.includes('background-color: rgba(15, 23, 42, 0.92)'), 'Language selector needs explicit dark mode contrast');
         assert.ok(cssSource.includes('select option'), 'Native select options need explicit foreground/background colors');
+    });
+
+    test('localized hero title does not rely on nested markup that i18n replaces', () => {
+        const heroTitle = html.match(/<h2[^>]+data-i18n="main\.title"[^>]*>[\s\S]*?<\/h2>/)?.[0] || '';
+        assert.ok(heroTitle, 'Hero title should be present');
+        assert.ok(!/<br\b|<span\b/.test(heroTitle), 'Hero title markup is replaced by i18n.textContent');
+        assert.ok(heroTitle.includes('break-words'), 'Hero title should avoid mobile overflow');
+    });
+
+    test('dark mode background and mobile debug console do not break first screen readability', () => {
+        assert.ok(cssSource.includes('background-color: #020617'), 'Dark mode must set a real dark page background');
+        const auditConsole = html.match(/<div[^>]+id="auditConsole"[^>]+class="([^"]+)"/)?.[1] || '';
+        assert.ok(auditConsole.includes('hidden md:flex'), 'Audit console should not cover mobile upload controls');
+    });
+
+    test('decorative mesh blobs are disabled to avoid constant blur animation cost', () => {
+        assert.ok(cssSource.includes('.mesh-blob'), 'Mesh blob rule should be present');
+        assert.ok(cssSource.includes('display: none'), 'Mesh blobs should not paint or animate on the main page');
     });
 
     test('image encoding failures are handled explicitly', () => {

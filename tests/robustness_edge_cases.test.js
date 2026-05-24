@@ -156,6 +156,13 @@ describe('Robustness: calculateCorrelation edge cases', () => {
         const result = calculateCorrelation(img, 200, 0, 48, 48, alphaMap, true);
         assert.strictEqual(result, 0);
     });
+
+    it('returns a finite value when alpha map is shorter than the requested region', () => {
+        const img = createMockImageData(128, 128, 'gradient');
+        const alphaMap = new Float32Array(10).fill(0.5);
+        const result = calculateCorrelation(img, 0, 0, 48, 48, alphaMap, true);
+        assert.ok(Number.isFinite(result), `expected finite score, got ${result}`);
+    });
 });
 
 describe('Robustness: calculateAlphaMap edge cases', () => {

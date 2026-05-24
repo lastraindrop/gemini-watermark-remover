@@ -2,157 +2,88 @@
 
 ## 1. Overview
 
-This document describes the working principles, algorithm details, parameter rationale, and test strategy of the watermark detection and removal engine. It serves as the definitive reference for understanding how detection decisions are made and how thresholds interact.
+This document describes the working principles, algorithm details, parameter rationale, and architectural design of the watermark detection and removal engine. All parameter values are dynamically aligned with actual source code defaults — no hardcoded documentation values.
 
 ### 1.1 Core Algorithm
 
-The fundamental operation is **mathematical reverse alpha blending** — not AI inpainting or generative fill. The engine:
+The fundamental operation is **mathematical reverse alpha blending** — not AI inpainting or generative fill:
 
-1. **Detects** the watermark position, size, and alpha map by correlating the image against calibrated watermark templates
-2. **Removes** the watermark by algebraically reversing the blend operation pixel by pixel
+1. **Detect** watermark position, size, and alpha map by correlating the image against calibrated templates
+2. **Remove** watermark by algebraically reversing the blend operation pixel by pixel
 
 ### 1.2 Alpha Blending Model
-
-Given a background image `B` and a watermark with color `C` and alpha map `A`:
 
 ```
 Pixel(x,y) = A(x,y) × C + (1 − A(x,y)) × B(x,y)
 ```
 
-For Gemini watermarks: `C = (255, 255, 255)` (white logo).
+For Gemini watermarks: `C = (255, 255, 255)` (white logo). Doubao uses logo-specific color.
 
 ### 1.3 Reverse Operation
 
 ```
-B(x,y) = (Pixel(x,y) − A(x,y) × 255) / (1 − A(x,y))
+B(x,y) = (Pixel(x,y) − A(x,y) × C) / (1 − effectiveAlpha × A(x,y))
+effectiveAlpha = min(alpha × alphaGain, 0.99)
 ```
 
-The alpha map `A` is calibrated from known watermark assets (`bg_96.png`, `bg_48.png` for Gemini; `bg_doubao_br.png`, `bg_doubao_tl.png` for Doubao). These assets contain the watermark pattern at known opacity, which is normalized to `[0, 1]` via `calculateAlphaMap()`.
+The alpha map `A` is calibrated from known watermark assets and normalized to `[0, 1]` via `calculateAlphaMap()`.
 
 ---
 
 ## 2. Detection Pipeline Architecture
 
-### 2.1 Six-Stage Pipeline
+### 2.1 Five-Stage Pipeline (`detectionPipeline.js`)
 
-The detection process in `detectProfileWatermarks()` (`detectionPipeline.js`) operates in six ordered stages:
+The detection process in `detectProfileWatermarks()` operates in five stages with a decision layer:
 
 ```
-Stage 1: Catalog Probe ──┬── hit → add match, probe
+Stage 1: Catalog Probe ──┬── hit → add match
                           └── miss → continue
-
-Stage 2: Scaled Catalog ──┬── hit → add match, probe
+Stage 2: Scaled Catalog ──┬── hit → add match
                           └── miss → continue
-
-Stage 3: Heuristic ───────┬── hit → add match, probe
+Stage 3: Heuristic ───────┬── hit → add match
                           └── miss → continue
-
-Stage 4: Adaptive Search ─┬── hit → add match, probe
+Stage 4: Adaptive Search ─┬── hit → add match
                           └── miss → continue
-
-Stage 5: Global Fallback ─┬── hit → verify anchor → accept/reject
+Stage 5: Global Fallback ─┬── hit → verify → accept/reject
                           └── miss → return null
 
-Stage 6: Decision Policy ─── classify tiers (direct-match / needs-validation / insufficient)
+Decision Policy: classify tiers (direct-match / needs-validation / insufficient)
 ```
 
 ### 2.2 Stage 1: Catalog Exact Match
 
 **File**: `src/core/templates/registry.js` — `findMatches()`
 
-```
-MAX_SCALE_MISMATCH = 0.05 (5%)
-```
-
-For an image of size `(W, H)`, each catalog entry `(w, h)` is checked:
+For image `(W, H)`, each catalog entry `(w, h)` is checked:
 
 ```
-scaleX = W / w
-scaleY = H / h
-match = |scaleX − scaleY| < 0.05  AND  |scaleX − 1| < 0.05
+scaleX = W / w, scaleY = H / h
+match = |scaleX − scaleY| < 0.05 AND |scaleX − 1| < 0.05
 ```
 
-If matched, the config is returned with `isOfficial: true`. The probe then uses the exact catalog position.
+5% tolerance covers screenshots, minor resizes, and encoding artifacts.
 
-**Rationale**: 5% tolerance (v2.2 widened from 1.5% in v2.0) covers common user scenarios: screenshots, minor resizes, and encoding artifacts. For example, 1365×768 → 1376×768 (0.8% diff) matches; 1080×1080 → 1024×1024 (5.5% diff) does NOT match. The adaptive detector (Stage 4) provides a separate path for non-catalog resolutions.
+### 2.3 Stage 2: Scaled Catalog (`catalog.js` — `getScaledCatalogConfigs()`)
 
-**Test coverage**: `tests/catalog.test.js` (68 subtests covering all official dimensions + tolerance boundary).
+| Parameter | Default | Purpose |
+|-----------|---------|---------|
+| `maxRelativeAspectRatioDelta` | 0.05 | Allow aspect ratio drift from cropping |
+| `maxScaleMismatchRatio` | 0.08 | Allow non-uniform X vs Y scaling |
+| `maxScaleDistance` | 0.30 | Maximum resize factor from catalog entry |
+| `minLogoSize` | 24 | Lower bound for scaled logo |
+| `maxLogoSize` | 192 | Upper bound for scaled logo |
+| `limit` | 4 | Maximum returned candidates |
 
-### 2.3 Stage 2: Scaled Catalog
+Rectangular watermarks (Doubao) use `logoWidth`/`logoHeight` separately with `scaleX`/`scaleY`.
 
-**File**: `src/core/catalog.js` — `getScaledCatalogConfigs()`
+### 2.4 Stage 3: Heuristic (`profiles.js` — `getHeuristicConfig()`)
 
-When the exact catalog match fails, the engine searches for catalog entries whose aspect ratio is similar and that can be scaled to the target size:
+Profile-specific heuristic config generation when no catalog match exists.
 
-| Parameter | Value | Purpose |
-|-----------|-------|---------|
-| `maxRelativeAspectRatioDelta` | 0.05 (5%) | Allow slight aspect ratio drift from cropping |
-| `maxScaleMismatchRatio` | 0.08 (8%) | Allow non-uniform scaling (X vs Y scale difference) |
-| `maxScaleDistance` | 0.30 (30%) | Maximum resize factor from catalog size |
-| `minLogoSize` | 24 px | Lower bound for scaled logo |
-| `maxLogoSize` | 192 px | Upper bound for scaled logo |
-| `limit` | 4 | Max returned candidates |
+### 2.5 Stage 4: Adaptive Detection (`adaptiveDetector.js`)
 
-**Example**: Image at 1510×660 → catalog entry 1536×672 (scaleX = 0.983, scaleY = 0.982) → scaled logo ≈ 94px, margins ≈ 62px.
-
-**Test coverage**: `tests/gemini_regression.test.js` (test 3: "lightly scaled official Gemini export").
-
-### 2.4 Stage 3: Heuristic
-
-**File**: `src/core/profiles.js` — `getHeuristicConfig()`
-
-For Gemini, the tier is determined by a combined pixel count + short side formula:
-
-| Condition | Tier | Logo Size | Margins |
-|-----------|------|-----------|---------|
-| `shortSide ≤ 600` OR `(pixels ≤ 820k AND shortSide ≤ 1024)` | 0.5k | 48px | 32px |
-| `pixels ≤ 1,100,000` OR `shortSide ≤ 1400` | 1k | 96px | 64px |
-| `pixels ≤ 4,200,000` | 2k | 96px | 64px |
-| else | 4k | 96px | 64px |
-
-**Examples**:
-- 800×800 (640k px, shortSide=800): pixels ≤ 820k AND shortSide ≤ 1024 → 0.5k ✓
-- 1536×672 (1.03M px, shortSide=672): pixels ≤ 1.1M → 1k ✓
-- 1500×500 (750k px, shortSide=500): shortSide ≤ 600 → 0.5k ✓
-- 3000×3000 (9M px): → 4k ✓
-
-**Important**: The combined formula prevents panoramic images (e.g., 1500×500) from being misclassified as 1k (which would use a 96px template instead of the correct 48px).
-
-**Test coverage**: `tests/watermark_config.test.js` (boundary conditions: 1500×500, 1024×500).
-
-### 2.5 Stage 5: Global Fallback
-
-**File**: `src/core/detectionPipeline.js` — `detectProfileWatermarks()`
-
-If stages 1-3 produce no matches (or only non-catalog matches below `fallbackBelow = 0.30`), a full-image sweep via `detectWatermark()` (`detector.js`) is performed.
-
-Acceptance criteria:
-
-```
-acceptsGlobalDetection = detection.confidence ≥ minGlobalConfidence
-    AND (isNearExpectedAnchor(...) OR detection.confidence ≥ minFreeGlobalConfidence)
-```
-
-| Parameter | Value | Role |
-|-----------|-------|------|
-| `minGlobalConfidence` | 0.25 | Minimum confidence to accept any global detection |
-| `minFreeGlobalConfidence` | 0.50 | If detection is NOT near expected anchor, needs higher confidence |
-| `isNearExpectedAnchor` tolerance | 5% position | Checks if detection is close to a known anchor position |
-
-**Anchor position tolerance**: `max(4, min(logoWidth, logoHeight) × 0.05)`. For a 96px watermark: max(4, 4.8) = 5px. This prevents spurious detections that happen to land near corners from being accepted.
-
-### 2.6 Stage 4: Adaptive Detection (v2.2 new)
-
-**File**: `src/core/adaptiveDetector.js` — `detectAdaptiveWatermarkRegion()`
-
-When catalog probes fail, the adaptive detector performs a coarse-to-fine multi-scale search:
-
-1. **Seed check**: Test the default catalog anchor position
-2. **Coarse search**: Iterate over size × margin grid (8px step)
-3. **Top-K collection**: Keep the 5 best coarse candidates
-4. **Fine search**: Refine each top-K with 2px step over ±8px × ±10px size range
-
-**3D Scoring Formula**:
+Coarse-to-fine multi-scale search with 3D scoring:
 
 ```
 confidence = spatial × 0.5 + gradient × 0.3 + variance × 0.2
@@ -164,213 +95,116 @@ confidence = spatial × 0.5 + gradient × 0.3 + variance × 0.2
 | Gradient (Sobel NCC) | 0.3 | `calculateGradientCorrelation()` |
 | Variance | 0.2 | `stdDev(watermark) / stdDev(reference)` |
 
-**Variance score**: compares luminance std dev of the candidate watermark region against a reference region above it. Real watermarks typically reduce local variance (semi-transparent overlay smooths details), producing lower watermark std dev relative to the background.
+### 2.6 Stage 5: Global Fallback
 
-**Parameters**:
-| Parameter | Value | Purpose |
-|-----------|-------|---------|
-| `threshold` | 0.35 | Minimum confidence to accept |
-| `minSize` | 24 | Lower bound for watermark size |
-| `maxSize` | 192 | Upper bound for watermark size |
-| `minMarginRight/Bottom` | config ± 75% | Search range for position |
+Full-image sweep via `detectWatermark()` when prior stages produce no matches. Guarded by anchor position tolerance and confidence thresholds.
 
-### 2.7 Stage 6: Decision Policy (v2.2 new)
-
-**File**: `src/core/decisionPolicy.js`
-
-Each detection result is classified into one of three tiers:
-
-| Tier | Meaning | Action |
-|------|---------|--------|
-| `direct-match` | Strong evidence, confident removal | Apply full removal pipeline |
-| `needs-validation` | Some evidence, moderate confidence | Apply with caution |
-| `insufficient` | No reliable evidence | Skip removal |
-
-**Classification rules**:
+### 2.7 Decision Policy (`decisionPolicy.js`)
 
 | Source | direct-match | needs-validation |
 |--------|-------------|-----------------|
-| catalog-probe | confidence ≥ 0.60 | confidence < 0.60 |
-| adaptive-search | confidence ≥ 0.48 | confidence < 0.48 |
-| heuristic-probe | confidence ≥ 0.70 | confidence < 0.70 |
-| global-search | confidence ≥ 0.55 | 0.35 ≤ confidence < 0.55 |
-
-### 2.8 Removal Pipeline (v2.2 new)
-
-**Files**: `multiPassRemoval.js`, `alphaCalibration.js`, `blendModes.js`
-
-For Gemini profile, the removal pipeline runs after successful detection:
-
-```
-removal → multiPassRemoval (up to 4 passes)
-    ├── Near-black safety gate (stops if region becomes too dark)
-    ├── Texture collapse detection (stops if structure is destroyed)
-    └── Residual threshold (stops when NCC < 0.25)
-    
-if residual remains high:
-    alphaCalibration (14 coarse + fine tuning)
-    → Search for optimal alphaGain [1.05, 2.6]
-    → Minimize post-removal spatial correlation
-```
-
-**alphaGain parameter**: Multiplies the alpha value before the reverse blend:
-```
-effectiveAlpha = min(alpha × alphaGain, 0.99)
-original = (watermarked - effectiveAlpha × 255) / (1 - effectiveAlpha)
-```
-
-Higher alphaGain helps when the calibrated alpha map under-estimates the actual watermark opacity (e.g., due to rescaling artifacts).
+| catalog-probe | ≥ 0.60 | < 0.60 |
+| adaptive-search | ≥ 0.48 | < 0.48 |
+| heuristic-probe | ≥ 0.70 | < 0.70 |
+| global-search | ≥ 0.55 | 0.35 ≤ score < 0.55 |
 
 ---
 
-## 3. Probe Confidence Scoring
+## 3. Removal Pipeline
 
-### 3.1 Normalized Cross-Correlation (NCC)
+### 3.1 Shared Removal Logic (`applyRemoval.js`)
 
-**File**: `src/core/detector.js` — `calculateCorrelation()`
+Central `applyRemovalStrategy(imageData, matches)` function used by:
+- `watermarkEngine.js` (main thread removal)
+- `worker.js` (web worker removal)
+- `cli/gwrRemoveCommand.js` (CLI removal)
 
-```
-NCC = (n × Σ(I·A) − ΣI × ΣA) / √((n × ΣI² − (ΣI)²) × (n × ΣA² − (ΣA)²))
-```
+Logic: Gemini matches → `removeRepeatedWatermarkLayers()` with multi-pass; non-Gemini → direct `removeWatermark()` with recalibration gating.
 
-Where:
-- `I`: Image luminance (BT.709: 0.2126R + 0.7152G + 0.0722B)
-- `A`: Alpha map value
-- `n`: Pixel count
-
-Two modes:
-- `fullPrecision = true`: step = 1 (every pixel) — used for final scoring
-- `fullPrecision = false`: step = 2 (every other pixel) — used for coarse search
-
-### 3.2 Local Contrast Correlation
-
-**File**: `src/core/detector.js` — `calculateLocalContrastCorrelation()`
-
-Computes residual correlation by subtracting each pixel's 8-neighbor average before correlating. This reduces the influence of broad background texture:
+### 3.2 Multi-Pass Removal (`multiPassRemoval.js`)
 
 ```
-imageResidual = I(x,y) − avgNeighbor(I)
-alphaResidual = A(x,y) − avgNeighbor(A)
+removal → up to 4 passes:
+    ├── Near-black safety gate
+    ├── Texture collapse detection
+    └── Residual threshold (default 0.25)
+
+If residual high → alphaCalibration (14 coarse + fine tuning)
+    → Search optimal alphaGain [1.05, 2.6]
 ```
 
-Neighborhood radius: `max(4, round(min(logoW, logoH) × 0.06))`.
+### 3.3 Alpha Gain Calibration (`alphaCalibration.js`)
 
-### 3.3 Sobel Gradient Correlation
+Binary search for optimal alpha multiplier when single-pass leaves high residual. Gating via `shouldRecalibrateAlphaStrength()`.
 
-**File**: `src/core/detector.js` — `calculateGradientCorrelation()`
+### 3.4 Reverse Alpha Blending (`blendModes.js`)
 
-Computes NCC between Sobel gradient magnitudes of the image and the alpha map:
+Constants: `ALPHA_THRESHOLD = 0.002`, `MAX_ALPHA = 0.99`, `LOGO_VALUE = 255.0`.
 
-```
-gx = (row−1,col+1) + 2×(row,col+1) + (row+1,col+1) − (row−1,col−1) − 2×(row,col−1) − (row+1,col−1)
-gy = (row+1,col−1) + 2×(row+1,col) + (row+1,col+1) − (row−1,col−1) − 2×(row−1,col) − (row−1,col+1)
-gradient = √(gx² + gy²)
-```
-
-Gradients for RGB channels are luminance-weighted.
-
-### 3.4 Gradient Filtering (DeepScan)
-
-When `deepScan = true`, the three scoring methods are combined via gradient filtering:
-
-**Phase 1 (catalog probes)** — `calculateProbeConfidence()`:
-
-```
-combinedBase = Math.max(NCC, localContrastConf)
-if (gradientConf < 0.05):
-    confidence = combinedBase × gradientPenalty    // No edge structure match → penalty (default 0.30)
-else:
-    confidence = Math.max(combinedBase, gradientConf)  // Edge match → take best
-```
-
-**Phase 2 (global search fine-tuning)** — `detectWatermark()`:
-
-```
-rawNCC = NCC(fullPrecision)
-if (deepScan AND rawNCC > 0.04):
-    compute gradientConf
-    if (gradientConf < 0.05):
-        rawNCC = rawNCC × gradientPenalty
-    else:
-        rawNCC = Math.max(rawNCC, gradientConf)
-```
-
-**Jitter branch** — `calculateProbeConfidence()`:
-
-```
-combined = Math.max(NCC, localContrastConf)
-if (gradientConf < 0.05):
-    conf = combined × gradientPenalty
-else:
-    conf = Math.max(combined, gradientConf)
-```
-
-#### Why Gradient Filtering?
-
-| Scenario | NCC | Gradient | Combined (old) | Combined (new) |
-|----------|-----|----------|----------------|----------------|
-| Real watermark, smooth bg | 0.85 | 0.70 | 0.85 ✓ | 0.85 ✓ |
-| Real watermark, textured bg | 0.50 | 0.20 | 0.50 ✓ | 0.50 ✓ |
-| No watermark, sinusoidal texture | 0.94 | 0.03 | 0.94 ✗ FP | 0.28 ✓ (below threshold) |
-| No watermark, random noise | 0.45 | 0.02 | 0.45 ✗ FP | 0.14 ✓ (below threshold) |
-
-The `Math.max(combined, gradientConf)` approach had no defense against false positives where NCC was high but gradient correlation was near-zero. The gradient filter with `gradientPenalty` (default 0.30) adds this defense by detecting when there's no edge structure match — a reliable indicator of noise-driven false positives.
-
-#### Threshold Rationale
-
-- **gradientConf < 0.05**: This threshold is set very low (near-zero correlation). Any gradientConf ≥ 0.05 indicates that at least some edge structure in the image aligns with the watermark template edges.
-- **gradientPenalty (default 0.30)**: Dynamically configurable (UI slider 0.10-0.90, programmatic `gradientPenalty` option). At default 0.30, a strong NCC of 0.94 is suppressed to 0.28, below the fallback threshold. Lower values (0.10) provide stricter filtering; higher values (0.50+) are more permissive for low-contrast watermarks.
+Bilinear interpolation via `sampleBilinearAlpha()` for subpixel accuracy.
 
 ---
 
-## 4. Detector Configuration Constants
+## 4. Detection Engine (`detector.js`)
 
-### 4.1 Search Configuration (`SEARCH_CONFIG`)
+### 4.1 DetectorContext
+
+Memory-pooled buffer manager:
+
+| Buffer | Type | Usage |
+|--------|------|-------|
+| `_blurBuffer` | `Uint8ClampedArray` | Reused across `noiseReduction: true` calls |
+| `_sharedGradientsI` | `Float32Array` | Shared image gradient buffer |
+| `_sharedGradientsA` | `Float32Array` | Shared alpha gradient buffer |
+
+Methods: `getBlurBuffer(len)`, `getGradientBuffers(len)`, `reset()`. Backward-compatible property accessors on `detectWatermark` function object.
+
+### 4.2 Search Configuration (`SEARCH_CONFIG`)
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `RANGE_X` | 0.45 | Phase 2 horizontal search range (45% of image width from right edge) |
-| `RANGE_Y` | 0.45 | Phase 2 vertical search range (45% of image height from bottom edge) |
-| `CANDIDATES_LIMIT_PER_SIZE` | 5 | Max coarse candidates per watermark size |
-| `PROXIMITY_THRESHOLD` | 8 px | Minimum distance between distinct candidates |
-| `FINE_TUNE_RANGE` | 4 px | Local refinement search radius |
+| `RANGE_X` | 0.45 | Phase 2 horizontal search (45% from right) |
+| `RANGE_Y` | 0.45 | Phase 2 vertical search (45% from bottom) |
+| `CANDIDATES_LIMIT_PER_SIZE` | 5 | Max coarse candidates per size |
+| `PROXIMITY_THRESHOLD` | 8 | Min pixel distance between candidates |
+| `FINE_TUNE_RANGE` | 4 | Local refinement radius |
 
-### 4.2 Phase 2 Coarse Search Thresholds
-
-| Threshold | Value | Role |
-|-----------|-------|------|
-| `ANCHORED_OFFICIAL` | 0.18 | Phase 1 catalog anchor acceptance |
-| `ANCHORED_OTHER` | 0.22 | Phase 1 non-catalog anchor acceptance |
-| `STRICT_EXIT` | 0.60 | Previously used for early exit (disabled in v1.9.1) |
-| `COARSE` | 0.10 | Phase 2 coarse grid acceptance |
-| `STAGE2_NR` | 0.10 | Phase 2 fine-tune acceptance (with noise reduction) |
-| `STAGE2_CLEAN` | 0.12 | Phase 2 fine-tune acceptance (without noise reduction) |
-
-### 4.3 Final Decision Thresholds
+### 4.3 Thresholds (`SEARCH_CONFIG.THRESHOLDS`)
 
 | Threshold | Value | Role |
 |-----------|-------|------|
-| `FINAL_ANCHORED` | 0.15 | Anchored position (catalog match) |
-| `FINAL_ALIGNED` | 0.18 | Aligned to standard margin |
-| `FINAL_FREE` | 0.22 | Free (non-aligned) position |
+| `ANCHORED_OFFICIAL` | 0.18 | Phase 1 catalog anchor |
+| `ANCHORED_OTHER` | 0.22 | Phase 1 non-catalog anchor |
+| `COARSE` | 0.10 | Phase 2 coarse acceptance |
+| `STAGE2_NR` | 0.10 | Phase 2 fine-tune (noise reduction) |
+| `STAGE2_CLEAN` | 0.12 | Phase 2 fine-tune (no noise reduction) |
+| `FINAL_ANCHORED` | 0.15 | Final decision: anchored |
+| `FINAL_ALIGNED` | 0.18 | Final decision: aligned |
+| `FINAL_FREE` | 0.22 | Final decision: free position |
 
-### 4.4 Pipeline Thresholds
+All thresholds dynamically overridable via `options.overrides.THRESHOLDS`.
 
-| Constant | Value | Location |
-|----------|-------|----------|
-| `DEFAULT_PROBE_THRESHOLD` | 0.18 | `detectionPipeline.js` |
-| `DEFAULT_GLOBAL_FALLBACK_THRESHOLD` | 0.25 | `detectionPipeline.js` |
-| `minFreeGlobalConfidence` | 0.50 | `detectionPipeline.js` |
-| `fallbackBelow` | 0.30 | `detectionPipeline.js` (opts) |
-| `DEFAULT_AUTO_NON_CATALOG_THRESHOLD` | 0.35 | `detectionPipeline.js` |
+### 4.4 Correlation Functions
 
-### 4.5 Jitter Range
+| Function | Formula | Step |
+|----------|---------|------|
+| `calculateCorrelation()` | Standard NCC on BT.709 luminance | 1 (full) / 2 (coarse) |
+| `calculateLocalContrastCorrelation()` | NCC on residual (pixel − 8-neighbor avg) | 1 |
+| `calculateGradientCorrelation()` | NCC on Sobel gradient magnitudes | 1 |
 
-| Context | Range | Rationale |
-|---------|-------|-----------|
-| Catalog anchor (isOfficial=true) | ±4 px | Small offset for exact catalog positions |
-| Non-catalog / scaled anchor | ±6 px | Larger offset for heuristic/estimated positions |
-| `calculateProbeConfidence` jitter | ±6 px | Uniform search radius for probe refinement |
+### 4.5 Gradient Filtering
+
+When `deepScan = true`:
+
+```
+gradientConf = calculateGradientCorrelation(...)
+if (gradientConf < 0.05):
+    confidence = rawNCC × gradientPenalty    // Edge structure missing → suppress
+else:
+    confidence = Math.max(rawNCC, gradientConf)
+```
+
+`gradientPenalty` = 0.30 (default), configurable 0.10–0.90.
 
 ### 4.6 Step Size
 
@@ -381,333 +215,195 @@ The `Math.max(combined, gradientConf)` approach had no defense against false pos
 
 ---
 
-## 5. Detection Flow (Complete Trace)
+## 5. Profile & Catalog System
 
-For a 1365×768 image with a weak Gemini watermark (alpha=190):
+### 5.1 Profile Structure (`profiles.js`)
 
-### Step 1: getAllPotentialConfigs
+Each profile must have: `id`, `name`, `logoValue`, `anchors`, `getHeuristicConfig()`. Optional: `assets`, `tiers`, `defaultAsset`.
 
-```js
-// 1365/1376 = 0.992, 768/768 = 1.0
-// |0.992 − 1.0| = 0.008 < 0.02 ✓  AND  |0.992 − 1| = 0.008 < 0.02 ✓
-// → catalog match: logoSize=96, marginRight=64, marginBottom=64, isOfficial=true
-```
+Built-in profiles: `gemini`, `doubao`, `dalle3` (experimental).
 
-Wait — 1365×768 matches the 1376×768 catalog entry within 2%? Yes:
-```
-1365/1376 = 0.9920 → scale mismatch = |0.9920 − 1.0| = 0.0080 < 0.02 → MATCH
-```
+### 5.2 Catalog Data (`catalogs.json` + `catalog.js`)
 
-This means 1365×768 is treated as an OFFICIAL catalog match, giving a 96px corner watermark. This is correct behavior — the 0.8% difference is within expected encoding variation.
+| Profile | Entries | Watermark Type |
+|---------|---------|----------------|
+| Gemini | 66 | Square (48px / 96px) |
+| Doubao | 7 | Rectangular (various sizes, TL+BR) |
+| DALL-E 3 | 1 | Rectangular (120×40, bottom-left) |
 
-### Step 2: calculateProbeConfidence
+Catalog loaded lazily — JSON parsed on first access, per-profile registration on demand via `ensureProfileLoaded()`.
 
-```
-Position: x = 1365 − 96 − 64 = 1205, y = 768 − 96 − 64 = 608
-NCC: 0.45 (weak watermark on busy background)
-localContrastConf: 0.35
-confidence = Math.max(0.45, 0.35) = 0.45
+### 5.3 Watermark Position (`config.js`)
 
-deepScan = true:
-gradientConf = 0.22 (watermark creates detectable edges despite busy bg)
-gradientConf (0.22) ≥ 0.05 → confidence = Math.max(0.45, 0.22) = 0.45
+`calculateWatermarkPosition(imageWidth, imageHeight, config)` supports four anchors:
 
-confidence (0.45) > DEFAULT_PROBE_THRESHOLD (0.18) → match added
-```
-
-### Step 3: Pipeline decision
-
-```
-hasCatalogBackedMatch → true (isOfficial=true)
-→ global fallback skipped
-→ winner = catalog probe match at confidence 0.45
-```
-
-### False positive case (no watermark, same image):
-
-```
-NCC: 0.94 (sinusoidal texture correlates spuriously with alpha map)
-localContrastConf: 0.30
-confidence = Math.max(0.94, 0.30) = 0.94
-
-deepScan = true:
-gradientConf = 0.03 (sine wave gradients mostly uncorrelated with circular alpha gradient)
-gradientConf (0.03) < 0.05 → confidence = 0.94 × 0.25 = 0.24
-
-Global fallback acceptance:
-detection.confidence (0.24) ≥ minGlobalConfidence (0.25)? → NO → REJECTED
-```
-
-The gradient filter drops the false positive from 0.94 to 0.24, below the 0.25 acceptance threshold. The tight position tolerance (5%) provides additional defense.
+| Anchor | X position | Y position |
+|--------|-----------|------------|
+| `bottom-right` | `width − marginRight − logoW` | `height − marginBottom − logoH` |
+| `top-left` | `marginLeft` | `marginTop` |
+| `top-right` | `width − marginRight − logoW` | `marginTop` |
+| `bottom-left` | `marginLeft` | `height − marginBottom − logoH` |
 
 ---
 
-## 6. Test Strategy
+## 6. Worker Architecture
 
-### 6.1 Test Categories
+### 6.1 Worker Pool (`workerPool.js`)
 
-| Category | File | Coverage |
-|----------|------|----------|
-| Catalog matching | `catalog.test.js` | All 68 official catalog entries + tolerance boundaries |
-| Gemini regression | `gemini_regression.test.js` | Official catalog detection, scaled detection, weak watermark, false negative/positive |
-| Product audit | `product_audit.test.js` | 31 subtests across all profiles: detection, fidelity PSNR, auto-detect, Doubao multi-anchor |
-| CLI integration | (in test suite) | File/dir/pipe/JSON processing for all profiles |
-| Frontend contract | `frontend_contract.test.js` | DOM hooks, drag-drop, i18n, ZIP download, queue management |
-| Watermark config | `watermark_config.test.js` | Catalog priority, heuristic fallback, boundary conditions |
-| Doubao-specific | 6 test files | Profile integrity, catalog coverage, multi-anchor, E2E, edge cases |
+Multi-worker task queue for parallel pixel restoration:
 
-### 6.2 Verification Commands
+```
+Task Queue → Available Worker → postMessage(transfer) → result
+                                  ↓ (no workers free)
+                                  Queued → dispatched when worker freed
+```
+
+- Pool size: 2 workers (configurable)
+- Buffer transfer via `Transferable` ArrayBuffer (zero-copy)
+- Per-task timeout: `max(5000, pixels / 500000)` ms
+- Fallback: pool failure → single worker → main thread
+
+### 6.2 Worker Protocol (`worker.js`)
+
+```
+Message (main → worker): { imageData, matches[], taskId }
+Response (worker → main): { imageData, taskId } | { taskId, error }
+```
+
+---
+
+## 7. Engine Limits & Configuration
+
+### 7.1 Engine Limits (`config.js`)
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `MAX_PIXELS` | 8000 × 8000 (64 MP) | Maximum image size |
+| `MAX_FILE_SIZE` | 20 MB | Maximum input file size |
+| `MAX_CONCURRENCY` | 4 | Maximum parallel batch processing |
+
+### 7.2 CLI-Specific (`cli/gwrRemoveCommand.js`)
+
+- `sharp.concurrency(1)` — limits all sharp operations
+- Supports: single file, batch directory, pipe mode, JSON output
+- Profile selection: `--profile gemini|doubao|dalle3|auto`
+
+---
+
+## 8. Frontend Architecture
+
+### 8.1 Module Structure
+
+| Module | File | Responsibility |
+|--------|------|---------------|
+| Entry | `app.js` | Init engine, wire events, coordinate processing |
+| State | `app/state.js` | Global mutable state, object URL manager |
+| UI | `app/ui.js` | Toast notifications, audit log, progress bar |
+| Processing | `app/processing.js` | Single/batch processing, ZIP download |
+| DragDrop | `app/dragDrop.js` | File handling, drop events, card creation |
+| Settings | `app/settings.js` | localStorage persistence, engine options |
+| View Modes | `app/viewModes.js` | Slider/side-by-side/stats switching |
+| Manual | `app/manualSelection.js` | Pointer-based region selection |
+| Keyboard | `app/keyboard.js` | Keyboard shortcuts (Esc, 1/2/3, Ctrl+S) |
+| Magnifier | `app/magnifier.js` | 3x pixel zoom lens |
+
+### 8.2 i18n System
+
+7 languages: zh-CN, en-US, ja-JP, ru-RU, fr-FR, es-ES, de-DE. All 113 keys synchronized.
+
+### 8.3 Build System
+
+- **Bundler**: esbuild (ES2020, browser target)
+- **CSS**: Tailwind CSS 3.x static compilation (~32KB minified)
+- **Outputs**: `dist/app.js`, `dist/worker.js`, `dist/index.css`, `dist/index.html`
+
+---
+
+## 9. SDK/API Surface
+
+### 9.1 Public Exports (`sdk/index.js`)
+
+36+ exports including: `WatermarkEngine`, `WorkerPool`, `DetectorContext`, `detectWatermark`, `detectWatermarks`, `detectProfileWatermarks`, `removeWatermark`, `removeRepeatedWatermarkLayers`, `applyRemovalStrategy`, `calculateAlphaMap`, `calculateCorrelation`, `calculateGradientCorrelation`, `recalibrateAlphaStrength`, `shouldRecalibrateAlphaStrength`, `detectAdaptiveWatermarkRegion`, `interpolateAlphaMap`, `warpAlphaMap`, `refineSubpixelOutline`, `classifyStandardWatermarkSignal`, `classifyAdaptiveWatermarkSignal`, `decideDetectionTier`, `PROFILES`, `DEFAULT_PROFILE`, `GEMINI_PROFILE`, `ENGINE_LIMITS`, `RestorationMetrics`, `calculateMSE`, `calculatePSNR`, `calculateSSIM`, `estimateQualityFromPSNR`, `calculateWatermarkPosition`, `detectWatermarkConfig`, `getAllPotentialConfigs`, `getProfile`, `getAllProfiles`, `getProfilesToTry`, `resetDetectorBuffers`.
+
+### 9.2 TypeScript Definitions (`sdk/index.d.ts`)
+
+Complete type coverage for all exported functions, classes, interfaces, and constants.
+
+---
+
+## 10. Test Strategy
+
+### 10.1 Test Coverage
+
+523 tests across 100 suites covering:
+- **Core Algorithms** (35 files): detector, blendModes, alphaMap, multiPass, alphaCalibration, adaptiveDetector, decisionPolicy, local_contrast, overrides
+- **Pipeline** (4 files): detection fallback chain, cross-module integration, parameter matrix, end-to-end regression
+- **Engine** (8 files): catalog, config, profiles, registry, watermarkEngine, worker protocol, worker resilience, concurrency
+- **CLI** (2 files): integration, edge cases
+- **SDK** (3 files): API surface, metrics precision, REST restoration
+- **Integration** (5 files): product audit, architecture gaps, multiPass, security, rectangular
+- **UI** (4 files): frontend contract, frontend interaction, manual selection, i18n
+
+### 10.2 Test Architecture Principles
+
+1. **No internal state access**: Tests use `DetectorContext` API, not raw `detectWatermark._*`
+2. **No hardcoded catalog values**: Tests use `resolvePos()` and `resolveLogoSize()` runtime queries
+3. **Merged duplicates**: 3 fully-duplicated test files eliminated; overlapping coverage consolidated
+4. **Gap coverage**: DetectorContext isolation, lazy catalog loading, `applyRemovalStrategy` edge cases
+
+### 10.3 Verification Commands
 
 ```bash
-npm run lint          # ESLint
-npm run test:all      # Full 369-test suite (includes legacy smoke + Python bridge)
-npm run build         # Production build
-npm run test:legacy   # Maintained legacy regression (edge crop, noise reduction)
-npm run test:python   # Python bridge
-```
-
-### 6.3 Regression Test Design (gemini_regression.test.js)
-
-| Test # | Scenario | What it verifies |
-|--------|----------|------------------|
-| 1 | All 1k aspect ratios | Catalog resolution matching returns correct config |
-| 2 | 1536×672 official watermark | Full pipeline finds exact-position watermark at >0.9 confidence |
-| 3 | 1510×660 scaled watermark | Scaled catalog produces correct logo size (93-95px) |
-| 4 | 1365×768 weak watermark on busy bg | Weak watermark (alpha=190) is found with >0.24 confidence, NOT via global fallback |
-| 5 | 1365×768 NO watermark | False positive is rejected (gradient filter + anchor tolerance) |
-| 6 | CLI 1536×672 | CLI correctly detects and removes watermark |
-
----
-
-## 7. Known Limitations and Future Work
-
-### 7.1 Current Limitations
-
-1. **Sinusoidal/repetitive textures**: Can still produce gradientConf ≈ 0.03-0.04, which is below the filter threshold but close. A stronger or additional filter (e.g., spectral analysis) would add safety margin.
-2. **High-frequency backgrounds**: Grid patterns and fine textures reduce gradient correlation even for real watermarks, making the filter less discriminative.
-3. **DALL-E 3**: Experimental profile only, missing asset `bg_dalle3_bl.png`. Detection limited to catalog 1024×1024.
-4. **Non-rectangular watermarks**: The Sobel gradient approach is designed for roughly rectangular watermark regions. Watermarks with very irregular shapes may produce unreliable gradient correlation.
-
-### 7.2 Recommended Future Enhancements
-
-1. **Augmented sample library**: Add more real Gemini export images at scaled/cropped sizes to catalog.
-2. **Negative sample expansion**: Build a library of high-frequency texture images without watermarks for regression testing.
-3. **Adaptive gradient threshold**: Consider making the gradientConf threshold (0.05) adaptive based on image entropy — low-entropy images could use a stricter threshold.
-4. **DALL-E 3 asset**: Complete the `bg_dalle3_bl.png` asset for full DALL-E 3 support.
-5. **WebAssembly acceleration**: Move NCC and gradient computation to WASM for 4K image performance.
-
----
-
-## 8. Appendix: Key Parameters Reference
-
-### 8.1 Catalog Matching (`registry.js`)
-
-```
-MAX_SCALE_MISMATCH = 0.05   // 5% exact catalog tolerance
-```
-
-### 8.2 Scaled Catalog (`catalog.js`)
-
-```
-maxRelativeAspectRatioDelta = 0.05   // 5% aspect ratio drift
-maxScaleMismatchRatio = 0.08         // 8% non-uniform scaling
-maxScaleDistance = 0.30              // 30% max resize factor
-```
-
-### 8.3 Gradient Filter (`detector.js`)
-
-```
-gradientFilterThreshold = 0.05       // Below this → no edge match
-gradientPenalty = 0.30 (default)     // Dynamic parameter: confidence multiplier when filtered
-// Controlled by UI slider (0.10-0.90) or programmatic gradientPenalty option
-```
-
-### 8.4 Pipeline (`detectionPipeline.js`)
-
-```
-DEFAULT_PROBE_THRESHOLD = 0.18
-DEFAULT_GLOBAL_FALLBACK_THRESHOLD = 0.25
-minFreeGlobalConfidence = 0.50
-anchorPositionTolerance = 0.05       // 5% of logo dimension
-anchorSizeTolerance = 0.15           // 15% of logo dimension
-```
-
-### 8.5 Search (`detector.js` SEARCH_CONFIG)
-
-```
-ANCHORED_OFFICIAL = 0.18
-COARSE = 0.10
-STAGE2_CLEAN = 0.12
-FINAL_FREE = 0.22
+pnpm test                  # 523/523 passing (concurrency=4)
+pnpm lint                  # 0 errors, 0 warnings
+pnpm build                 # clean production build
 ```
 
 ---
 
-## 9. Custom Configuration & Manual Overrides (v2.1)
+## 11. Appendix: Complete Parameter Reference
 
-### 9.1 Dynamic Parameter Injection
+### 11.1 Detection Parameters
 
-Starting from v2.1.0, the engine supports runtime parameter injection. This allows bypassing hardcoded constants without redeploying the core logic.
+| Parameter | Default | Location | Dynamic? |
+|-----------|---------|----------|----------|
+| `probeThreshold` | 0.18 | `detectionPipeline.js` | Yes |
+| `fallbackThreshold` | 0.25 | `detectionPipeline.js` | Yes |
+| `gradientPenalty` | 0.30 | `detector.js` | Yes |
+| `deepScan` | true | `detectionPipeline.js` | Yes |
+| `noiseReduction` | false | `detectionPipeline.js` | Yes |
+| `globalFallbackBelow` | 0.30 | `detectionPipeline.js` | Yes |
+| `autoNonCatalogMinConfidence` | 0.35 | `detectionPipeline.js` | Yes |
+| `adaptiveMinConfidence` | 0.48 | `detectionPipeline.js` | Yes |
 
-- **Threshold Overrides**: `probeThreshold` and `fallbackThreshold` are checked first in `detectionPipeline.js`.
-- **Mathematical Penalty Adjustment**: The `gradientFilterPenalty` (0.30) can be adjusted to `0.10` (strict) or `0.90` (permissive).
+### 11.2 Catalog Matching
 
-### 9.2 Manual Mode Pipeline Bypass
+| Parameter | Value | Location |
+|-----------|-------|----------|
+| `MAX_SCALE_MISMATCH` | 0.05 | `registry.js` |
+| `maxRelativeAspectRatioDelta` | 0.05 | `catalog.js` |
+| `maxScaleMismatchRatio` | 0.08 | `catalog.js` |
+| `maxScaleDistance` | 0.30 | `catalog.js` |
 
-When `manualConfig` is provided, the engine skips the standard detection stages:
+### 11.3 Removal Parameters
 
-1. **Coordinates**: Directly uses `(x, y, w, h)` as the target.
-2. **Verification**: Runs `calculateProbeConfidence` only for the specified area to report confidence to the UI.
-3. **Execution**: Immediately invokes `removeWatermark()` using the best available AlphaMap for the given dimensions.
+| Parameter | Default | Location |
+|-----------|---------|----------|
+| `maxPasses` | 4 | `multiPassRemoval.js` |
+| `residualThreshold` | 0.25 | `multiPassRemoval.js` |
+| `alphaGain` | 1.0 | `blendModes.js` |
+| `MIN_GAIN` | 1.05 | `alphaCalibration.js` |
+| `MAX_GAIN` | 2.6 | `alphaCalibration.js` |
 
-This mode ensures that even watermarks that are mathematically impossible to distinguish from noise via auto-detection can still be removed if the user points the engine to the correct location.
+### 11.4 Engine Limits
 
----
-
-## 10. v2.1 维护版本更新
-
-### 10.1 测试覆盖扩展 (369/369 测试通过)
-
-v2.1 维护版本完成了测试覆盖缺口的补充，从 277 测试增加至 369 测试：
-
-| 新增测试文件 | 覆盖范围 | 测试点 |
-|-------------|---------|--------|
-| `registry.test.js` | `templates/registry.js` | 单例验证、注册/查询、目录添加、容差边界 |
-| `scaled_catalog.test.js` | `catalog.js getScaledCatalogConfigs` | 宽高比容差、缩放比容差、min/maxLogoSize、limit 参数 |
-| `local_contrast.test.js` | `detector.js calculateLocalContrastCorrelation` | 噪声背景相关性、注入水印后相关性、边界安全处理 |
-| `box_blur.test.js` | `detector.js fastBoxBlur` | 均匀图像 blur 后不变、边缘像素保留、中心像素均值计算 |
-| `overrides_dynamic.test.js` | `detector.js` v2.1 overrides | jitterRange 覆盖、FINAL/STAGE2/COARSE 阈值覆盖、gradientPenalty 覆盖 |
-| `metrics_precision.test.js` | `restorationMetrics.js` | MSE 计算、PSNR 计算、estimateQualityFromPSNR 0-1 映射 |
-| `detection_fallback_chain.test.js` | `detectionPipeline.js` | catalog-probe → heuristic-probe → global-search 回退链、autoNonCatalogMinConfidence 阈值 |
-| `i18n_completeness.test.js` | `src/i18n/*.json` | 7 语言 key 一致性、无空值、参数化 key 占位符匹配 |
-| `sdk_api.test.js` | `src/sdk`, `package.json` | 独立 fork SDK/API 导出与 package metadata |
-| `object_url_lifecycle.test.js` | `utils.js`, `state.js` | 本地上传 object URL 生命周期与 workspace 清理 |
-
-### 10.2 动态参数覆盖机制 (v2.1)
-
-**参数透传路径**: Web UI → `app.js getEngineOptions()` → `watermarkEngine.js` → `detector.js` → `detectionPipeline.js`
-
-**已验证生效的参数**:
-
-```javascript
-// 入口层 (Web UI / CLI / Python)
-{
-    probeThreshold: 0.18,           // 覆盖 detectionPipeline.js DEFAULT_PROBE_THRESHOLD
-    fallbackThreshold: 0.25,        // 覆盖 detectionPipeline.js DEFAULT_GLOBAL_FALLBACK_THRESHOLD
-    gradientPenalty: 0.30,          // 覆盖 detector.js 梯度滤波惩罚系数
-    manualConfig: { x, y, width, height },  // 绕过搜索管线
-    overrides: {                     // 深度覆盖 detector.js SEARCH_CONFIG
-        THRESHOLDS: {
-            ANCHORED_OFFICIAL: 0.18,
-            COARSE: 0.10,
-            STAGE2_CLEAN: 0.12,
-            STAGE2_FALLBACK: 0.18,
-            FINAL_FREE: 0.22,
-            FINAL_ANCHORED: 0.25
-        },
-        jitterRange: 4,             // Phase 1 抖动搜索范围
-        FINE_TUNE_RANGE: 6,         // Phase 3 微调范围
-        PROXIMITY_THRESHOLD: 8,     // 候选去重阈值
-        CANDIDATES_LIMIT_PER_SIZE: 3
-    }
-}
-```
-
-### 10.3 已修复的一致性问题
-
-| 问题 | 位置 | 修复前 | 修复后 |
-|------|------|--------|--------|
-| 版本号不一致 | `gui.py:14`, `README_zh.md:3` | v1.9.9 | v2.1.0 |
-| 测试数量不一致 | 多处文档 | 271 / 277 / 356 | 369 |
-| slider 比例问题 | `app.js:573-583` | 共用同一 slider | 固定 0.25/0.18 比例 |
-| 多文件检测逻辑 | `gui.py:263` | 字符串比较 | 数字比较 |
-| CLI 路径判断 | `remover.py:100` | 仅检查 `.js` 文件 | 支持全局安装 |
-
-### 10.4 Worker Execution Architecture (v2.1)
-
-**Module**: `src/core/worker.js`, `src/core/watermarkEngine.js`
-
-The pixel restoration step (`removeWatermark`) is now delegated to a Web Worker when the browser environment supports it:
-
-```
-Main Thread                           Worker Thread
-───────────                           ─────────────
-detectWatermarks()  ──┐
-                       ├── detection result (matches[])
-                       │
-clone buffer          │
-                      │
-worker.postMessage()  ├── { imageData, matches[] } ──→  for each match:
-  (transfer buffer)   │                                  removeWatermark()
-                      │                              ←── { imageData, taskId }
-onmessage handler    │
-  ↓                   │
-imageData.data.set()  │
-  ↓                   │
-ctx.putImageData()    │
-```
-
-**Key design decisions**:
-
-| Aspect | Decision | Rationale |
-|--------|----------|-----------|
-| Detection location | Main thread | Detection requires profile catalog, alpha maps, and stateful configuration. Moving it to a worker would require duplicating the entire engine context. |
-| Restoration location | Worker (primary), main thread (fallback) | Restoration is pure pixel math — stateless and ideal for off-main-thread work. |
-| Buffer transfer | Transfer ownership via `postMessage(data, [buffer])` | Avoids copying large (60MB+) 4K image buffers. The main thread clones once, then transfers ownership to the worker. |
-| Timeout | 5000 ms | If the worker fails to respond within 5 seconds (crashed, hung, or terminated), the promise rejects and the main thread performs restoration inline. |
-| Fallback path | Transparent | `removeWatermarkFromImage()` catches worker failures and silently falls back to main-thread `removeWatermark()`. The user never sees a difference in output quality. |
-
-**Execution mode reporting**:
-
-`WatermarkEngine.getExecutionMode()` returns:
-- `'worker-assisted'` — Worker is successfully created and will be used for restoration
-- `'main-thread'` — Worker unavailable (Node.js, Tampermonkey userscript, or disabled due to prior failure)
-
-The Web UI's initialization log uses this to report the actual execution mode.
-
-**Test coverage**: `tests/worker_resilience.test.js`:
-- Worker path: verification that `postMessage` is called and pixels are modified correctly
-- Timeout path: hanging worker triggers 5-second timeout → rejection → main thread fallback
-- Constructor failure: `Worker()` throw → `_useWorker = false` → `_getWorker()` returns `null`
+| Constant | Value | Location |
+|----------|-------|----------|
+| `MAX_PIXELS` | 64,000,000 (8000×8000) | `config.js` |
+| `MAX_FILE_SIZE` | 20,971,520 (20 MB) | `config.js` |
+| `MAX_CONCURRENCY` | 4 | `config.js` |
 
 ---
 
-## 14. Frontend & Build Architecture (v2.2.1)
-
-### 14.1 Zero External CDN
-
-The web app operates entirely offline with zero external HTTP dependencies:
-
-- **CSS**: Tailwind CSS statically compiled at build time (`dist/index.css`, ~32 KB minified). No `<link>` to any CDN.
-- **Fonts**: System font stack:` -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei'`. No Google Fonts CDN request.
-- **JS**: `app.js` (277 KB) and `worker.js` (9.6 KB) are esbuild-bundled, no external scripts.
-- **Assets**: Watermark template PNGs loaded from `dist/assets/` directory (same-origin), not inlined as base64 to keep the JS bundle small.
-
-### 14.2 Resilient Resource Loading
-
-`public/index.html` serves as a development entry point with automatic path resolution:
-
-- Detects whether opened from `/public/` path and adjusts asset base to `../dist/`
-- Sets `window.GWR_ASSET_BASE` for consistent CSS/JS/worker/asset loading
-- CSS loaded via `document.write('<link>')` at base path
-- JS loaded via dynamically created `<script>` element with `onerror` handling showing user-facing error
-- Worker URL resolved via `import.meta.url` with fallback to `document.currentScript.src` / `location.href`
-
-### 14.3 Service Worker (Network-First)
-
-`dist/sw.js` uses cache version `gwr-v2.2.1` with network-first strategy:
-
-- `fetch(event.request).catch(() => caches.match(event.request))`
-- Old service workers (< v2.2.1) are auto-unregistered by `app.js` on init
-- Pre-caches core assets on install for offline fallback
-
-### 14.4 Loading Overlay Safety
-
-- 8-second timeout: if engine initialization hangs, overlay auto-hides
-- Error surface: critical faults display on the overlay with error message
-- `hidden` class correctly toggled (both `flex` and `hidden` on element)
-
----
-
-*Document version: 2.2.1 — 2026-05-17*
-*Corresponds to: v2.2.1, 465/465 tests, 0 eslint errors, build clean*
+*Document version: 2.2.1 — 2026-05-24*
+*Corresponds to: v2.2.1, 523/523 tests, 0 eslint errors, build clean*

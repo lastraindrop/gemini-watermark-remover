@@ -13,19 +13,17 @@ import { calculateCorrelation, calculateProbeConfidence, detectWatermark } from 
 import { detectWatermarks, detectProfileWatermarks } from '../src/core/detectionPipeline.js';
 import { calculateWatermarkPosition, getAllPotentialConfigs } from '../src/core/config.js';
 import { GEMINI_PROFILE, PROFILES } from '../src/core/profiles.js';
-import { createMockImageData, createMockAlphaMap, applyWatermark, alphaToRGBA } from './test_utils.js';
+import { createMockImageData, createMockAlphaMap, applyWatermark, alphaToRGBA, resolvePos } from './test_utils.js';
+import { WATERMARK_CONFIGS } from '../src/core/catalog.js';
 
-// ============================================================
-// Utility: compute expected Gemini watermark position
-// ============================================================
 function geminiWatermarkPos(imageWidth, imageHeight, size = 96) {
-    const margin = size === 48 ? 32 : 64;
-    return {
-        x: imageWidth - margin - size,
-        y: imageHeight - margin - size,
-        width: size,
-        height: size
-    };
+    const tierConfig = Object.values(WATERMARK_CONFIGS).find(t => t.logoSize === size)
+        || (size === 48 ? { logoSize: 48, marginRight: 32, marginBottom: 32 }
+                        : { logoSize: 96, marginRight: 64, marginBottom: 64 });
+    return calculateWatermarkPosition(imageWidth, imageHeight, {
+        ...tierConfig,
+        logoSize: size
+    });
 }
 
 // ============================================================

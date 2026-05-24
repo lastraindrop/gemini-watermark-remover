@@ -28,6 +28,9 @@
   "btn.setInputDir": "Dossier d'entrée",
   "btn.setOutputDir": "Dossier de sortie",
   "btn.startProcess": "Démarrer le traitement par lots",
+  "btn.manualReprocess": "Appliquer la zone manuelle",
+  "btn.manualUseDetected": "Utiliser la zone detectee",
+  "btn.manualClear": "Effacer la zone",
   "settings.model": "Modèle",
   "settings.advanced": "Advanced Configuration",
   "settings.threshold": "Detection Sensitivity",
@@ -97,5 +100,16 @@
   "toast.batchComplete": "Lot terminé : {{success}} réussies, {{failed}} échouées",
   "toast.removed": "{{count}} filigranes supprimés",
   "toast.processingBusy": "Le traitement est déjà en cours",
-  "toast.invalidFiles": "{{count}} fichiers non pris en charge ignorés"
+  "toast.manualSingleOnly": "Ouvrez une image avant le traitement manuel",
+  "toast.manualAreaRequired": "Sélectionnez ou saisissez d'abord une zone manuelle",
+  "toast.detectedAreaMissing": "Aucune zone detectee disponible",
+  "toast.invalidFiles": "{{count}} fichiers non pris en charge ignorés",
+  "error.cors.detail": "Erreur de sécurité : {{message}}. 1. L'image provient d'un site tiers (cross-origin). 2. Même avec CORS, le serveur peut ne pas envoyer les bons en-têtes. 3. Veuillez d'abord enregistrer l'image localement, puis la glisser dans cet outil.",
+  "error.remoteFetchFailed": "Échec du chargement distant (CORS)",
+  "error.dropFailed": "Échec du traitement du fichier déposé",
+  "shortcuts.title": "Raccourcis clavier",
+  "shortcuts.esc": "Esc: Réinitialiser l'espace de travail",
+  "shortcuts.view": "1/2/3: Changer les modes d'affichage",
+  "shortcuts.download": "Ctrl+S: Télécharger",
+  "shortcuts.compare": "←/→: Comparer"
 }

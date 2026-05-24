@@ -86,6 +86,15 @@ describe('CLI Integration Tests', () => {
         assert.strictEqual(resultBuffer[1], 0x50);
     });
 
+    test('Legacy -i adapter without -o uses the default output filename', () => {
+        const cliPath = join(process.cwd(), 'src/cli.js');
+        const result = spawnSync('node', [cliPath, '-i', 'input.png'], { cwd: TMP_DIR });
+
+        assert.strictEqual(result.status, 0, `CLI failed: ${result.stderr.toString()}`);
+        assert.ok(existsSync(join(TMP_DIR, 'input_removed.png')), 'Default output file should be created');
+        assert.ok(!existsSync(join(TMP_DIR, '-i')), 'Missing -o must not be treated as an output path');
+    });
+
     test('Flag Verification: --no-deepScan and --noiseReduction', () => {
         const input = join(TMP_DIR, 'input.png');
         const output = join(TMP_DIR, 'output_flags.png');

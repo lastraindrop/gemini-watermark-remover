@@ -28,6 +28,9 @@
   "btn.setInputDir": "入力フォルダ設定",
   "btn.setOutputDir": "出力フォルダ設定",
   "btn.startProcess": "一括処理を開始",
+  "btn.manualReprocess": "手動範囲で再処理",
+  "btn.manualUseDetected": "検出範囲を使用",
+  "btn.manualClear": "範囲をクリア",
   "settings.model": "モデル",
   "settings.advanced": "Advanced Configuration",
   "settings.threshold": "Detection Sensitivity",
@@ -97,5 +100,16 @@
   "toast.batchComplete": "一括処理完了: 成功 {{success}}、失敗 {{failed}}",
   "toast.removed": "{{count}} 件の透かしを除去しました",
   "toast.processingBusy": "処理はすでに実行中です",
-  "toast.invalidFiles": "未対応ファイル {{count}} 件をスキップしました"
+  "toast.manualSingleOnly": "手動処理の前に画像を1枚開いてください",
+  "toast.manualAreaRequired": "先に手動範囲を選択または入力してください",
+  "toast.detectedAreaMissing": "使用できる検出範囲がまだありません",
+  "toast.invalidFiles": "未対応ファイル {{count}} 件をスキップしました",
+  "error.cors.detail": "セキュリティエラー：{{message}}。1. 画像がサードパーティのウェブサイト（クロスオリジン）からのものです。2. CORS が有効でも、サーバーが正しいヘッダーを送信していない可能性があります。3. 先に画像をローカルに保存してから、このツールにドラッグしてください。",
+  "error.remoteFetchFailed": "リモート取得に失敗しました (CORS)",
+  "error.dropFailed": "ドロップされたファイルの処理に失敗しました",
+  "shortcuts.title": "ショートカット",
+  "shortcuts.esc": "Esc: ワークスペースをリセット",
+  "shortcuts.view": "1/2/3: 表示モードを切り替え",
+  "shortcuts.download": "Ctrl+S: ダウンロード",
+  "shortcuts.compare": "←/→: 比較"
 }

@@ -1,0 +1,764 @@
+{
+  "WATERMARK_CONFIGS": {
+    "0.5k": {
+      "logoSize": 48,
+      "marginRight": 32,
+      "marginBottom": 32
+    },
+    "1k": {
+      "logoSize": 96,
+      "marginRight": 64,
+      "marginBottom": 64
+    },
+    "2k": {
+      "logoSize": 96,
+      "marginRight": 64,
+      "marginBottom": 64
+    },
+    "4k": {
+      "logoSize": 96,
+      "marginRight": 64,
+      "marginBottom": 64
+    }
+  },
+  "CATALOGS": {
+    "gemini": [
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:1",
+        "width": 512,
+        "height": 512,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:4",
+        "width": 256,
+        "height": 1024,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:8",
+        "width": 192,
+        "height": 1536,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "2:3",
+        "width": 424,
+        "height": 632,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "3:2",
+        "width": 632,
+        "height": 424,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "3:4",
+        "width": 448,
+        "height": 600,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:1",
+        "width": 1024,
+        "height": 256,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:3",
+        "width": 600,
+        "height": 448,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:5",
+        "width": 464,
+        "height": 576,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "5:4",
+        "width": 576,
+        "height": 464,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "8:1",
+        "width": 1536,
+        "height": 192,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "9:16",
+        "width": 384,
+        "height": 688,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "16:9",
+        "width": 688,
+        "height": 384,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "21:9",
+        "width": 792,
+        "height": 168,
+        "logoSize": 48,
+        "marginRight": 32,
+        "marginBottom": 32,
+        "tier": "0.5k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:1",
+        "width": 1024,
+        "height": 1024,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:4",
+        "width": 512,
+        "height": 2064,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:8",
+        "width": 352,
+        "height": 2928,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "2:3",
+        "width": 848,
+        "height": 1264,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "3:2",
+        "width": 1264,
+        "height": 848,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "3:4",
+        "width": 896,
+        "height": 1200,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:1",
+        "width": 2064,
+        "height": 512,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:3",
+        "width": 1200,
+        "height": 896,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:5",
+        "width": 928,
+        "height": 1152,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "5:4",
+        "width": 1152,
+        "height": 928,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "8:1",
+        "width": 2928,
+        "height": 352,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "9:16",
+        "width": 768,
+        "height": 1376,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "16:9",
+        "width": 1376,
+        "height": 768,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "16:9",
+        "width": 1408,
+        "height": 768,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "21:9",
+        "width": 1584,
+        "height": 672,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:1",
+        "width": 2048,
+        "height": 2048,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:4",
+        "width": 512,
+        "height": 2048,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:8",
+        "width": 384,
+        "height": 3072,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "2:3",
+        "width": 1696,
+        "height": 2528,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "3:2",
+        "width": 2528,
+        "height": 1696,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "3:4",
+        "width": 1792,
+        "height": 2400,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:1",
+        "width": 2048,
+        "height": 512,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:3",
+        "width": 2400,
+        "height": 1792,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:5",
+        "width": 1856,
+        "height": 2304,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "5:4",
+        "width": 2304,
+        "height": 1856,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "8:1",
+        "width": 3072,
+        "height": 384,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "9:16",
+        "width": 1536,
+        "height": 2752,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "16:9",
+        "width": 2752,
+        "height": 1536,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "21:9",
+        "width": 3168,
+        "height": 1344,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:1",
+        "width": 4096,
+        "height": 4096,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:4",
+        "width": 2048,
+        "height": 8192,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "1:8",
+        "width": 1536,
+        "height": 12288,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "2:3",
+        "width": 3392,
+        "height": 5056,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "3:2",
+        "width": 5056,
+        "height": 3392,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "3:4",
+        "width": 3584,
+        "height": 4800,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:1",
+        "width": 8192,
+        "height": 2048,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:3",
+        "width": 4800,
+        "height": 3584,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "4:5",
+        "width": 3712,
+        "height": 4608,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "5:4",
+        "width": 4608,
+        "height": 3712,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "8:1",
+        "width": 12288,
+        "height": 1536,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "9:16",
+        "width": 3072,
+        "height": 5504,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "16:9",
+        "width": 5504,
+        "height": 3072,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "21:9",
+        "width": 6336,
+        "height": 2688,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "4k"
+      },
+      {
+        "modelFamily": "gemini-2.5-flash-image",
+        "aspectRatio": "2:3",
+        "width": 832,
+        "height": 1248,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-2.5-flash-image",
+        "aspectRatio": "3:2",
+        "width": 1248,
+        "height": 832,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-2.5-flash-image",
+        "aspectRatio": "3:4",
+        "width": 864,
+        "height": 1184,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-2.5-flash-image",
+        "aspectRatio": "4:3",
+        "width": 1184,
+        "height": 864,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-2.5-flash-image",
+        "aspectRatio": "4:5",
+        "width": 896,
+        "height": 1152,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-2.5-flash-image",
+        "aspectRatio": "5:4",
+        "width": 1152,
+        "height": 896,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-2.5-flash-image",
+        "aspectRatio": "9:16",
+        "width": 768,
+        "height": 1344,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-2.5-flash-image",
+        "aspectRatio": "16:9",
+        "width": 1344,
+        "height": 768,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      },
+      {
+        "modelFamily": "gemini-2.5-flash-image",
+        "aspectRatio": "21:9",
+        "width": 1536,
+        "height": 672,
+        "logoSize": 96,
+        "marginRight": 64,
+        "marginBottom": 64,
+        "tier": "1k"
+      }
+    ],
+    "doubao": [
+      {
+        "width": 2048,
+        "height": 2048,
+        "logoWidth": 373,
+        "logoHeight": 165,
+        "marginRight": 11,
+        "marginBottom": 4,
+        "anchor": "bottom-right"
+      },
+      {
+        "width": 2730,
+        "height": 1535,
+        "logoWidth": 307,
+        "logoHeight": 167,
+        "marginLeft": 38,
+        "marginTop": 25,
+        "anchor": "top-left"
+      },
+      {
+        "width": 2730,
+        "height": 1535,
+        "logoWidth": 401,
+        "logoHeight": 173,
+        "marginRight": 24,
+        "marginBottom": 10,
+        "anchor": "bottom-right"
+      },
+      {
+        "width": 2364,
+        "height": 1773,
+        "logoWidth": 248,
+        "logoHeight": 105,
+        "marginLeft": 39,
+        "marginTop": 39,
+        "anchor": "top-left"
+      },
+      {
+        "width": 2364,
+        "height": 1773,
+        "logoWidth": 348,
+        "logoHeight": 151,
+        "marginRight": 10,
+        "marginBottom": 4,
+        "anchor": "bottom-right"
+      },
+      {
+        "width": 1536,
+        "height": 2727,
+        "logoWidth": 221,
+        "logoHeight": 109,
+        "marginLeft": 16,
+        "marginTop": 16,
+        "anchor": "top-left"
+      },
+      {
+        "width": 1536,
+        "height": 2727,
+        "logoWidth": 276,
+        "logoHeight": 125,
+        "marginRight": 10,
+        "marginBottom": 2,
+        "anchor": "bottom-right"
+      }
+    ],
+    "dalle3": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "logoWidth": 120,
+        "logoHeight": 40,
+        "marginLeft": 20,
+        "marginBottom": 20,
+        "anchor": "bottom-left"
+      }
+    ]
+  }
+}

@@ -28,6 +28,9 @@
   "btn.setInputDir": "Set Input Folder",
   "btn.setOutputDir": "Set Output Folder",
   "btn.startProcess": "Start Batch Process",
+  "btn.manualReprocess": "Apply Manual Area",
+  "btn.manualUseDetected": "Use Detected Area",
+  "btn.manualClear": "Clear Area",
   "settings.model": "Model",
   "settings.advanced": "Advanced Configuration",
   "settings.threshold": "Detection Sensitivity",
@@ -97,5 +100,16 @@
   "toast.batchComplete": "Batch complete: {{success}} succeeded, {{failed}} failed",
   "toast.removed": "Removed {{count}} watermarks",
   "toast.processingBusy": "Processing is already running",
-  "toast.invalidFiles": "Skipped {{count}} unsupported files"
+  "toast.manualSingleOnly": "Open one image before using manual processing",
+  "toast.manualAreaRequired": "Select or enter a manual area first",
+  "toast.detectedAreaMissing": "No detected area is available yet",
+  "toast.invalidFiles": "Skipped {{count}} unsupported files",
+  "error.cors.detail": "Security Error: {{message}}. 1. The image is from a third-party website (cross-origin). 2. Even with CORS enabled, the server may not send the correct headers. 3. Please save the image to your local device first, then drag it into this tool.",
+  "error.remoteFetchFailed": "Remote fetch failed (CORS)",
+  "error.dropFailed": "Failed to process dropped file",
+  "shortcuts.title": "Keyboard Shortcuts",
+  "shortcuts.esc": "Esc: Reset workspace",
+  "shortcuts.view": "1/2/3: Switch view",
+  "shortcuts.download": "Ctrl+S: Download",
+  "shortcuts.compare": "Arrow keys: Compare"
 }

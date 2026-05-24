@@ -39,20 +39,24 @@ export function setupLanguageSelector(elements) {
         mod.supportedLanguages.forEach(lang => {
             const opt = document.createElement('option');
             opt.value = lang.code;
-            opt.textContent = lang.label;
+            opt.textContent = lang.shortLabel || lang.label;
+            opt.title = lang.label;
             select.appendChild(opt);
         });
         select.value = i18n.locale;
+        select.title = mod.supportedLanguages.find(lang => lang.code === select.value)?.label || 'Language';
     });
 
     select.addEventListener('change', async () => {
         await i18n.switchLocale(select.value);
+        const selected = [...select.options].find(opt => opt.value === select.value);
+        if (selected?.title) select.title = selected.title;
         saveSettings(elements);
         AuditLog.log(`Language set to ${select.value}`, 'info');
     });
 }
 
-export function getEngineOptions(elements) {
+export function getEngineOptions(elements, behavior = {}) {
     const thresholdVal = parseFloat(elements.thresholdSlider?.value || '0.18');
     const penaltyVal = parseFloat(elements.penaltySlider?.value || '0.30');
     const opts = {
@@ -76,15 +80,31 @@ export function getEngineOptions(elements) {
         }
     };
 
-    if (elements.manualModeToggle?.checked) {
+    if (!behavior.ignoreManual && elements.manualModeToggle?.checked) {
+        const rawManualConfig = {
+            x: elements.manualX?.value,
+            y: elements.manualY?.value,
+            width: elements.manualW?.value,
+            height: elements.manualH?.value
+        };
+        const rawValues = Object.values(rawManualConfig);
+        if (behavior.optionalManual && rawValues.every(value => value === undefined || value === '')) {
+            return opts;
+        }
+        for (const [key, value] of Object.entries(rawManualConfig)) {
+            if (value === undefined || value === '') throw new Error(`Manual ${key} is required`);
+        }
         const manualConfig = {
-            x: Number(elements.manualX?.value),
-            y: Number(elements.manualY?.value),
-            width: Number(elements.manualW?.value || '96'),
-            height: Number(elements.manualH?.value || '96')
+            x: Number(rawManualConfig.x),
+            y: Number(rawManualConfig.y),
+            width: Number(rawManualConfig.width),
+            height: Number(rawManualConfig.height)
         };
         for (const [key, value] of Object.entries(manualConfig)) {
             if (!Number.isFinite(value)) throw new Error(`Invalid manual ${key}: expected a number`);
+        }
+        if (manualConfig.x < 0 || manualConfig.y < 0 || manualConfig.width <= 0 || manualConfig.height <= 0) {
+            throw new Error(i18n.t('toast.manualAreaRequired'));
         }
         opts.manualConfig = {
             x: Math.trunc(manualConfig.x),

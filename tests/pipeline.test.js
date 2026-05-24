@@ -2,62 +2,46 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { detectWatermark } from '../src/core/detector.js';
 import { removeWatermark } from '../src/core/blendModes.js';
-import { createMockImageData, applyWatermark, createMockAlphaMap } from './test_utils.js';
+import { createMockImageData, applyWatermark, createMockAlphaMap, resolvePos } from './test_utils.js';
 
-describe('System Pipeline Integration - E2E Simulation', () => {
+describe('Detection-to-Removal Pipeline', () => {
 
-    test('Full Journey: Detection to Removal recovery', () => {
+    test('Full journey: inject → detect → remove → verify', () => {
         const w = 800, h = 600;
         const originalColor = 100;
-        const rawImg = createMockImageData(w, h, 'noise', originalColor);
-        
-        // Use a copy for processing
-        const processedImg = {
-            width: w,
-            height: h,
-            data: new Uint8ClampedArray(rawImg.data)
-        };
+        const processedImg = createMockImageData(w, h, 'noise', originalColor);
 
         const size = 96;
         const alphaMap = createMockAlphaMap(size);
-        // Place watermark well inside image to avoid clipping
-        const targetX = w - size - 64;  // = 640 (standard 64px margin)
-        const targetY = h - size - 50;  // = 454
-        
-        // 1. Apply Watermark
+        const pos = resolvePos(w, h);
+        const targetX = pos.x, targetY = pos.y;
+
         applyWatermark(processedImg, targetX, targetY, size, size, alphaMap);
 
-        // 2. Detect Watermark
-        const alphaMaps = { 96: alphaMap, 48: new Float32Array(48*48) };
+        const alphaMaps = { 96: alphaMap, 48: new Float32Array(48 * 48) };
         const detection = detectWatermark(processedImg, alphaMaps);
-        
-        assert.ok(detection, 'Pipeline step 1 (Detection) failed');
+
+        assert.ok(detection, 'Detection must succeed');
         assert.strictEqual(detection.width, 96);
 
-        // 3. Remove Watermark
-        const pos = { x: detection.x, y: detection.y, width: detection.width, height: detection.height };
-        removeWatermark(processedImg, alphaMap, pos);
+        removeWatermark(processedImg, alphaMap, { x: detection.x, y: detection.y, width: detection.width, height: detection.height });
 
-        // 4. Verify Reconstruction
-        // We check if the processed image pixels returned to originalColor (within rounding tolerance)
         const checkPoints = [
             { x: targetX + 10, y: targetY + 10 },
             { x: targetX + 40, y: targetY + 40 }
         ];
-
         for (const pt of checkPoints) {
             if (pt.x < w && pt.y < h) {
                 const idx = (pt.y * w + pt.x) << 2;
                 const diff = Math.abs(processedImg.data[idx] - originalColor);
-                assert.ok(diff <= 120, `Reconstruction error at (${pt.x},${pt.y}): got ${processedImg.data[idx]}, expected ~${originalColor}`);
+                assert.ok(diff <= 120, `Reconstruction error too large: ${diff} at (${pt.x},${pt.y})`);
             }
         }
     });
 
-    test('Consistency: No-Watermark scenario should return null', () => {
+    test('Clean image with no watermark returns null', () => {
         const img = createMockImageData(200, 200, 'random');
         const alphaMaps = { 48: createMockAlphaMap(48), 96: createMockAlphaMap(96) };
-        const res = detectWatermark(img, alphaMaps);
-        assert.strictEqual(res, null, 'False positive detection on random noise');
+        assert.strictEqual(detectWatermark(img, alphaMaps), null);
     });
 });

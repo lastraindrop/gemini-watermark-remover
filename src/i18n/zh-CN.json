@@ -28,6 +28,9 @@
   "btn.setInputDir": "设置输入文件夹",
   "btn.setOutputDir": "设置输出文件夹",
   "btn.startProcess": "开始批处理",
+  "btn.manualReprocess": "按手动区域重处理",
+  "btn.manualUseDetected": "采用检测区域",
+  "btn.manualClear": "清空区域",
   "settings.model": "模型",
   "settings.advanced": "高级配置",
   "settings.threshold": "检测灵敏度",
@@ -97,5 +100,16 @@
   "toast.batchComplete": "批处理完成：成功 {{success}}，失败 {{failed}}",
   "toast.removed": "已移除 {{count}} 个水印",
   "toast.processingBusy": "当前已有处理任务在运行",
-  "toast.invalidFiles": "已跳过 {{count}} 个不支持的文件"
+  "toast.manualSingleOnly": "请先打开一张图片再使用手动处理",
+  "toast.manualAreaRequired": "请先选择或输入手动区域",
+  "toast.detectedAreaMissing": "当前还没有可采用的检测区域",
+  "toast.invalidFiles": "已跳过 {{count}} 个不支持的文件",
+  "error.cors.detail": "安全错误：{{message}}。1. 浏览器检测到该图片来自第三方网站（跨域）。2. 即使开启了 CORS，服务器也可能未正确发送 Header。3. 请务必先将图片「另存为」到本地电脑，再拖入本工具处理。",
+  "error.remoteFetchFailed": "远程获取失败 (CORS)",
+  "error.dropFailed": "放置文件处理失败",
+  "shortcuts.title": "快捷键",
+  "shortcuts.esc": "Esc: 重置工作区",
+  "shortcuts.view": "1/2/3: 切换视图模式",
+  "shortcuts.download": "Ctrl+S: 下载",
+  "shortcuts.compare": "←/→: 对比"
 }

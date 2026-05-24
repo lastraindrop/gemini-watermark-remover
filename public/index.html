@@ -16,7 +16,7 @@
     })();
   </script>
 </head>
-<body class="antialiased selection:bg-emerald-500 selection:text-white">
+<body class="antialiased selection:bg-emerald-500 selection:text-white overflow-x-hidden">
   <!-- Mesh Background blobs -->
   <div class="mesh-blob mesh-blob-1"></div>
   <div class="mesh-blob mesh-blob-2"></div>
@@ -26,63 +26,64 @@
       <div id="loadingLine" class="h-full bg-emerald-500 transition-all duration-300 w-0"></div>
   </div>
 
-  <header class="sticky top-0 z-[60] py-4">
+  <header class="sticky top-0 z-[60] py-3 md:py-4">
     <div class="max-w-7xl mx-auto px-4">
-      <nav class="glass-premium rounded-2xl md:rounded-full px-6 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-3">
+      <nav class="glass-premium rounded-2xl md:rounded-full px-4 md:px-6 py-3 flex items-center justify-start sm:justify-between gap-3 min-w-0">
+        <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-glow-emerald">
             <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m12 3-1.9 5.8-5.8 1.9 5.8 1.9 1.9 5.8 1.9-5.8 5.8-1.9-5.8-1.9Z"></path></svg>
           </div>
-          <div class="hidden sm:block">
-            <h1 class="text-xl font-black tracking-tight text-slate-900 dark:text-white" data-i18n="brand.name">Watermark Studio</h1>
+          <div class="hidden sm:block min-w-0">
+            <h1 class="text-xl font-black tracking-tight text-slate-900 dark:text-white truncate" data-i18n="brand.name">Watermark Studio</h1>
           </div>
         </div>
 
-        <div class="flex items-center gap-4 md:gap-8">
+        <div class="flex items-center gap-3 md:gap-8 shrink-0 ml-2 sm:ml-0">
           <div class="hidden lg:flex items-center gap-6 text-sm font-bold text-slate-600 dark:text-slate-400">
             <a href="userscript/gemini-watermark-remover.user.js" class="hover:text-emerald-500 transition-colors" data-i18n="nav.userscript">Userscript</a>
             <a href="https://github.com/lastraindrop/gemini-watermark-remover" class="hover:text-emerald-500 transition-colors" data-i18n="nav.github">GitHub</a>
           </div>
           <div class="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden lg:block"></div>
-          <select id="langSelect" class="text-xs font-black uppercase tracking-widest outline-none cursor-pointer">
-            <!-- Populated -->
-          </select>
+          <div class="relative shrink-0">
+            <select id="langSelect" class="text-xs font-black outline-none cursor-pointer" aria-label="Language">
+              <!-- Populated -->
+            </select>
+            <svg class="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9 6 6 6-6"></path></svg>
+          </div>
         </div>
       </nav>
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-4 py-12 md:py-20">
+  <main class="max-w-7xl mx-auto px-4 py-8 md:py-14 overflow-x-hidden">
     <!-- Hero Section -->
-    <div class="text-center mb-16 animate-fade-up">
+    <div class="text-center mb-10 md:mb-12 animate-fade-up">
       <div class="inline-flex items-center gap-2 px-3 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-tighter mb-6">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
           <span data-i18n="hero.badge">Pure Browser-Side Processing</span>
       </div>
-      <h2 class="text-5xl md:text-7xl font-black text-slate-900 dark:text-white tracking-tight mb-6 leading-tight" data-i18n="main.title">
-          Remove Watermarks <br/> <span class="bg-clip-text text-transparent bg-gradient-to-r from-emerald-500 to-indigo-500">Mathematically.</span>
-      </h2>
-      <p class="max-w-2xl mx-auto text-slate-500 dark:text-slate-400 font-medium md:text-lg" data-i18n="main.subtitle">
+      <h2 class="max-w-[18rem] sm:max-w-[22rem] md:max-w-4xl mx-auto text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-slate-900 dark:text-white tracking-tight mb-6 leading-tight break-all sm:break-words" data-i18n="main.title">Gemini & Doubao Watermark Analysis</h2>
+      <p class="max-w-[20rem] sm:max-w-2xl mx-auto text-sm sm:text-base text-slate-500 dark:text-slate-400 font-medium md:text-lg break-all sm:break-words" data-i18n="main.subtitle">
           Lossless restoration using inverse alpha blending. Fast, Private, and Free.
       </p>
     </div>
 
     <!-- Main Workspace -->
-    <div class="max-w-4xl mx-auto">
+    <div class="w-full max-w-4xl mx-auto min-w-0">
       <!-- Upload Dropzone -->
-      <div id="uploadArea" class="block animate-fade-up [animation-delay:200ms] group border-none cursor-pointer" role="button" tabindex="0">
+      <div id="uploadArea" class="block w-full min-w-0 animate-fade-up [animation-delay:200ms] group border-none cursor-pointer" role="button" tabindex="0">
         <input id="fileInput" type="file" multiple accept="image/jpeg,image/png,image/webp" class="hidden">
         <input id="folderInput" type="file" multiple accept="image/*" webkitdirectory directory class="hidden">
-        <div class="glass-premium rounded-[32px] p-4 group-hover:p-3 transition-all duration-500">
-          <div class="relative w-full h-80 rounded-[24px] border-2 border-dashed border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 flex flex-col items-center justify-center transition-all duration-500 group-hover:bg-white dark:group-hover:bg-slate-900 group-hover:border-emerald-500 shadow-inner overflow-hidden">
+        <div class="glass-premium w-full min-w-0 rounded-2xl p-3 md:p-4 group-hover:p-3 transition-all duration-300">
+          <div class="relative w-full min-w-0 h-72 md:h-80 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/50 flex flex-col items-center justify-center transition-colors duration-300 group-hover:bg-white dark:group-hover:bg-slate-900 group-hover:border-emerald-500 shadow-inner overflow-hidden px-4">
             <div class="mesh-blob mesh-blob-1 opacity-5 group-hover:opacity-10 transition-opacity"></div>
             
             <div class="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mb-6 text-emerald-500 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 shadow-glow-emerald">
               <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
             </div>
             
-            <h3 class="text-2xl font-black text-slate-900 dark:text-white mb-2" data-i18n="upload.text">Select Image</h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400 font-medium" data-i18n="upload.hint">Supports JPG, PNG, WebP - Drag & Drop - Ctrl+V</p>
+            <h3 class="text-2xl font-black text-slate-900 dark:text-white mb-2 text-center" data-i18n="upload.text">Select Image</h3>
+            <p class="max-w-full px-2 text-center text-sm text-slate-500 dark:text-slate-400 font-medium break-all sm:break-words" data-i18n="upload.hint">Supports JPG, PNG, WebP - Drag & Drop - Ctrl+V</p>
             <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
               <button id="chooseFileBtn" type="button" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black transition-colors" data-i18n="upload.chooseFiles">Choose Images</button>
               <button id="chooseFolderBtn" type="button" class="px-5 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 text-xs font-black transition-colors" data-i18n="upload.chooseFolder">Choose Folder</button>
@@ -92,9 +93,9 @@
       </div>
 
       <!-- Control Panel -->
-      <div id="controlPanel" class="mt-8 animate-fade-up [animation-delay:300ms] glass-premium rounded-3xl p-6 flex flex-wrap items-center justify-center gap-6">
+      <div id="controlPanel" class="mt-8 animate-fade-up [animation-delay:300ms] glass-premium w-full max-w-full min-w-0 rounded-3xl p-4 sm:p-6 flex flex-wrap items-center justify-center gap-4 md:gap-6">
         <!-- Model Selection -->
-        <div class="flex flex-col gap-1.5 min-w-[140px]">
+        <div class="flex flex-col gap-1.5 w-full sm:w-56 md:w-auto md:min-w-[160px]">
           <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1" data-i18n="settings.model">AI Profile</span>
           <div class="relative">
             <select id="profileSelect" class="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-4 py-2.5 text-xs font-bold appearance-none cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors outline-none ring-offset-2 focus:ring-2 focus:ring-emerald-500/20">
@@ -109,8 +110,8 @@
         <div class="h-10 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
 
         <!-- Toggles -->
-        <div class="flex items-center gap-6">
-          <label class="flex items-center gap-3 cursor-pointer group">
+        <div class="w-full md:w-auto grid grid-cols-1 min-[520px]:grid-cols-3 md:flex items-center justify-center gap-3 md:gap-6">
+          <label class="flex items-center justify-center gap-3 min-w-0 cursor-pointer group">
             <div class="relative w-10 h-6 bg-slate-200 dark:bg-slate-800 rounded-full transition-colors has-[:checked]:bg-emerald-500">
               <input type="checkbox" id="deepScanToggle" class="sr-only peer" checked>
               <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
@@ -118,7 +119,7 @@
             <span class="text-xs font-bold text-slate-600 dark:text-slate-300 group-hover:text-emerald-500 transition-colors" data-i18n="settings.deepScan">Deep Scan</span>
           </label>
 
-          <label class="flex items-center gap-3 cursor-pointer group">
+          <label class="flex items-center justify-center gap-3 min-w-0 cursor-pointer group">
             <div class="relative w-10 h-6 bg-slate-200 dark:bg-slate-800 rounded-full transition-colors has-[:checked]:bg-emerald-500">
               <input type="checkbox" id="noiseReductionToggle" class="sr-only peer">
               <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
@@ -126,7 +127,7 @@
             <span class="text-xs font-bold text-slate-600 dark:text-slate-300 group-hover:text-emerald-500 transition-colors" data-i18n="settings.noiseReduction">Noise Reduction</span>
           </label>
 
-          <label class="flex items-center gap-3 cursor-pointer group">
+          <label class="flex items-center justify-center gap-3 min-w-0 cursor-pointer group">
             <div class="relative w-10 h-6 bg-slate-200 dark:bg-slate-800 rounded-full transition-colors has-[:checked]:bg-emerald-500">
               <input type="checkbox" id="autoDownloadToggle" class="sr-only peer">
               <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
@@ -135,7 +136,7 @@
           </label>
         </div>
 
-        <div class="flex items-center gap-2 sm:ml-auto">
+        <div class="flex w-full sm:w-auto items-center justify-center gap-2 sm:ml-auto">
             <span id="memoryCount" class="text-[9px] font-mono text-slate-400 mr-2 hidden">0</span>
             <button id="toggleAdvancedBtn" class="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl transition-all" title="Advanced Settings" aria-label="Advanced Settings">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -202,6 +203,11 @@
                               <input type="number" id="manualH" placeholder="96" class="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-xs font-mono outline-none border border-transparent focus:border-indigo-500/30">
                           </div>
                       </div>
+                      <div class="grid grid-cols-2 gap-3">
+                          <button id="manualUseDetectedBtn" type="button" class="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-[10px] font-black transition-colors" data-i18n="btn.manualUseDetected">Use Detected Area</button>
+                          <button id="manualClearBtn" type="button" class="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-[10px] font-black transition-colors" data-i18n="btn.manualClear">Clear Area</button>
+                      </div>
+                      <button id="manualReprocessBtn" type="button" class="w-full py-3 px-4 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-black transition-colors" data-i18n="btn.manualReprocess">Apply Manual Area</button>
                   </div>
               </div>
           </div>
@@ -234,6 +240,9 @@
                     <div class="handle"><div class="handle-btn">
                         <svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M8 7l-5 5 5 5m8-10l5 5-5 5"></path></svg>
                     </div></div>
+                    <div id="manualSelectionLayer" class="hidden absolute inset-0 z-30 cursor-crosshair touch-none" aria-hidden="true">
+                        <div id="manualSelectionBox" class="hidden absolute rounded-md border-2 border-indigo-400 bg-indigo-500/20 shadow-[0_0_0_9999px_rgba(15,23,42,0.12)] pointer-events-none"></div>
+                    </div>
                     <!-- Magnifier Lens -->
                     <div id="magnifierLens" class="magnifier-lens hidden"></div>
                 </div>
@@ -336,7 +345,7 @@
   </div>
 
   <!-- Debug Console (Refined) -->
-  <div id="auditConsole" class="fixed bottom-6 right-6 w-80 h-48 bg-slate-900/90 backdrop-blur-xl border border-white/5 rounded-2xl shadow-2xl z-[100] flex flex-col overflow-hidden transition-all duration-500 translate-y-[calc(100%-48px)]">
+  <div id="auditConsole" class="hidden md:flex fixed bottom-6 right-6 w-80 h-48 bg-slate-900/90 border border-white/5 rounded-2xl shadow-2xl z-[100] flex-col overflow-hidden transition-all duration-500 translate-y-[calc(100%-48px)]">
       <div id="auditConsoleToggle" class="flex items-center justify-between px-4 py-3 bg-white/5 cursor-pointer">
           <div class="flex items-center gap-4">
                <span class="text-[9px] font-black text-emerald-500 tracking-[3px] uppercase" data-i18n="audit.title">Audit Core v2</span>
@@ -345,6 +354,15 @@
           <button id="exportLogBtn" class="text-[9px] font-bold text-slate-400 hover:text-white transition-colors" data-i18n="btn.export">EXPORT</button>
       </div>
       <div id="auditLogList" class="flex-grow overflow-y-auto p-4 font-mono text-[9px] leading-relaxed text-slate-400 space-y-1 select-all scrollbar-hide"></div>
+  </div>
+
+  <!-- Keyboard Shortcuts Hint -->
+  <div id="shortcutsHint" class="hidden md:flex fixed bottom-6 left-6 flex-col gap-1 bg-slate-900/90 border border-white/5 rounded-2xl px-4 py-3 shadow-2xl z-[100] text-[9px] font-mono text-slate-500 leading-relaxed">
+      <span class="text-emerald-500 font-bold text-[10px] tracking-[2px] uppercase mb-1" data-i18n="shortcuts.title">Keyboard Shortcuts</span>
+      <span data-i18n="shortcuts.esc">Esc: Reset workspace</span>
+      <span data-i18n="shortcuts.view">1/2/3: Switch view modes</span>
+      <span data-i18n="shortcuts.download">Ctrl+S: Download</span>
+      <span data-i18n="shortcuts.compare">←/→: Compare images</span>
   </div>
 
   <!-- Loading State Overlay -->

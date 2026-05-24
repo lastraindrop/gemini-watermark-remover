@@ -28,6 +28,9 @@
   "btn.setInputDir": "Carpeta de entrada",
   "btn.setOutputDir": "Carpeta de salida",
   "btn.startProcess": "Iniciar proceso por lotes",
+  "btn.manualReprocess": "Aplicar área manual",
+  "btn.manualUseDetected": "Usar area detectada",
+  "btn.manualClear": "Limpiar area",
   "settings.model": "Modelo",
   "settings.advanced": "Advanced Configuration",
   "settings.threshold": "Detection Sensitivity",
@@ -97,5 +100,16 @@
   "toast.batchComplete": "Lote completado: {{success}} correctas, {{failed}} fallidas",
   "toast.removed": "{{count}} marcas eliminadas",
   "toast.processingBusy": "El procesamiento ya está en curso",
-  "toast.invalidFiles": "Se omitieron {{count}} archivos no compatibles"
+  "toast.manualSingleOnly": "Abre una imagen antes de usar el procesamiento manual",
+  "toast.manualAreaRequired": "Selecciona o introduce primero un área manual",
+  "toast.detectedAreaMissing": "Aun no hay un area detectada disponible",
+  "toast.invalidFiles": "Se omitieron {{count}} archivos no compatibles",
+  "error.cors.detail": "Error de seguridad: {{message}}. 1. La imagen proviene de un sitio web de terceros (cross-origin). 2. Incluso con CORS, el servidor puede no enviar los encabezados correctos. 3. Guarde primero la imagen localmente y luego arrástrela a esta herramienta.",
+  "error.remoteFetchFailed": "Error de carga remota (CORS)",
+  "error.dropFailed": "Error al procesar el archivo soltado",
+  "shortcuts.title": "Atajos de teclado",
+  "shortcuts.esc": "Esc: Restablecer espacio de trabajo",
+  "shortcuts.view": "1/2/3: Cambiar modos de vista",
+  "shortcuts.download": "Ctrl+S: Descargar",
+  "shortcuts.compare": "←/→: Comparar"
 }

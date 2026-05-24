@@ -2,16 +2,16 @@ import i18n from './i18n.js';
 import { WatermarkEngine } from './core/watermarkEngine.js';
 import { showLoading, showLoadingFail, hideLoading } from './utils.js';
 import { getAllProfiles } from './core/profiles.js';
-import { ENGINE_LIMITS } from './core/config.js';
 
-import { state, objectUrlManager, resetWorkspaceGlobal } from './app/state.js';
+import { state, objectUrlManager } from './app/state.js';
 import { AuditLog, showToast, resetGlobalProgress } from './app/ui.js';
-import { processSingle, processQueue, downloadImage, downloadAllAsZip } from './app/processing.js';
+import { downloadImage, downloadAllAsZip, processSingle } from './app/processing.js';
 import { setupWindowDragAndDrop, handleFiles } from './app/dragDrop.js';
 import { setupKeyboardShortcuts } from './app/keyboard.js';
 import { setupLanguageSelector, saveSettings, loadSettings, getEngineOptions } from './app/settings.js';
 import { switchViewMode, setupSlider, updateStatsUI, applyProfileTheme } from './app/viewModes.js';
 import { setupMagnifier } from './app/magnifier.js';
+import { clearManualRegion, setupManualSelection, setManualSelectionEnabled, updateManualSelectionOverlay, writeManualRegion } from './app/manualSelection.js';
 
 const elements = {
     uploadArea: document.getElementById('uploadArea'),
@@ -49,7 +49,12 @@ const elements = {
     manualX: document.getElementById('manualX'),
     manualY: document.getElementById('manualY'),
     manualW: document.getElementById('manualW'),
-    manualH: document.getElementById('manualH')
+    manualH: document.getElementById('manualH'),
+    manualUseDetectedBtn: document.getElementById('manualUseDetectedBtn'),
+    manualClearBtn: document.getElementById('manualClearBtn'),
+    manualReprocessBtn: document.getElementById('manualReprocessBtn'),
+    manualSelectionLayer: document.getElementById('manualSelectionLayer'),
+    manualSelectionBox: document.getElementById('manualSelectionBox')
 };
 
 async function init() {
@@ -185,10 +190,19 @@ function setupEventListeners() {
 
     elements.manualModeToggle?.addEventListener('change', (e) => {
         const active = e.target.checked;
-        elements.manualCoords?.classList.toggle('opacity-40', !active);
-        elements.manualCoords?.classList.toggle('pointer-events-none', !active);
-        if (active) AuditLog.log('Manual Mode enabled', 'warn');
+        setManualControlsActive(active);
+        if (active) {
+            switchViewMode('slider', elements);
+            AuditLog.log('Manual Mode enabled', 'warn');
+        }
     });
+
+    elements.manualUseDetectedBtn?.addEventListener('click', () => useDetectedAreaForManualMode());
+    elements.manualClearBtn?.addEventListener('click', () => {
+        clearManualRegion(elements);
+        AuditLog.log('Manual region cleared', 'info');
+    });
+    elements.manualReprocessBtn?.addEventListener('click', () => reprocessSingleWithManualArea());
 
     elements.modeSliderBtn?.addEventListener('click', () => switchViewMode('slider', elements));
     elements.modeSideBtn?.addEventListener('click', () => switchViewMode('side', elements));
@@ -196,9 +210,103 @@ function setupEventListeners() {
 
     setupSlider(elements);
     setupMagnifier(elements);
+    setupManualSelection(elements, {
+        onSelection: () => {
+            if (elements.manualModeToggle) elements.manualModeToggle.checked = true;
+            elements.manualCoords?.classList.remove('opacity-40', 'pointer-events-none');
+        }
+    });
+}
+
+function setManualControlsActive(active) {
+    elements.manualCoords?.classList.toggle('opacity-40', !active);
+    elements.manualCoords?.classList.toggle('pointer-events-none', !active);
+    setManualSelectionEnabled(elements, active && elements.singlePreview?.style.display !== 'none');
+}
+
+function getActiveSingleItem() {
+    return state.activeSingleItem || (state.imageQueue.length === 1 ? state.imageQueue[0] : null);
+}
+
+function getRegionFromDetection(pos, config) {
+    const x = Number(pos?.x);
+    const y = Number(pos?.y);
+    const width = Number(pos?.width ?? config?.logoWidth ?? config?.logoSize);
+    const height = Number(pos?.height ?? config?.logoHeight ?? config?.logoSize);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
+    return { x, y, width, height };
+}
+
+function useDetectedAreaForManualMode() {
+    const item = getActiveSingleItem();
+    const region = item?.lastDetectedRegion;
+    if (!region) {
+        showToast(i18n.t('toast.detectedAreaMissing'), 'info');
+        return;
+    }
+
+    if (elements.manualModeToggle) elements.manualModeToggle.checked = true;
+    setManualControlsActive(true);
+    switchViewMode('slider', elements);
+    writeManualRegion(elements, region);
+    updateManualSelectionOverlay(elements);
+    AuditLog.log(`Manual region seeded from detection (${region.x}, ${region.y}, ${region.width}x${region.height})`, 'info');
+}
+
+async function reprocessSingleWithManualArea() {
+    if (state.isProcessing) {
+        showToast(i18n.t('toast.processingBusy'), 'info');
+        return;
+    }
+    const item = getActiveSingleItem();
+    if (!item) {
+        showToast(i18n.t('toast.manualSingleOnly'), 'info');
+        return;
+    }
+
+    if (elements.manualModeToggle) elements.manualModeToggle.checked = true;
+    setManualControlsActive(true);
+
+    let options;
+    try {
+        options = getEngineOptions(elements);
+    } catch (error) {
+        showToast(error.message || i18n.t('toast.manualAreaRequired'), 'err');
+        return;
+    }
+
+    if (!options.manualConfig) {
+        showToast(i18n.t('toast.manualAreaRequired'), 'info');
+        return;
+    }
+
+    state.isProcessing = true;
+    elements.manualReprocessBtn?.setAttribute('disabled', 'true');
+    elements.manualReprocessBtn?.classList.add('opacity-60', 'cursor-wait');
+    document.getElementById('resultContainer')?.classList.add('scan-active');
+
+    try {
+        await processSingle(item, options, {
+            onSuccess: ({ item: processedItem, removedCount, confidence, latency, config, pos, profileId }) => {
+                updateSingleUI(processedItem, removedCount, confidence, latency, config, pos, profileId);
+                updateManualSelectionOverlay(elements);
+                AuditLog.log(`Manual region processed (${options.manualConfig.x}, ${options.manualConfig.y}, ${options.manualConfig.width}x${options.manualConfig.height})`, 'success');
+            },
+            onError: (error) => {
+                showToast(error?.message || i18n.t('status.error'), 'err');
+            }
+        });
+    } finally {
+        document.getElementById('resultContainer')?.classList.remove('scan-active');
+        elements.manualReprocessBtn?.removeAttribute('disabled');
+        elements.manualReprocessBtn?.classList.remove('opacity-60', 'cursor-wait');
+        state.isProcessing = false;
+    }
 }
 
 function updateSingleUI(item, removedCount, confidence, latency, config, pos, profileId) {
+    state.activeSingleItem = item;
+    item.lastDetectedRegion = getRegionFromDetection(pos, config);
     document.getElementById('sliderOriginal').src = item.originalUrl;
     document.getElementById('sliderProcessed').src = item.processedUrl;
     document.getElementById('sideOriginal').src = item.originalUrl;
@@ -219,6 +327,7 @@ function updateSingleUI(item, removedCount, confidence, latency, config, pos, pr
 
     AuditLog.log(`[PASS] ${item.name} | Profile: ${profileId} | Conf: ${confidence}% | ${latency}ms`, 'success');
     showToast(i18n.t('toast.removed', { count: removedCount }), 'success');
+    setManualSelectionEnabled(elements, elements.manualModeToggle?.checked === true);
 }
 
 function updateCardUI(item, removedCount, confidence, latency) {
@@ -272,13 +381,48 @@ function resetWorkspace(clearQueue = true) {
     objectUrlManager.clear();
     elements.singlePreview.style.display = 'none';
     elements.multiPreview.style.display = 'none';
+    clearManualRegion(elements);
+    setManualSelectionEnabled(elements, false);
     if (clearQueue) {
         state.imageQueue = [];
         state.processedCount = 0;
+        state.activeSingleItem = null;
         AuditLog.log('Workspace cleared', 'info');
     }
     resetGlobalProgress();
+    updateMemoryCounter();
 }
+
+export { resetWorkspace };
+
+const memoryEl = document.getElementById('memoryCount');
+
+function updateMemoryCounter() {
+    if (!memoryEl) return;
+    const count = objectUrlManager.urls.size;
+    memoryEl.textContent = `OBJ:${count}`;
+    memoryEl.classList.toggle('hidden', count === 0);
+}
+
+const _originalRegister = objectUrlManager.register.bind(objectUrlManager);
+const _originalRevoke = objectUrlManager.revoke.bind(objectUrlManager);
+const _originalClear = objectUrlManager.clear.bind(objectUrlManager);
+
+objectUrlManager.register = function(url) {
+    const result = _originalRegister(url);
+    updateMemoryCounter();
+    return result;
+};
+
+objectUrlManager.revoke = function(url) {
+    _originalRevoke(url);
+    updateMemoryCounter();
+};
+
+objectUrlManager.clear = function() {
+    _originalClear();
+    updateMemoryCounter();
+};
 
 document.addEventListener('paste', (e) => {
     const items = e.clipboardData?.items;

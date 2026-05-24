@@ -1,9 +1,6 @@
 /**
  * Watermark detection engine (Precision & Speed Optimized)
- * 
- * Architectural Note: This module uses function-level state mutation (detectWatermark._blurBuffer, etc.)
- * as a memory pooling optimization to prevent multiple 60MB+ allocations during 4K image processing.
- * 
+ *
  * Phases:
  * 1. Catalog & Anchor Check (Ultra-Fast)
  * 2. Heuristic Global Search (Exhaustive)
@@ -15,6 +12,37 @@
 import { getCatalogConfig, getAllCatalogConfigs } from './catalog.js';
 import { registry } from './templates/registry.js';
 import { regionStdDev } from './utils.js';
+
+export class DetectorContext {
+    constructor() {
+        this._blurBuffer = undefined;
+        this._sharedGradientsI = undefined;
+        this._sharedGradientsA = undefined;
+    }
+
+    getBlurBuffer(requiredLength) {
+        if (!this._blurBuffer || this._blurBuffer.length !== requiredLength) {
+            this._blurBuffer = new Uint8ClampedArray(requiredLength);
+        }
+        return this._blurBuffer;
+    }
+
+    getGradientBuffers(requiredLength) {
+        if (!this._sharedGradientsI || this._sharedGradientsI.length < requiredLength) {
+            this._sharedGradientsI = new Float32Array(requiredLength);
+            this._sharedGradientsA = new Float32Array(requiredLength);
+        }
+        return { gradientsI: this._sharedGradientsI, gradientsA: this._sharedGradientsA };
+    }
+
+    reset() {
+        this._blurBuffer = null;
+        this._sharedGradientsI = null;
+        this._sharedGradientsA = null;
+    }
+}
+
+const _defaultContext = new DetectorContext();
 
 const SEARCH_CONFIG = {
     RANGE_X: 0.45,
@@ -42,26 +70,22 @@ const SEARCH_CONFIG = {
  * @param {Object} options - { deepScan: boolean }
  * @returns {Object|null} {x, y, width, height, confidence} or null if not found
  */
-export function detectWatermark(imageData, alphaMaps, options = { deepScan: true, noiseReduction: false }) {
+export function detectWatermark(imageData, alphaMaps, options = { deepScan: true, noiseReduction: false }, context = _defaultContext) {
     const { width, height } = imageData;
     const { deepScan, noiseReduction, overrides = {} } = options;
     
-    // v2.1: Dynamic Configuration Merging
     const config = {
         ...SEARCH_CONFIG,
         ...overrides,
         THRESHOLDS: { ...SEARCH_CONFIG.THRESHOLDS, ...(overrides.THRESHOLDS || {}) }
     };
-    // gradientPenalty consumed by calculateProbeConfidence (probe path)
 
     let searchData = imageData;
     if (noiseReduction) {
-        if (!detectWatermark._blurBuffer || detectWatermark._blurBuffer.length !== imageData.data.length) {
-            detectWatermark._blurBuffer = new Uint8ClampedArray(imageData.data.length);
-        }
+        const blurBuf = context.getBlurBuffer(imageData.data.length);
         searchData = {
             ...imageData,
-            data: fastBoxBlur(imageData.data, width, height, detectWatermark._blurBuffer)
+            data: fastBoxBlur(imageData.data, width, height, blurBuf)
         };
     }
 
@@ -227,14 +251,11 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                     
                     if (deepScan && confidence > 0.04) {
                         const bufferSizeNeeded = sizeW * sizeH;
-                        if (!detectWatermark._sharedGradientsI || detectWatermark._sharedGradientsI.length < bufferSizeNeeded) {
-                            detectWatermark._sharedGradientsI = new Float32Array(bufferSizeNeeded);
-                            detectWatermark._sharedGradientsA = new Float32Array(bufferSizeNeeded);
-                        }
+                        const { gradientsI, gradientsA } = context.getGradientBuffers(bufferSizeNeeded);
                         const gradientConf = calculateGradientCorrelation(
                             searchData, fx, fy, sizeW, sizeH, alphaMap, 
-                            detectWatermark._sharedGradientsI, 
-                            detectWatermark._sharedGradientsA
+                            gradientsI, 
+                            gradientsA
                         );
                         // Phase 2.1: Multi-dimensional scoring (spatial + gradient + variance)
                         const varianceScore = calculateVarianceScore(searchData, fx, fy, sizeW, sizeH);
@@ -337,6 +358,7 @@ export function calculateCorrelation(imageData, x, y, logoW, logoH, alphaMap, fu
             const imgIdx = (imgRowOffset + curX) << 2;
             const brightness = (data[imgIdx] * 0.2126 + data[imgIdx + 1] * 0.7152 + data[imgIdx + 2] * 0.0722) / 255.0;
             const alpha = alphaMap[alphaRowOffset + col];
+            if (!Number.isFinite(alpha)) continue;
             
             sumI += brightness;
             sumI2 += brightness * brightness;
@@ -363,7 +385,8 @@ function getLuminanceAt(data, imgWidth, x, y) {
 
 function getAlphaAt(alphaMap, logoW, logoH, col, row) {
     if (col < 0 || row < 0 || col >= logoW || row >= logoH) return 0;
-    return alphaMap[row * logoW + col];
+    const alpha = alphaMap[row * logoW + col];
+    return Number.isFinite(alpha) ? alpha : 0;
 }
 
 /**
@@ -413,7 +436,10 @@ export function calculateLocalContrastCorrelation(imageData, x, y, logoW, logoH,
             if (imgNeighborCount < 4) continue;
 
             const imageResidual = getLuminanceAt(data, imgWidth, curX, curY) - imgNeighborSum / imgNeighborCount;
-            const alphaResidual = alphaMap[row * logoW + col] - alphaNeighborSum / offsets.length;
+            const alpha = alphaMap[row * logoW + col];
+            if (!Number.isFinite(alpha)) continue;
+
+            const alphaResidual = alpha - alphaNeighborSum / offsets.length;
 
             if (Math.abs(alphaResidual) < 0.015) continue;
 
@@ -561,8 +587,8 @@ export function calculateGradientCorrelation(imageData, x, y, logoW, logoH, alph
     const { data, width: imgWidth, height: imgHeight } = imageData;
     
     const bufferSizeNeeded = logoW * logoH;
-    if (!gradientsI) gradientsI = new Float32Array(bufferSizeNeeded);
-    if (!gradientsA) gradientsA = new Float32Array(bufferSizeNeeded);
+    if (!gradientsI || gradientsI.length < bufferSizeNeeded) gradientsI = new Float32Array(bufferSizeNeeded);
+    if (!gradientsA || gradientsA.length < bufferSizeNeeded) gradientsA = new Float32Array(bufferSizeNeeded);
     
     gradientsI.fill(0);
     gradientsA.fill(0);
@@ -571,7 +597,10 @@ export function calculateGradientCorrelation(imageData, x, y, logoW, logoH, alph
         const i = ((y + r) * imgWidth + (x + c)) << 2;
         return data[i] * 0.2126 + data[i+1] * 0.7152 + data[i+2] * 0.0722;
     };
-    const getA = (r, c) => alphaMap[r * logoW + c];
+    const getA = (r, c) => {
+        const alpha = alphaMap[r * logoW + c];
+        return Number.isFinite(alpha) ? alpha : 0;
+    };
 
     for (let row = 1; row < logoH - 1; row++) {
         const curY = y + row;
@@ -601,6 +630,7 @@ export function calculateGradientCorrelation(imageData, x, y, logoW, logoH, alph
     for (let i = 0; i < bufferSizeNeeded; i++) {
         const iVal = gradientsI[i];
         const aVal = gradientsA[i];
+        if (!Number.isFinite(iVal) || !Number.isFinite(aVal)) continue;
         if (iVal === 0 && aVal === 0) continue; 
         sumI += iVal;
         sumI2 += iVal * iVal;
@@ -650,8 +680,26 @@ function fastBoxBlur(data, width, height, outputBuffer = null) {
 /**
  * Explicitly clear reusable buffers to free memory (v1.6)
  */
-export function resetDetectorBuffers() {
-    detectWatermark._blurBuffer = null;
-    detectWatermark._sharedGradientsI = null;
-    detectWatermark._sharedGradientsA = null;
+export function resetDetectorBuffers(context) {
+    if (context) {
+        context.reset();
+    } else {
+        _defaultContext.reset();
+    }
 }
+
+Object.defineProperty(detectWatermark, '_blurBuffer', {
+    get() { return _defaultContext._blurBuffer; },
+    set(v) { _defaultContext._blurBuffer = v; },
+    enumerable: true
+});
+Object.defineProperty(detectWatermark, '_sharedGradientsI', {
+    get() { return _defaultContext._sharedGradientsI; },
+    set(v) { _defaultContext._sharedGradientsI = v; },
+    enumerable: true
+});
+Object.defineProperty(detectWatermark, '_sharedGradientsA', {
+    get() { return _defaultContext._sharedGradientsA; },
+    set(v) { _defaultContext._sharedGradientsA = v; },
+    enumerable: true
+});

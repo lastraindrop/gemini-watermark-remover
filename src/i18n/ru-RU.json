@@ -28,6 +28,9 @@
   "btn.setInputDir": "Входная папка",
   "btn.setOutputDir": "Выходная папка",
   "btn.startProcess": "Начать пакетную обработку",
+  "btn.manualReprocess": "Применить ручную область",
+  "btn.manualUseDetected": "Использовать найденную область",
+  "btn.manualClear": "Очистить область",
   "settings.model": "Модель",
   "settings.advanced": "Advanced Configuration",
   "settings.threshold": "Detection Sensitivity",
@@ -97,5 +100,16 @@
   "toast.batchComplete": "Пакет завершен: успешно {{success}}, ошибок {{failed}}",
   "toast.removed": "Удалено водяных знаков: {{count}}",
   "toast.processingBusy": "Обработка уже выполняется",
-  "toast.invalidFiles": "Пропущено неподдерживаемых файлов: {{count}}"
+  "toast.manualSingleOnly": "Откройте одно изображение перед ручной обработкой",
+  "toast.manualAreaRequired": "Сначала выберите или введите ручную область",
+  "toast.detectedAreaMissing": "Обнаруженная область пока недоступна",
+  "toast.invalidFiles": "Пропущено неподдерживаемых файлов: {{count}}",
+  "error.cors.detail": "Ошибка безопасности: {{message}}. 1. Изображение с стороннего сайта (кросс-домен). 2. Даже с CORS сервер может не отправлять правильные заголовки. 3. Пожалуйста, сначала сохраните изображение локально, затем перетащите в этот инструмент.",
+  "error.remoteFetchFailed": "Ошибка удаленной загрузки (CORS)",
+  "error.dropFailed": "Не удалось обработать сброшенный файл",
+  "shortcuts.title": "Горячие клавиши",
+  "shortcuts.esc": "Esc: Сбросить рабочую область",
+  "shortcuts.view": "1/2/3: Переключить режимы просмотра",
+  "shortcuts.download": "Ctrl+S: Скачать",
+  "shortcuts.compare": "←/→: Сравнить"
 }

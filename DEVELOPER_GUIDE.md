@@ -1,6 +1,6 @@
 # GWR Developer Guide (v2.2.1)
 
-本指南说明当前分支的工程结构、参数一致化规则、检测管线（六层）、前端构建架构、测试策略，以及新增模板或修改检测策略时必须遵守的流程。
+本指南说明当前分支的工程结构、参数一致化规则、检测管线（五层）、前端构建架构、测试策略，以及新增模板或修改检测策略时必须遵守的流程。
 
 ## 1. 当前架构
 
@@ -9,7 +9,7 @@
 - `src/core/catalog.js`：尺寸与锚点目录，优先级最高
 - `src/core/config.js`：根据图片尺寸生成候选参数（官方目录 → 近似尺寸 → 启发式）
 - `src/core/detector.js`：候选评分（NCC、局部对比度、梯度相关、方差评分）、三维评分融合
-- `src/core/detectionPipeline.js`：统一 Web/CLI 的六层检测管线（Catalog → Scaled → Heuristic → Adaptive → Global → Decision）
+- `src/core/detectionPipeline.js`：统一 Web/CLI 的五层检测管线（Catalog → Scaled → Heuristic → Adaptive → Global）
 - `src/core/adaptiveDetector.js`：自适应检测（粗到细多尺度搜索 + 三维评分）
 - `src/core/multiPassRemoval.js`：多遍移除（带近黑/纹理安全检查）
 - `src/core/alphaCalibration.js`：Alpha 增益校准（14 档粗搜索 + 精细调整）

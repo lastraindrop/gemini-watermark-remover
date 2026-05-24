@@ -1,8 +1,33 @@
 import { registry } from '../src/core/templates/registry.js';
+import { getCatalogConfig, getAllCatalogConfigs } from '../src/core/catalog.js';
+import { calculateWatermarkPosition } from '../src/core/config.js';
 
 function pseudoRandom01(seed) {
     const x = Math.sin(seed) * 10000;
     return x - Math.floor(x);
+}
+
+/**
+ * Resolve expected watermark position from catalog config, avoiding hardcoding.
+ * Falls back to heuristic config if no exact catalog match.
+ */
+export function resolvePos(imageWidth, imageHeight, profileId = 'gemini') {
+    const cfg = getCatalogConfig(imageWidth, imageHeight, profileId);
+    const config = cfg || (() => {
+        const all = getAllCatalogConfigs(imageWidth, imageHeight, profileId);
+        return all.length > 0 ? all[0] : null;
+    })();
+    return calculateWatermarkPosition(imageWidth, imageHeight, config || {
+        logoSize: 96, marginRight: 64, marginBottom: 64
+    });
+}
+
+/**
+ * Returns the standard logo size for a given resolution from catalog.
+ */
+export function resolveLogoSize(imageWidth, imageHeight, profileId = 'gemini') {
+    const cfg = getCatalogConfig(imageWidth, imageHeight, profileId);
+    return cfg ? (cfg.logoWidth || cfg.logoSize) : 96;
 }
 
 /**

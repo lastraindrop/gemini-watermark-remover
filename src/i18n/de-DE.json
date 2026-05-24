@@ -28,6 +28,9 @@
   "btn.setInputDir": "Eingangsordner",
   "btn.setOutputDir": "Ausgangsordner",
   "btn.startProcess": "Stapelverarbeitung starten",
+  "btn.manualReprocess": "Manuellen Bereich anwenden",
+  "btn.manualUseDetected": "Erkannten Bereich nutzen",
+  "btn.manualClear": "Bereich leeren",
   "settings.model": "Modell",
   "settings.advanced": "Advanced Configuration",
   "settings.threshold": "Detection Sensitivity",
@@ -97,5 +100,16 @@
   "toast.batchComplete": "Stapel abgeschlossen: {{success}} erfolgreich, {{failed}} fehlgeschlagen",
   "toast.removed": "{{count}} Wasserzeichen entfernt",
   "toast.processingBusy": "Die Verarbeitung läuft bereits",
-  "toast.invalidFiles": "{{count}} nicht unterstützte Dateien übersprungen"
+  "toast.manualSingleOnly": "Öffnen Sie ein Bild, bevor Sie manuell verarbeiten",
+  "toast.manualAreaRequired": "Wählen oder geben Sie zuerst einen manuellen Bereich ein",
+  "toast.detectedAreaMissing": "Noch kein erkannter Bereich verfuegbar",
+  "toast.invalidFiles": "{{count}} nicht unterstützte Dateien übersprungen",
+  "error.cors.detail": "Sicherheitsfehler: {{message}}. 1. Das Bild stammt von einer Drittanbieter-Website (Cross-Origin). 2. Auch mit CORS sendet der Server möglicherweise keine korrekten Header. 3. Bitte speichern Sie das Bild zuerst lokal und ziehen Sie es dann in dieses Tool.",
+  "error.remoteFetchFailed": "Fehler beim Remote-Abruf (CORS)",
+  "error.dropFailed": "Verarbeitung der abgelegten Datei fehlgeschlagen",
+  "shortcuts.title": "Tastenkombinationen",
+  "shortcuts.esc": "Esc: Arbeitsbereich zurücksetzen",
+  "shortcuts.view": "1/2/3: Ansichtsmodus wechseln",
+  "shortcuts.download": "Ctrl+S: Herunterladen",
+  "shortcuts.compare": "←/→: Vergleichen"
 }

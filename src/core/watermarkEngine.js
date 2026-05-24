@@ -9,11 +9,14 @@ import { resetDetectorBuffers } from './detector.js';
 import { detectWatermarks } from './detectionPipeline.js';
 import { removeRepeatedWatermarkLayers } from './multiPassRemoval.js';
 import { shouldRecalibrateAlphaStrength, recalibrateAlphaStrength } from './alphaCalibration.js';
+import { applyRemovalStrategy } from './applyRemoval.js';
+import { WorkerPool } from './workerPool.js';
 
 export class WatermarkEngine {
     constructor() {
         this.alphaMaps = {};
         this._worker = null;
+        this._workerPool = null;
         this._workerHandlers = new Map();
         this._nextTaskId = 0;
         this._reusableCanvas = null;
@@ -21,7 +24,6 @@ export class WatermarkEngine {
         this._useWorker = false;
         this._workerFailed = false;
         
-        // Cache for loaded images
         this._assetCache = {};
     }
 
@@ -74,6 +76,8 @@ export class WatermarkEngine {
                     }
                 };
                 this._useWorker = true;
+
+                this._workerPool = new WorkerPool(workerUrl, 2);
             } catch (err) {
                 console.warn('Failed to start worker:', err);
                 this._useWorker = false;
@@ -89,6 +93,15 @@ export class WatermarkEngine {
     }
 
     async _performWorkerRemoval(imageData, matches) {
+        if (this._workerPool && this._workerPool.isAvailable) {
+            try {
+                return await this._workerPool.postTask(imageData, matches);
+            } catch {
+                this._useWorker = false;
+                throw new Error('Worker pool failed');
+            }
+        }
+
         const worker = this._getWorker();
         if (!worker || !this._useWorker) {
             throw new Error('Worker not available');
@@ -214,10 +227,13 @@ export class WatermarkEngine {
             imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         } catch (e) {
             console.error('Core Engine - Pixel Access Violation:', e);
-            const msg = `Security Error: ${e.message}. 
-                1. 浏览器检测到该图片来自第三方网站（跨域）。 
-                2. 即使开启了 CORS，服务器也可能未正确发送 Header。
-                3. 请务必先将图片“另存为”到本地电脑，再拖入本工具处理。`;
+            let msg;
+            try {
+                const { default: i18n } = await import('../i18n.js');
+                msg = i18n.t('error.cors.detail', { message: e.message });
+            } catch {
+                msg = `Security Error: ${e.message}. 1. The image is from a third-party website (cross-origin). 2. Even with CORS enabled, the server may not send the correct headers. 3. Please save the image to your local device first, then drag it into this tool.`;
+            }
             throw new Error(msg);
         }
         
@@ -251,51 +267,7 @@ export class WatermarkEngine {
             }
 
             if (!workerUsed) {
-                for (const result of overallBest.matches) {
-                    const useMultiPass = result.profileId === 'gemini';
-                    if (useMultiPass) {
-                        // Phase 3.1: Multi-pass removal with safety checks
-                        const multiPassResult = removeRepeatedWatermarkLayers({
-                            imageData,
-                            alphaMap: result.alphaMap,
-                            position: result.pos,
-                            maxPasses: 4,
-                            residualThreshold: 0.25
-                        });
-
-                        // Phase 3.2: Alpha gain calibration if high residual remains
-                        const lastPassAfter = multiPassResult.passes && multiPassResult.passes.length > 0
-                            ? multiPassResult.passes[multiPassResult.passes.length - 1].afterSpatialScore
-                            : 0;
-
-                        if (multiPassResult.stopReason !== 'residual-low') {
-                            const originalSpatialScore = result.confidence;
-                            const suppressionGain = Math.abs(originalSpatialScore) - Math.abs(lastPassAfter);
-
-                            if (shouldRecalibrateAlphaStrength({
-                                originalScore: Math.abs(originalSpatialScore),
-                                processedScore: Math.abs(lastPassAfter),
-                                suppressionGain
-                            })) {
-                                const recalibrated = recalibrateAlphaStrength({
-                                    sourceImageData: multiPassResult.imageData,
-                                    alphaMap: result.alphaMap,
-                                    position: result.pos,
-                                    originalSpatialScore: Math.abs(originalSpatialScore),
-                                    processedSpatialScore: Math.abs(lastPassAfter)
-                                });
-                                if (recalibrated) {
-                                    imageData.data.set(recalibrated.imageData.data);
-                                    continue;
-                                }
-                            }
-                        }
-
-                        imageData.data.set(multiPassResult.imageData.data);
-                    } else {
-                        removeWatermark(imageData, result.alphaMap, result.pos);
-                    }
-                }
+                applyRemovalStrategy(imageData, overallBest.matches);
             }
 
             removedCount = overallBest.matches.length;
@@ -326,6 +298,10 @@ export class WatermarkEngine {
      * Clean up resources
      */
     destroy() {
+        if (this._workerPool) {
+            this._workerPool.terminate();
+            this._workerPool = null;
+        }
         if (this._worker) {
             this._worker.terminate();
             this._worker = null;

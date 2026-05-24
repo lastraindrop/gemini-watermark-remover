@@ -11,8 +11,7 @@ import { calculateAlphaMap } from '../core/alphaMap.js';
 import { removeWatermark } from '../core/blendModes.js';
 import { detectWatermarks } from '../core/detectionPipeline.js';
 import { PROFILES } from '../core/profiles.js';
-import { removeRepeatedWatermarkLayers } from '../core/multiPassRemoval.js';
-import { shouldRecalibrateAlphaStrength, recalibrateAlphaStrength } from '../core/alphaCalibration.js';
+import { applyRemovalStrategy } from '../core/applyRemoval.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -114,47 +113,7 @@ class Engine {
         }
 
         for (const match of detection.matches) {
-            const useMultiPass = match.profileId === 'gemini';
-            if (useMultiPass) {
-                const multiPassResult = removeRepeatedWatermarkLayers({
-                    imageData,
-                    alphaMap: match.alphaMap,
-                    position: match.pos,
-                    maxPasses: 4,
-                    residualThreshold: 0.25
-                });
-
-                const lastPass = multiPassResult.passes.length > 0
-                    ? multiPassResult.passes[multiPassResult.passes.length - 1]
-                    : null;
-
-                if (multiPassResult.stopReason !== 'residual-low' && lastPass) {
-                    const originalSpatialScore = match.confidence;
-                    const suppressionGain = Math.abs(originalSpatialScore) - Math.abs(lastPass.afterSpatialScore);
-
-                    if (shouldRecalibrateAlphaStrength({
-                        originalScore: Math.abs(originalSpatialScore),
-                        processedScore: Math.abs(lastPass.afterSpatialScore),
-                        suppressionGain
-                    })) {
-                        const recalibrated = recalibrateAlphaStrength({
-                            sourceImageData: multiPassResult.imageData,
-                            alphaMap: match.alphaMap,
-                            position: match.pos,
-                            originalSpatialScore: Math.abs(originalSpatialScore),
-                            processedSpatialScore: Math.abs(lastPass.afterSpatialScore)
-                        });
-                        if (recalibrated) {
-                            imageData.data.set(recalibrated.imageData.data);
-                            continue;
-                        }
-                    }
-                }
-
-                imageData.data.set(multiPassResult.imageData.data);
-            } else {
-                removeWatermark(imageData, match.alphaMap, match.pos);
-            }
+            applyRemovalStrategy(imageData, [match]);
         }
 
         const format = options.format || 'png';

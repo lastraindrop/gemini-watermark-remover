@@ -35,11 +35,15 @@ if (args.includes('-i') || args.includes('--input')) {
     const inputIdx = args.findIndex(a => a === '-i' || a === '--input');
     const input = args[inputIdx + 1];
     const outputIdx = args.findIndex(a => a === '-o' || a === '--output');
-    const output = args[outputIdx + 1];
+    const hasOutput = outputIdx !== -1 && args[outputIdx + 1] && !args[outputIdx + 1].startsWith('-');
+    const output = hasOutput ? args[outputIdx + 1] : null;
     
-    if (input && output) {
+    if (input && !input.startsWith('-')) {
         const isDir = existsSync(input) && statSync(input).isDirectory();
-        adaptedArgs = ['remove', input, isDir ? '--out-dir' : '--output', output];
+        adaptedArgs = ['remove', input];
+        if (output) {
+            adaptedArgs.push(isDir ? '--out-dir' : '--output', output);
+        }
         ['--json', '--noiseReduction', '--no-deepScan', '--overwrite', '--pipe'].forEach(flag => {
             if (args.includes(flag)) adaptedArgs.push(flag);
         });

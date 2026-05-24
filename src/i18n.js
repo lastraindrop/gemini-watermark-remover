@@ -17,13 +17,13 @@ const translations = {
 };
 
 export const supportedLanguages = [
-    { code: 'zh-CN', label: 'Chinese' },
-    { code: 'en-US', label: 'English' },
-    { code: 'ja-JP', label: 'Japanese' },
-    { code: 'ru-RU', label: 'Russian' },
-    { code: 'fr-FR', label: 'French' },
-    { code: 'es-ES', label: 'Spanish' },
-    { code: 'de-DE', label: 'German' }
+    { code: 'zh-CN', label: 'Chinese', shortLabel: '中' },
+    { code: 'en-US', label: 'English', shortLabel: 'EN' },
+    { code: 'ja-JP', label: 'Japanese', shortLabel: '日' },
+    { code: 'ru-RU', label: 'Russian', shortLabel: 'RU' },
+    { code: 'fr-FR', label: 'French', shortLabel: 'FR' },
+    { code: 'es-ES', label: 'Spanish', shortLabel: 'ES' },
+    { code: 'de-DE', label: 'German', shortLabel: 'DE' }
 ];
 
 const i18n = {

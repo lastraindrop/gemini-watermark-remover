@@ -1,15 +1,14 @@
 import i18n from '../i18n.js';
 import { ENGINE_LIMITS } from '../core/config.js';
 import { getEngineOptions } from './settings.js';
-import { state, objectUrlManager } from './state.js';
+import { state } from './state.js';
 import { AuditLog, showToast, resetGlobalProgress } from './ui.js';
 import { processSingle, processQueue } from './processing.js';
-import { resetWorkspaceGlobal } from './state.js';
+import { clearManualRegion, setManualSelectionEnabled } from './manualSelection.js';
+import { resetWorkspace } from '../app.js';
 
-let _elements = null;
 let _dragState = { depth: 0 };
 
-function getElements() { return _elements; }
 function getDragState() { return _dragState; }
 
 export function isSupportedImageFile(file) {
@@ -86,7 +85,7 @@ export function handleFiles(files, elements, onSingleSuccess, onBatchItemSuccess
     if (skipped > 0) showToast(i18n.t('toast.invalidFiles', { count: skipped }), 'info');
     if (validFiles.length === 0) return;
 
-    resetWorkspaceGlobal(false, elements);
+    resetWorkspace(false);
     state.imageQueue = validFiles.map((file, index) => ({
         id: Date.now() + index,
         file,
@@ -98,25 +97,37 @@ export function handleFiles(files, elements, onSingleSuccess, onBatchItemSuccess
     resetGlobalProgress();
 
     if (validFiles.length === 1) {
+        let engineOptions;
+        try {
+            engineOptions = getEngineOptions(elements, { optionalManual: true });
+        } catch (error) {
+            showToast(error.message, 'err');
+            return;
+        }
         elements.singlePreview.style.display = 'block';
         elements.multiPreview.style.display = 'none';
         document.getElementById('resultContainer')?.classList.add('scan-active');
+        state.activeSingleItem = state.imageQueue[0];
+        state.isProcessing = true;
 
-        processSingle(state.imageQueue[0], getEngineOptions(elements), {
+        processSingle(state.imageQueue[0], engineOptions, {
             onSuccess: ({ item, removedCount, confidence, latency, config, pos, profileId }) => {
                 if (onSingleSuccess) onSingleSuccess(item, removedCount, confidence, latency, config, pos, profileId);
-                document.getElementById('resultContainer')?.classList.remove('scan-active');
                 elements.singlePreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
             },
-            onError: () => document.getElementById('resultContainer')?.classList.remove('scan-active')
+            onError: () => {}
+        }).finally(() => {
+            document.getElementById('resultContainer')?.classList.remove('scan-active');
+            state.isProcessing = false;
         });
     } else {
+        state.activeSingleItem = null;
         elements.singlePreview.style.display = 'none';
         elements.multiPreview.style.display = 'block';
         elements.imageList.innerHTML = '';
         state.imageQueue.forEach(item => createImageCard(item, elements));
 
-        processQueue(getEngineOptions(elements), {
+        processQueue(getEngineOptions(elements, { ignoreManual: true }), {
             onItemSuccess: ({ item, removedCount, confidence, latency }) => {
                 if (onBatchItemSuccess) onBatchItemSuccess(item, removedCount, confidence, latency);
             },
@@ -145,7 +156,7 @@ export async function handleUrl(uri, elements, handleFilesFn) {
         handleFilesFn([file]);
     } catch (e) {
         AuditLog.log(`Remote Fetch Failed: ${e.message}`, 'err');
-        showToast('Remote fetch failed (CORS)', 'err');
+        showToast(i18n.t('error.remoteFetchFailed'), 'err');
     }
 }
 
@@ -254,7 +265,7 @@ export function setupWindowDragAndDrop(elements, handleFilesFn) {
             await handleDropEvent(event, elements, handleFilesFn);
         } catch (err) {
             AuditLog.log(`Drop handler error: ${err.message}`, 'err');
-            showToast('Failed to process dropped file', 'err');
+            showToast(i18n.t('error.dropFailed'), 'err');
         }
     });
 }
