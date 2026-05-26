@@ -129,7 +129,7 @@ function isNearExpectedAnchor(imageData, detection, profileId, options = {}) {
     for (const config of potentialConfigs) {
         const pos = calculateWatermarkPosition(imageData.width, imageData.height, config);
         const sizeTolerance = Math.max(4, Math.min(pos.width, pos.height) * 0.15);
-        const positionTolerance = Math.max(4, Math.min(pos.width, pos.height) * (options.positionTolerance ?? 0.05));
+        const positionTolerance = Math.max(4, Math.min(pos.width, pos.height) * (options.positionTolerance ?? 0.10));
         const sizeMatches = Math.abs(detection.width - pos.width) <= sizeTolerance &&
             Math.abs(detection.height - pos.height) <= sizeTolerance;
         const positionMatches = Math.abs(detection.x - pos.x) <= positionTolerance &&
@@ -290,7 +290,7 @@ export async function detectProfileWatermarks({
 
     // Phase 2.3: Adaptive multi-scale detection when catalog probes are weak
     const shouldRunAdaptive = options.adaptiveMode !== false && options.adaptiveMode !== 'off' &&
-        profileId === 'gemini' &&
+        (profileId === 'gemini' || profileId === 'doubao') &&
         (matches.length === 0 || (!hasCatalogBackedMatch && matches[0].confidence < fallbackBelow));
     if (shouldRunAdaptive) {
         await ensureFallbackAlphaMaps(profile.id, getAlphaMap, alphaMaps);

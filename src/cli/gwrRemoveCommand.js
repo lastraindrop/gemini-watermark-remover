@@ -112,9 +112,7 @@ class Engine {
             };
         }
 
-        for (const match of detection.matches) {
-            applyRemovalStrategy(imageData, [match]);
-        }
+        applyRemovalStrategy(imageData, detection.matches);
 
         const format = options.format || 'png';
         const outImg = sharp(imageData.data, {

@@ -4,7 +4,8 @@
  */
 
 // Constants definition
-export const ALPHA_THRESHOLD = 0.002;  // Ignore very small alpha values (noise)
+const ALPHA_NOISE_FLOOR = 3 / 255;      // Remove low-level quantization noise from alpha map
+export const ALPHA_THRESHOLD = 0.002;   // Ignore very small alpha values after noise floor removal
 export const MAX_ALPHA = 0.99;          // Avoid division by near-zero values
 export const LOGO_VALUE = 255.0;        // Color value for white watermark (float)
 
@@ -84,13 +85,18 @@ export function removeWatermark(imageData, alphaMap, position, options = {}) {
             const relX = ix - x; // Float relative X in alphaMap space
 
             // Sample alpha value for this specific image pixel
-            const alpha = Math.fround(sampleBilinearAlpha(alphaMap, relX, relY, width, height));
+            const rawAlpha = Math.fround(sampleBilinearAlpha(alphaMap, relX, relY, width, height));
 
-            // Skip invalid or very small alpha values
-            if (isNaN(alpha) || alpha < ALPHA_THRESHOLD) continue;
+            // Skip invalid values
+            if (isNaN(rawAlpha)) continue;
 
-            const rawEffectiveAlpha = Math.min(alpha, MAX_ALPHA) * alphaGain;
-            const effectiveAlpha = Math.min(rawEffectiveAlpha, MAX_ALPHA);
+            // Remove low-level alpha noise from compressed background capture.
+            // This noise floor is applied only for activation gating; the actual
+            // blend still uses the full raw alpha to preserve edge fidelity.
+            const signalAlpha = Math.max(0, rawAlpha - ALPHA_NOISE_FLOOR) * alphaGain;
+            if (signalAlpha < ALPHA_THRESHOLD) continue;
+
+            const effectiveAlpha = Math.min(rawAlpha * alphaGain, MAX_ALPHA);
             const oneMinusAlpha = Math.fround(1.0 - effectiveAlpha);
             const alphaLogo = Math.fround(effectiveAlpha * logoVal);
 

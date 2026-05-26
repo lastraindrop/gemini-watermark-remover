@@ -15,7 +15,7 @@ describe('Multi-Pass Watermark Removal', () => {
             imageData: img, alphaMap, position: pos, maxPasses: 4, residualThreshold: 0.25
         });
 
-        assert.ok(result.stopReason === 'residual-low' || result.stopReason === 'max-passes');
+        assert.ok(result.stopReason === 'residual-low' || result.stopReason === 'max-passes' || result.stopReason === 'first-pass-sign-flip');
         assert.ok(result.passCount >= 1);
         assert.ok(result.passes.length >= 1);
     });
@@ -48,7 +48,7 @@ describe('Multi-Pass Watermark Removal', () => {
             imageData: img, alphaMap, position: pos, maxPasses: 4, residualThreshold: 0.10
         });
 
-        assert.ok(result.stopReason === 'safety-near-black' || result.stopReason === 'residual-low' || result.stopReason === 'max-passes');
+        assert.ok(result.stopReason === 'safety-near-black' || result.stopReason === 'residual-low' || result.stopReason === 'max-passes' || result.stopReason === 'first-pass-sign-flip');
     });
 
     test('Respects maxPasses enforcement', () => {

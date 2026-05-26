@@ -19,30 +19,27 @@ function makeImageData(w, h, fillFn) {
 }
 
 describe('Numerical Precision Tests', () => {
-    it('Alpha map BT.709 weights: pure red channel', () => {
+    it('Alpha map max-channel: pure red channel => 1.0', () => {
         const data = makeImageData(4, 4, () => [255, 0, 0, 255]);
         const alpha = calculateAlphaMap(data);
         for (let i = 0; i < alpha.length; i++) {
-            const expected = (255 * 0.2126 + 0 * 0.7152 + 0 * 0.0722) / 255;
-            assert.ok(Math.abs(alpha[i] - expected) < 0.001, `Red BT.709: expected ${expected}, got ${alpha[i]}`);
+            assert.ok(Math.abs(alpha[i] - 1.0) < 0.001, `Red max-channel: expected 1.0, got ${alpha[i]}`);
         }
     });
 
-    it('Alpha map BT.709 weights: pure green channel', () => {
+    it('Alpha map max-channel: pure green channel => 1.0', () => {
         const data = makeImageData(4, 4, () => [0, 255, 0, 255]);
         const alpha = calculateAlphaMap(data);
         for (let i = 0; i < alpha.length; i++) {
-            const expected = (0 * 0.2126 + 255 * 0.7152 + 0 * 0.0722) / 255;
-            assert.ok(Math.abs(alpha[i] - expected) < 0.001, `Green BT.709: expected ${expected}, got ${alpha[i]}`);
+            assert.ok(Math.abs(alpha[i] - 1.0) < 0.001, `Green max-channel: expected 1.0, got ${alpha[i]}`);
         }
     });
 
-    it('Alpha map BT.709 weights: pure blue channel', () => {
+    it('Alpha map max-channel: pure blue channel => 1.0', () => {
         const data = makeImageData(4, 4, () => [0, 0, 255, 255]);
         const alpha = calculateAlphaMap(data);
         for (let i = 0; i < alpha.length; i++) {
-            const expected = (0 * 0.2126 + 0 * 0.7152 + 255 * 0.0722) / 255;
-            assert.ok(Math.abs(alpha[i] - expected) < 0.001, `Blue BT.709: expected ${expected}, got ${alpha[i]}`);
+            assert.ok(Math.abs(alpha[i] - 1.0) < 0.001, `Blue max-channel: expected 1.0, got ${alpha[i]}`);
         }
     });
 

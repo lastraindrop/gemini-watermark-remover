@@ -19,11 +19,14 @@ export function calculateAlphaMap(bgCaptureImageData) {
         const g = data[idx + 1];
         const b = data[idx + 2];
 
-        // Use perceptual luminance BT.709 (0.2126R + 0.7152G + 0.0722B) to determine the alpha value
-        const brightness = (r * 0.2126 + g * 0.7152 + b * 0.0722);
+        // Use max-channel: the watermark logo is white (all channels equal),
+        // so the brightest channel best represents the alpha presence.
+        // BT.709 luminance would systematically underestimate alpha on
+        // anti-aliased edge pixels, lowering NCC detection scores.
+        const maxChannel = Math.max(r, g, b);
 
         // Normalize to [0, 1] range
-        alphaMap[i] = brightness / 255.0;
+        alphaMap[i] = maxChannel / 255.0;
     }
 
     return alphaMap;

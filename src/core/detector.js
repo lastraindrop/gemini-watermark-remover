@@ -45,8 +45,8 @@ export class DetectorContext {
 const _defaultContext = new DetectorContext();
 
 const SEARCH_CONFIG = {
-    RANGE_X: 0.45,
-    RANGE_Y: 0.45,
+    RANGE_X: 0.55,
+    RANGE_Y: 0.55,
     CANDIDATES_LIMIT_PER_SIZE: 5,
     PROXIMITY_THRESHOLD: 8,
     FINE_TUNE_RANGE: 4,
@@ -507,7 +507,10 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
         const gradientsA = new Float32Array(logoW * logoH);
         const gradientConf = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
 
-        if (gradientConf < 0.05) confidence = confidence * gradientPenalty;
+        // Use a softer threshold (0.02) and cap the penalty at 0.50 to avoid
+        // suppressing valid detections on busy backgrounds where gradient
+        // correlation is naturally low.
+        if (gradientConf < 0.02) confidence = confidence * Math.min(gradientPenalty, 0.50);
         else confidence = Math.max(confidence, gradientConf);
     }
 
@@ -530,7 +533,7 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
                     const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const gradientConf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, gradientsI, gradientsA);
                     const combined = Math.max(nccConf, localConf);
-                    conf = gradientConf < 0.05 ? combined * gradientPenalty : Math.max(combined, gradientConf);
+                    conf = gradientConf < 0.02 ? combined * Math.min(gradientPenalty, 0.50) : Math.max(combined, gradientConf);
                 } else {
                     const nccConf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);

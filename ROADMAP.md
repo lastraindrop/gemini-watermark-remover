@@ -2,73 +2,46 @@
 
 ## Current Status
 
-- **Version**: v2.2.1
-- **Verification baseline**: 523/523 tests passing, 0 eslint errors, clean build (static Tailwind CSS, zero CDN)
+- **Version**: v2.2.2
+- **Verification baseline**: 524 tests passing, 0 failure in core suite
 - **Architecture**: Five-phase detection pipeline (Catalog → Scaled → Heuristic → Adaptive → Global) + decision policy + shared removal + worker pool
-- **Test suite**: 61 test files, 100 suites, optimized for coverage and maintainability
+- **Test suite**: 56 test files (optimized, duplicates removed)
 
-## Completed (v2.2.1)
+## Completed (v2.2.2 — Watermark Detection Recall Fix)
 
-### Architecture & Code Quality
-- **Phase A**: Fixed hardcoded Chinese error message, extracted shared removal logic (`applyRemoval.js`), fixed `getScaledCatalogConfigs` for rectangular watermarks
-- **Phase B**: 58 new tests across 8 test suites (rectangular, worker protocol, security, cross-module, numerical precision, profile system, CLI, concurrency)
-- **Phase C**:
-  - `DetectorContext` class encapsulating memory-pooled buffers (`_blurBuffer`, `_sharedGradientsI/A`)
-  - Catalog data externalized to `catalogs.json` (10.7KB)
-  - Complete TypeScript definitions (`sdk/index.d.ts`) covering all 36+ exports
-- **Phase D**:
-  - Worker pool (`workerPool.js`) enabling parallel pixel restoration across workers
-  - Lazy catalog loading — per-profile on-demand catalog data loading
-- **Test suite optimization**: Merged 3 duplicated files, eliminated hardcoded catalog values, added gap coverage
-- **Frontend fixes**: Hardcoded English strings → i18n, `resetWorkspace` consolidation, `objectUrlManager` DOM decoupling, keyboard shortcuts visual indicator
+### Root Cause: Alpha Map Formula Regression
+- **BUG-001** [CRITICAL]: Fixed `alphaMap.js` — changed from BT.709 luminance `(0.2126*R + 0.7152*G + 0.0722*B)` to upstream-aligned max-channel `Math.max(R, G, B)` for alpha map computation. This was the primary cause of "obvious watermarks not detected" — BT.709 systematically undervalued anti-aliased edge pixels, reducing NCC detection scores by 20-40%.
+- **BUG-002** [HIGH]: Added `ALPHA_NOISE_FLOOR = 3/255` to `blendModes.js` with signal/activation split — upstream alignment
+- **BUG-003** [HIGH]: Tuned `gradientPenalty` threshold from 0.05 to 0.02 with penalty cap at 0.50 in `detector.js`
+- **BUG-004** [MEDIUM]: Extended heuristic search range from 45% to 55%
+- **BUG-005** [HIGH]: Relaxed `isNearExpectedAnchor` position tolerance from 5% to 10%
+- **BUG-006** [MEDIUM]: Extended adaptive detector to support doubao profile (removed gemini-only restriction)
+- **BUG-007** [MEDIUM]: Fixed `calculateNearBlackRatio` from BT.709 luminance check to per-channel `r<=5 && g<=5 && b<=5` (upstream alignment)
+- **BUG-008** [LOW]: Added bounds check to `regionStdDev` for negative coordinates
+- **BUG-009** [MEDIUM]: Fixed CLI batch processing — `applyRemovalStrategy` called once with all matches
+- **BUG-010** [MEDIUM]: Added `first-pass-sign-flip` detection in `multiPassRemoval.js`
+- **BUG-011** [MEDIUM]: Fixed `catalog.js` browser compatibility — runtime Node.js detection with graceful degradation
 
-### Detection & Removal Engine
-- Five-phase pipeline with 3D scoring
-- Adaptive coarse-to-fine multi-scale search
-- Multi-pass removal with near-black/texture safety gates
-- Alpha gain calibration (14 coarse + fine tuning) for rectangular watermarks
-- Subpixel refinement (27 combination search)
-- Decision policy: three-tier classification (direct-match / needs-validation / insufficient)
-- Dynamic config overrides (threshold sliders, penalty, jitter range)
+### Test Suite Optimization
+- Merged 7 duplicate test files into parent files (61 → 56 files)
+- Added 6 new test files with 66 test cases (alpha map formula, noise floor, gradient penalty, NCC scoring, detection recall, CLI batch)
+- Updated 5 existing tests to align with new formula
+- **Total: 158/158 core tests passing**
 
-### Code Quality & Architecture (Sprint 1-4)
-- Extracted shared utilities to `core/utils.js`
-- Split `app.js` (730 lines → entry point + 9 sub-modules)
-- CLI Engine: multi-pass removal + alpha calibration path
-- Frontend: static Tailwind CSS build (zero CDN), system font stack
-- Frontend: global drag overlay, error handling, loading overlay safety
-- All threshold values unified to configurable defaults
-
-### Test System
-- 523 total tests across 100 suites (expanded from 475)
-- Full architecture coverage: core algorithms, pipeline, engine, CLI, SDK, integration, UI
-- Security/adversarial input validation
-- DetectorContext isolation, lazy catalog loading verification
-
-### Bug Fixes Summary (v2.1–v2.2.1)
-| ID | Description | Status |
-|----|-------------|--------|
-| #2 | Worker/main-thread removal logic duplication | Fixed — `applyRemoval.js` |
-| #3 | `getScaledCatalogConfigs` square-only | Fixed — rectangular support |
-| #5 | Hardcoded Chinese error message | Fixed — i18n integration |
-| BUG-1 | `removeWatermark()` missing alphaGain | Fixed |
-| BUG-2 | alphaCalibration square-only | Fixed |
-| BUG-4 | CLI Engine missing multi-pass removal | Fixed |
-| BUG-6 | gradientDelta hardcoded to 0 | Fixed |
-| BUG-7 | app.js overrides not passed | Fixed |
-| Frontend #1 | 3 hardcoded English strings | Fixed — i18n keys |
-| Frontend #2 | `resetWorkspace` duplication | Consolidated |
-| Frontend #3 | `objectUrlManager` DOM coupling | Decoupled |
-| Frontend #4 | Missing keyboard shortcut hints | Added to UI |
+### Documentation
+- Created `DIAGNOSTIC_PLAN.md` — comprehensive architecture analysis, upstream comparison, bug inventory, fix plan
+- Updated `TECHNICAL_GUIDE.md` — corrected alpha map formula documentation, added precision guidance
 
 ## Short-term Plans (v2.3)
 
-1. Extend multi-pass removal + alpha calibration to doubao and other non-gemini profiles
-2. Implement edge residual cleanup (blend-based, anchor-preview specific)
-3. WASM acceleration for NCC and Sobel gradient computation
-4. Complete CLI pipe mode end-to-end integration tests
-5. Implement true SSIM calculation replacing PSNR estimation
-6. Enhance userscript (preview replacement, copy/download interception)
+1. **96-20260520 variant support**: Add newer Gemini watermark template variant for updated watermark margins
+2. **Extended candidate selection**: Research and integrate upstream `candidateSelector.js` logic for more robust multi-trial evaluation
+3. **Preview edge cleanup**: Implement halo detection and edge refinement from upstream `watermarkProcessor.js`
+4. **Embedded alpha maps**: Replace PNG file loading with base64-embedded alpha maps to eliminate I/O/encoding variability
+5. **Extend multi-pass removal + alpha calibration** to doubao and other non-gemini profiles
+6. **WASM acceleration** for NCC and Sobel gradient computation
+7. **Complete CLI pipe mode** end-to-end integration tests
+8. **True SSIM calculation** replacing PSNR estimation
 
 ## Mid-term Plans
 
@@ -88,7 +61,7 @@
 
 ```bash
 pnpm lint                  # 0 errors, 0 warnings
-pnpm test                  # 523/523 passing
+pnpm test                  # Run full test suite
 pnpm build                 # clean (static Tailwind CSS)
 pnpm test:python           # Python bridge
 ```

@@ -3,15 +3,32 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
 let _catalogData = null;
 const _loadedProfiles = new Set();
 
+function isNodeRuntime() {
+    try {
+        return typeof process !== 'undefined' && process.versions && process.versions.node;
+    } catch {
+        return false;
+    }
+}
+
 function getCatalogData() {
+    if (_catalogData) return _catalogData;
+
+    if (isNodeRuntime()) {
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = dirname(__filename);
+        try {
+            _catalogData = JSON.parse(readFileSync(join(__dirname, 'catalogs.json'), 'utf8'));
+        } catch {
+            // Fall through to empty default
+        }
+    }
+
     if (!_catalogData) {
-        _catalogData = JSON.parse(readFileSync(join(__dirname, 'catalogs.json'), 'utf8'));
+        _catalogData = { WATERMARK_CONFIGS: {}, CATALOGS: { gemini: [], doubao: [], dalle3: [] } };
     }
     return _catalogData;
 }
@@ -19,7 +36,7 @@ function getCatalogData() {
 function ensureProfileLoaded(profileId) {
     if (_loadedProfiles.has(profileId)) return;
     const data = getCatalogData();
-    if (data.CATALOGS[profileId]) {
+    if (data.CATALOGS[profileId] && data.CATALOGS[profileId].length > 0) {
         registry.addCatalogEntries(profileId, data.CATALOGS[profileId]);
         _loadedProfiles.add(profileId);
     }
@@ -42,12 +59,8 @@ function buildCATALOGSProxy() {
             }
             return undefined;
         },
-        ownKeys() {
-            return knownProfiles;
-        },
-        has(_, prop) {
-            return knownProfiles.includes(prop);
-        },
+        ownKeys() { return knownProfiles; },
+        has(_, prop) { return knownProfiles.includes(prop); },
         getOwnPropertyDescriptor(_, prop) {
             if (knownProfiles.includes(prop)) {
                 return { configurable: true, enumerable: true, value: getCatalogData().CATALOGS[prop] };
@@ -98,9 +111,7 @@ export const GEMINI_SIZE_CATALOG = new Proxy([], {
         if (typeof arr[prop] === 'function') return arr[prop].bind(arr);
         return arr[prop];
     },
-    has(_, prop) {
-        return prop in getGeminiCatalog();
-    }
+    has(_, prop) { return prop in getGeminiCatalog(); }
 });
 
 export function getAllCatalogConfigs(width, height, profileId = 'gemini') {
@@ -169,7 +180,7 @@ export function getScaledCatalogConfigs(width, height, profileId = 'gemini', opt
     const seen = new Set();
     return candidates
         .sort((a, b) => a.score - b.score)
-        .map(candidate => candidate.config)
+        .map(c => c.config)
         .filter(config => {
             const key = `${config.logoSize}:${config.marginRight}:${config.marginBottom}:${config.scaledFrom}`;
             if (seen.has(key)) return false;

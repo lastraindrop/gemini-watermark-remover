@@ -147,6 +147,14 @@ export function removeRepeatedWatermarkLayers(imageDataOrOptions, alphaMapArg, p
             stopReason = 'residual-low';
             break;
         }
+
+        // After the first pass, check if sign flipped and gradient dropped —
+        // this indicates over-correction and we should stop early.
+        if (passIndex === 0 && before.spatialScore >= 0 && after.spatialScore < 0 &&
+            afterGradient <= 0.08 && (beforeGradient - afterGradient) >= 0.2) {
+            stopReason = 'first-pass-sign-flip';
+            break;
+        }
     }
 
     return {

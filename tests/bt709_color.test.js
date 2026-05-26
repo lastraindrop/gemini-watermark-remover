@@ -56,20 +56,22 @@ describe('BT.709 Color Space Sensitivity Tests', () => {
         assert.strictEqual(typeof confB, 'number');
     });
 
-    test('alphaMap and detector use identical BT.709 weights', () => {
+    test('alphaMap uses maxChannel, detector uses BT.709 for luminance', () => {
         const r = 100, g = 200, b = 50;
         const data = new Uint8ClampedArray([r, g, b, 255]);
         const alphaMap = calculateAlphaMap({ width: 1, height: 1, data });
 
-        const expectedBT709 = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 255.0;
-        assert.ok(Math.abs(alphaMap[0] - expectedBT709) < 0.001,
-            `alphaMap BT.709 mismatch: got ${alphaMap[0].toFixed(6)}, expected ${expectedBT709.toFixed(6)}`);
+        const expectedMaxChannel = Math.max(r, g, b) / 255.0;
+        assert.ok(Math.abs(alphaMap[0] - expectedMaxChannel) < 0.001,
+            `alphaMap max-channel mismatch: got ${alphaMap[0].toFixed(6)}, expected ${expectedMaxChannel.toFixed(6)}`);
 
-        // detector.calculateCorrelation uses the same weights internally
-        // Verify by checking that a 1-pixel correlation on a matching alpha produces expected brightness
+        // detector.calculateCorrelation uses BT.709 luminance internally for image pixels.
+        // The alpha map (max-channel) and image luminance (BT.709) operate in slightly
+        // different numerical spaces, but the relative pattern (bright/dark) is preserved
+        // across both, so NCC correlation remains valid.
         const img = { data: new Uint8ClampedArray([r, g, b, 255]), width: 1, height: 1 };
-        const alphaArr = new Float32Array([expectedBT709]);
+        const alphaArr = new Float32Array([expectedMaxChannel]);
         const conf = calculateCorrelation(img, 0, 0, 1, 1, alphaArr, true);
-        assert.strictEqual(typeof conf, 'number', 'calculateCorrelation should not crash with BT.709 values');
+        assert.strictEqual(typeof conf, 'number', 'calculateCorrelation should not crash');
     });
 });

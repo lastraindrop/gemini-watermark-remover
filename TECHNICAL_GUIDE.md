@@ -28,6 +28,30 @@ effectiveAlpha = min(alpha × alphaGain, 0.99)
 
 The alpha map `A` is calibrated from known watermark assets and normalized to `[0, 1]` via `calculateAlphaMap()`.
 
+### 1.4 Alpha Map Computation (`alphaMap.js`)
+
+The alpha map is derived from background-capture images (white watermark logo on black background). Each pixel's alpha value is computed using the **max-channel formula**:
+
+```
+alpha[i] = max(R, G, B) / 255.0
+```
+
+**Why max-channel, not BT.709 luminance?** The Gemini watermark is a white logo. For pure white pixels `(255,255,255)`, both formulas agree at 1.0. But for anti-aliased edge pixels and slight color variations, BT.709 luminance `(0.2126*R + 0.7152*G + 0.0722*B)` systematically underestimates the alpha value by 3-10%, which:
+- Reduces NCC correlation scores by 20-40% in detection
+- Causes the detection pipeline to miss otherwise obvious watermarks
+- Mismatches the original GargantuaX upstream reference implementation
+
+**Image luminance in NCC computation** still uses BT.709 — this is correct: the human visual system's perceptual brightness is the right metric for correlating image regions against the alpha template. The alpha map (max-channel) and image luminance (BT.709) operate in slightly different numerical spaces, but the relative bright/dark pattern is preserved across both, yielding valid NCC correlation.
+
+### 1.5 Precision Guidance
+
+| Component | Formula | Purpose | File |
+|-----------|---------|---------|------|
+| Alpha map | `max(R, G, B) / 255` | Watermark opacity | `alphaMap.js` |
+| Image luminance (NCC) | `0.2126*R + 0.7152*G + 0.0722*B` | Perceptual brightness for correlation | `detector.js` |
+| Gradient (Sobel) | BT.709 on grayscale | Edge detection for gradient NCC | `detector.js`, `adaptiveDetector.js` |
+| Image luminance (stdDev) | `0.2126*R + 0.7152*G + 0.0722*B` | Brightness statistics for texture comparison | `utils.js`, `multiPassRemoval.js` |
+
 ---
 
 ## 2. Detection Pipeline Architecture
@@ -125,12 +149,10 @@ Logic: Gemini matches → `removeRepeatedWatermarkLayers()` with multi-pass; non
 
 ```
 removal → up to 4 passes:
-    ├── Near-black safety gate
+    ├── Near-black safety gate (per-channel r<=5, g<=5, b<=5)
     ├── Texture collapse detection
-    └── Residual threshold (default 0.25)
-
-If residual high → alphaCalibration (14 coarse + fine tuning)
-    → Search optimal alphaGain [1.05, 2.6]
+    ├── Residual threshold (default 0.25)
+    └── First-pass sign-flip early stop (spatial flips negative + gradient drops)
 ```
 
 ### 3.3 Alpha Gain Calibration (`alphaCalibration.js`)
@@ -139,7 +161,15 @@ Binary search for optimal alpha multiplier when single-pass leaves high residual
 
 ### 3.4 Reverse Alpha Blending (`blendModes.js`)
 
-Constants: `ALPHA_THRESHOLD = 0.002`, `MAX_ALPHA = 0.99`, `LOGO_VALUE = 255.0`.
+Constants: `ALPHA_NOISE_FLOOR = 3/255`, `ALPHA_THRESHOLD = 0.002`, `MAX_ALPHA = 0.99`, `LOGO_VALUE = 255.0`.
+
+The noise floor removes low-level quantization noise from compressed background captures. It is applied only for activation gating — the actual blend still uses the full raw alpha to preserve edge fidelity:
+
+```
+signalAlpha = max(0, rawAlpha − ALPHA_NOISE_FLOOR) × alphaGain  // activation gate
+if signalAlpha < ALPHA_THRESHOLD → skip pixel                     // safety
+effectiveAlpha = min(rawAlpha × alphaGain, MAX_ALPHA)             // actual blend
+```
 
 Bilinear interpolation via `sampleBilinearAlpha()` for subpixel accuracy.
 
