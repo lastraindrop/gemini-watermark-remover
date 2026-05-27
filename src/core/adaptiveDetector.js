@@ -53,45 +53,56 @@ function sobelMagnitude(gray, width, height) {
 // Alpha map utilities
 // ============================================================
 
-export function interpolateAlphaMap(sourceAlpha, sourceSize, targetSize) {
-    if (targetSize <= 0) return new Float32Array(0);
-    if (sourceSize === targetSize) return new Float32Array(sourceAlpha);
+export function interpolateAlphaMap(sourceAlpha, sourceSize, targetSize, targetHeight) {
+    const tw = targetSize;
+    const th = targetHeight || targetSize;
+    if (tw <= 0 || th <= 0) return new Float32Array(0);
 
-    const out = new Float32Array(targetSize * targetSize);
-    const scale = (sourceSize - 1) / Math.max(1, targetSize - 1);
+    const sourceW = sourceSize;
+    const sourceH = sourceSize;
+    if (sourceW === tw && sourceH === th) return new Float32Array(sourceAlpha);
 
-    for (let y = 0; y < targetSize; y++) {
-        const sy = y * scale;
+    const out = new Float32Array(tw * th);
+    const scaleX = (sourceW - 1) / Math.max(1, tw - 1);
+    const scaleY = (sourceH - 1) / Math.max(1, th - 1);
+
+    for (let y = 0; y < th; y++) {
+        const sy = y * scaleY;
         const y0 = Math.floor(sy);
-        const y1 = Math.min(sourceSize - 1, y0 + 1);
+        const y1 = Math.min(sourceH - 1, y0 + 1);
         const fy = sy - y0;
 
-        for (let x = 0; x < targetSize; x++) {
-            const sx = x * scale;
+        for (let x = 0; x < tw; x++) {
+            const sx = x * scaleX;
             const x0 = Math.floor(sx);
-            const x1 = Math.min(sourceSize - 1, x0 + 1);
+            const x1 = Math.min(sourceW - 1, x0 + 1);
             const fx = sx - x0;
 
-            const p00 = sourceAlpha[y0 * sourceSize + x0];
-            const p10 = sourceAlpha[y0 * sourceSize + x1];
-            const p01 = sourceAlpha[y1 * sourceSize + x0];
-            const p11 = sourceAlpha[y1 * sourceSize + x1];
+            const p00 = sourceAlpha[y0 * sourceW + x0];
+            const p10 = sourceAlpha[y0 * sourceW + x1];
+            const p01 = sourceAlpha[y1 * sourceW + x0];
+            const p11 = sourceAlpha[y1 * sourceW + x1];
 
             const top = p00 + (p10 - p00) * fx;
             const bottom = p01 + (p11 - p01) * fx;
-            out[y * targetSize + x] = top + (bottom - top) * fy;
+            out[y * tw + x] = top + (bottom - top) * fy;
         }
     }
 
     return out;
 }
 
-export function warpAlphaMap(alphaMap, size, { dx = 0, dy = 0, scale = 1 } = {}) {
-    if (size <= 0) return new Float32Array(0);
+export function warpAlphaMap(alphaMap, size, { dx = 0, dy = 0, scale = 1 } = {}, targetHeight) {
+    const tw = size;
+    const th = targetHeight || size;
+    if (tw <= 0 || th <= 0) return new Float32Array(0);
     if (!Number.isFinite(dx) || !Number.isFinite(dy) || !Number.isFinite(scale) || scale <= 0) {
         return new Float32Array(0);
     }
     if (dx === 0 && dy === 0 && scale === 1) return new Float32Array(alphaMap);
+
+    const sw = size;
+    const sh = targetHeight || size;
 
     const sample = (sx, sy) => {
         const x0 = Math.floor(sx);
@@ -99,28 +110,29 @@ export function warpAlphaMap(alphaMap, size, { dx = 0, dy = 0, scale = 1 } = {})
         const fx = sx - x0;
         const fy = sy - y0;
 
-        const ix0 = clamp(x0, 0, size - 1);
-        const iy0 = clamp(y0, 0, size - 1);
-        const ix1 = clamp(x0 + 1, 0, size - 1);
-        const iy1 = clamp(y0 + 1, 0, size - 1);
+        const ix0 = clamp(x0, 0, sw - 1);
+        const iy0 = clamp(y0, 0, sh - 1);
+        const ix1 = clamp(x0 + 1, 0, sw - 1);
+        const iy1 = clamp(y0 + 1, 0, sh - 1);
 
-        const p00 = alphaMap[iy0 * size + ix0];
-        const p10 = alphaMap[iy0 * size + ix1];
-        const p01 = alphaMap[iy1 * size + ix0];
-        const p11 = alphaMap[iy1 * size + ix1];
+        const p00 = alphaMap[iy0 * sw + ix0];
+        const p10 = alphaMap[iy0 * sw + ix1];
+        const p01 = alphaMap[iy1 * sw + ix0];
+        const p11 = alphaMap[iy1 * sw + ix1];
 
         const top = p00 + (p10 - p00) * fx;
         const bottom = p01 + (p11 - p01) * fx;
         return top + (bottom - top) * fy;
     };
 
-    const out = new Float32Array(size * size);
-    const c = (size - 1) / 2;
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            const sx = (x - c) / scale + c + dx;
-            const sy = (y - c) / scale + c + dy;
-            out[y * size + x] = sample(sx, sy);
+    const out = new Float32Array(tw * th);
+    const cx = (sw - 1) / 2;
+    const cy = (sh - 1) / 2;
+    for (let y = 0; y < th; y++) {
+        for (let x = 0; x < tw; x++) {
+            const sx = (x - cx) / scale + cx + dx;
+            const sy = (y - cy) / scale + cy + dy;
+            out[y * tw + x] = sample(sx, sy);
         }
     }
     return out;

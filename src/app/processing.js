@@ -25,8 +25,11 @@ export async function processSingle(item, options, callbacks = {}) {
         }
 
         const startTime = performance.now();
-        const { canvas, confidence, config, pos, removedCount, profileId } = await state.engine.removeWatermarkFromImage(img, options);
+        const result = await state.engine.removeWatermarkFromImage(img, options);
         const endTime = performance.now();
+        const { canvas, confidence, config, pos, removedCount, profileId } = result;
+        if (result._detectionSource) item._detectionSource = result._detectionSource;
+        if (result._detectionSource) item._detectionSource = result._detectionSource;
         
         const latency = (endTime - startTime).toFixed(0);
         const confPercent = (confidence * 100).toFixed(0);
@@ -148,12 +151,19 @@ function uniqueZipName(name, usedNames) {
 
 export function downloadImage(item) {
     if (!item.processedBlob) return;
+    let url = item.processedUrl;
+    if (!url) {
+        url = URL.createObjectURL(item.processedBlob);
+    }
     const a = document.createElement('a');
-    a.href = item.processedUrl;
+    a.href = url;
     a.download = downloadNameForItem(item);
     document.body?.appendChild(a);
     a.click();
     a.remove();
+    if (!item.processedUrl) {
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+    }
 }
 
 export async function downloadAllAsZip(items, options = {}) {

@@ -19,9 +19,9 @@ export const PROFILES = {
             const pixels = w * h;
             const shortSide = Math.min(w, h);
             let tier;
-            // v2.0: Optimized thresholds for better panorama support
-            if (shortSide <= 720 || (pixels <= 900000 && shortSide <= 1080)) tier = '0.5k';
-            else if (pixels <= 1500000 || shortSide <= 1600) tier = '1k';
+            // v2.2: Short-side priority for size selection
+            if (shortSide < 720) tier = '0.5k';
+            else if (shortSide < 1200) tier = '1k';
             else if (pixels <= 4500000) tier = '2k';
             else tier = '4k';
             return { ...PROFILES.gemini.tiers[tier], isOfficial: false };

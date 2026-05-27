@@ -1,4 +1,4 @@
-# GWR Developer Guide (v2.2.1)
+# GWR Developer Guide (v2.2.2)
 
 本指南说明当前分支的工程结构、参数一致化规则、检测管线（五层）、前端构建架构、测试策略，以及新增模板或修改检测策略时必须遵守的流程。
 
@@ -73,21 +73,27 @@
 ### 3.1 Phase 1（calculateProbeConfidence）
 
 ```
-confidence = Math.max(NCC, localContrastConf)
-if (deepScan) {
-  计算 Sobel 梯度相关 gradientConf
-  if (gradientConf < 0.05) confidence = confidence × 0.25    // 无边缘结构匹配 → 强惩罚
-  else confidence = Math.max(confidence, gradientConf)         // 有边缘匹配 → 取高值
+confidence = NCC
+if (baseNcc >= 0.10 for exact matches, 0.14 for scaled) {
+   confidence = Math.max(confidence, localContrastConf)
+   if (deepScan) {
+     计算 Sobel 梯度相关 gradientConf
+     if (gradientConf < 0.02) confidence = confidence × gradientPenalty（上限0.50）
+     else if (confidence >= 0.12 for exact / 0.18 for scaled)
+       confidence = Math.max(confidence, gradientConf)
+   }
 }
 ```
+*注：缩放匹配（`isScaledMatch`）禁用抖动精调（jitter）以避免虚警*
 
 ### 3.2 Phase 2（detectWatermark 精搜）
 
 ```
 confidence = NCC (fullPrecision)
 if (deepScan && confidence > 0.04) {
-  计算梯度相关（复用显存池 _sharedGradientsI / _sharedGradientsA）
-  同上梯度滤波
+   计算梯度相关（复用显存池 _sharedGradientsI / _sharedGradientsA）
+   方差评分 + 三维融合: weighted = spatial×0.5 + gradient×0.3 + variance×0.2
+   confidence = max(spatial, weighted)  // v2.2: 防止高NCC被稀释
 }
 ```
 
@@ -95,17 +101,18 @@ if (deepScan && confidence > 0.04) {
 
 ```
 combined = Math.max(NCC, localContrastConf)
-if (gradientConf < 0.05) conf = combined × 0.25
-else conf = Math.max(combined, gradientConf)
+if (gradientConf < 0.02) conf = combined × gradientPenalty（上限0.50）
+else if (NCC >= 0.12) conf = Math.max(combined, gradientConf)
+else conf = combined
 ```
 
 ### 3.4 设计说明
 
 - **目的**: 防止纯亮度噪声（如正弦纹理、高频图案）产生假阳性 NCC 高值
 - **原理**: Sobel 梯度相关测量图像边缘结构与水印模板边缘结构的对齐程度；无边缘匹配的 NCC 高分极可能是噪声假阳性
-- **阈值 0.05**: 区分"有/无边缘匹配"的分界线，低于此值说明梯度相关可忽略
-- **惩罚系数 0.25**: 将假阳性置信度压制到 0.22（FINAL_FREE）以下；同时真水印的 gradientConf ≥ 0.05，走 Math.max 通路不受影响
-- **动态对齐**: 三处使用完全一致的公式，确保评分尺度统一
+- **阈值 0.02**: 区分"有/无边缘匹配"的分界线，低于此值说明梯度相关可忽略
+- **惩罚系数**: 由 `gradientPenalty` 参数控制（默认 0.30），上限 0.50
+- **动态对齐**: 三处使用完全一致的公式，确保评分尺度统一。缩放匹配使用更高门控以减少虚警
 
 ## 4. 新增 profile 或模板的流程
 
@@ -134,41 +141,29 @@ else conf = Math.max(combined, gradientConf)
 
 当用户反馈"明显水印也检测不到"时，优先检查：
 
-- 是否命中 catalog 精确尺寸（registry.MAX_SCALE_MISMATCH = 0.02）
-- 是否命中近似尺寸候选（catalog.getScaledCatalogConfigs）
-- `detector.js` 的置信度是否被局部纹理稀释
+- 是否命中 catalog 精确尺寸（registry.MAX_SCALE_MISMATCH = 0.10）
+- 是否命中近似尺寸候选（catalog.getScaledCatalogConfigs / findCloseMatches）
+- `detector.js` 的置信度是否被局部纹理稀释（查看 `max(spatial, weighted)` 行为）
 - `detectionPipeline.js` 的全局回退是否过严（minGlobalConfidence = 0.25）
-- 梯度滤波是否错误地将真水印判定为假阳性（检查 gradientConf 值）
-- `tests/gemini_regression.test.js` 是否已有对应样本
+- 缩放匹配的门控阈值是否过高（scaled baseNcc=0.14, gradient=0.18, probe=0.35）
 
 当用户反馈"误报太多"时，优先检查：
 
 - 低置信度全局回退是否过宽
 - 负样本测试是否充分
 - `deepScan` 梯度滤波是否生效
-- `isNearExpectedAnchor` 位置容差是否过宽（当前 5%）
+- `isNearExpectedAnchor` 位置容差是否过宽（positionTolerance 默认 10%）
 
 ## 7. 测试策略
 
 当前验证基线应至少包括：
 
 ```bash
-npm run lint
-npm test           # 主测试集
-npm run test:legacy   # 维护型历史回归 (edge crop, noise reduction)
-npm run test:python   # Python bridge
-npm run test:all      # 全部
-npm run build
+pnpm lint         # ESLint
+pnpm test         # 主测试集 (49 文件, ~390 tests)
+pnpm build        # 静态 Tailwind CSS 构建
 ```
-
-对检测算法做修改时，必须同时看：
-
-- 回归样本（gemini_regression.test.js）
-- 负样本（test 5：无水印假阳性检测）
-- 前端契约（frontend_contract.test.js）
-- CLI 行为（CLI Integration Tests）
-- Python bridge 输出
 
 ## 8. 文档维护规则
 
-文档里如果写到版本号、测试总数、流程状态或当前架构，必须是当前基线。历史数值应当进入 `COMPREHENSIVE_PLAN.md` 或 `ROADMAP.md` 的历史段落，而不是混在用户指南里。
+文档里如果写到版本号、测试总数、流程状态或当前架构，必须是当前基线。历史数值应当进入 `DIAGNOSTIC_PLAN.md` 或 `ROADMAP.md` 的历史段落，而不是混在用户指南里。

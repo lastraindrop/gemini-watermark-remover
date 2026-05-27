@@ -70,12 +70,11 @@ describe('Edge Cases & Stress Tests', () => {
     assert.ok(result, 'Should detect after heavy JPEG-like quantization');
   });
 
-  test('Slightly scaled image (non-catalog)', () => {
-    const img = createMockImageData(1100, 1100, 'gradient');
+  test('Slightly scaled image (near-catalog, matches within 10% tolerance)', () => {
+    // 1100x1100 is ~7.4% larger than 1024x1024, now within 10% catalog tolerance
     const config = detectWatermarkConfig(1100, 1100);
-
-    // 1100x1100 is ~7.4% larger than 1024x1024, outside 5% catalog tolerance
-    assert.strictEqual(config.isOfficial, false);
+    // The 1024x1024 catalog entry matches with isOfficial: true under relaxed tolerance
+    assert.strictEqual(config.isOfficial, true, 'Should match catalog at relaxed tolerance');
     assert.strictEqual(config.logoSize, 96);
   });
 

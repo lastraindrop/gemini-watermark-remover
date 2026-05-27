@@ -1,4 +1,4 @@
-# Technical Guide — Gemini Watermark Remover v2.2.1
+# Technical Guide — Gemini Watermark Remover v2.2.2
 
 ## 1. Overview
 
@@ -83,10 +83,12 @@ For image `(W, H)`, each catalog entry `(w, h)` is checked:
 
 ```
 scaleX = W / w, scaleY = H / h
-match = |scaleX − scaleY| < 0.05 AND |scaleX − 1| < 0.05
+match = |scaleX − scaleY| < 0.10 AND |(scaleX+scaleY)/2 − 1| < 0.10
 ```
 
-5% tolerance covers screenshots, minor resizes, and encoding artifacts.
+10% tolerance covers screenshots, minor resizes, and encoding artifacts. The tolerance was raised from 5% to 10% in v2.2.2 to improve recall on non-exact resolutions.
+
+**New in v2.2.2**: `findCloseMatches()` provides a secondary loose-matching API with configurable tolerance (default 25%). Returns scaled logo sizes and margin values sorted by closeness score. Non-exact matches are marked `isOfficial: false` and include a `scaledFrom` reference.
 
 ### 2.3 Stage 2: Scaled Catalog (`catalog.js` — `getScaledCatalogConfigs()`)
 
@@ -103,7 +105,20 @@ Rectangular watermarks (Doubao) use `logoWidth`/`logoHeight` separately with `sc
 
 ### 2.4 Stage 3: Heuristic (`profiles.js` — `getHeuristicConfig()`)
 
-Profile-specific heuristic config generation when no catalog match exists.
+Profile-specific heuristic config generation when no catalog match exists. v2.2.2 uses shortSide-priority tiering:
+**Gemini**: shortSide < 720 → 48px; shortSide < 1200 → 96px; else → 2k/4k tiers.
+`getAllPotentialConfigs` adds both 48px and 96px as dual-size fallback candidates for robust probing.
+
+### 2.5 Scaled Match Gating (v2.2.2)
+
+When a config carries `scaledFrom` (non-exact catalog match), the probe verification applies differentiated thresholds to suppress false positives:
+
+| Gate | Exact Match | Scaled Match |
+|------|-------------|--------------|
+| Base NCC minimum | 0.10 | 0.14 |
+| Gradient boost gate | 0.12 | 0.18 |
+| Probe threshold | 0.18 | 0.35 |
+| Jitter fine-tuning | enabled | disabled |
 
 ### 2.5 Stage 4: Adaptive Detection (`adaptiveDetector.js`)
 

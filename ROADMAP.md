@@ -3,65 +3,74 @@
 ## Current Status
 
 - **Version**: v2.2.2
-- **Verification baseline**: 524 tests passing, 0 failure in core suite
-- **Architecture**: Five-phase detection pipeline (Catalog → Scaled → Heuristic → Adaptive → Global) + decision policy + shared removal + worker pool
-- **Test suite**: 56 test files (optimized, duplicates removed)
+- **Verification baseline**: core suite passing, 0 lint errors
+- **Architecture**: Five-phase detection pipeline (Catalog → Scaled → Heuristic → Adaptive → Global) + scaled match gating + decision policy + shared removal + worker pool
+- **Test suite**: 49 test files (optimized, 8 empty stubs removed, 6 groups merged, 5 new coverage files added)
 
-## Completed (v2.2.2 — Watermark Detection Recall Fix)
+## Completed (v2.2.2 — Watermark Detection Recall & Frontend Fix)
 
-### Root Cause: Alpha Map Formula Regression
-- **BUG-001** [CRITICAL]: Fixed `alphaMap.js` — changed from BT.709 luminance `(0.2126*R + 0.7152*G + 0.0722*B)` to upstream-aligned max-channel `Math.max(R, G, B)` for alpha map computation. This was the primary cause of "obvious watermarks not detected" — BT.709 systematically undervalued anti-aliased edge pixels, reducing NCC detection scores by 20-40%.
-- **BUG-002** [HIGH]: Added `ALPHA_NOISE_FLOOR = 3/255` to `blendModes.js` with signal/activation split — upstream alignment
-- **BUG-003** [HIGH]: Tuned `gradientPenalty` threshold from 0.05 to 0.02 with penalty cap at 0.50 in `detector.js`
-- **BUG-004** [MEDIUM]: Extended heuristic search range from 45% to 55%
-- **BUG-005** [HIGH]: Relaxed `isNearExpectedAnchor` position tolerance from 5% to 10%
-- **BUG-006** [MEDIUM]: Extended adaptive detector to support doubao profile (removed gemini-only restriction)
-- **BUG-007** [MEDIUM]: Fixed `calculateNearBlackRatio` from BT.709 luminance check to per-channel `r<=5 && g<=5 && b<=5` (upstream alignment)
-- **BUG-008** [LOW]: Added bounds check to `regionStdDev` for negative coordinates
-- **BUG-009** [MEDIUM]: Fixed CLI batch processing — `applyRemovalStrategy` called once with all matches
-- **BUG-010** [MEDIUM]: Added `first-pass-sign-flip` detection in `multiPassRemoval.js`
-- **BUG-011** [MEDIUM]: Fixed `catalog.js` browser compatibility — runtime Node.js detection with graceful degradation
+### Backend: Detection Miss Root Cause Fix
+- **BUG-1** [CRITICAL]: Relaxed `registry.findMatches()` tolerance from 0.05 → 0.10; added `findCloseMatches()` with 0.25 tolerance for cropped/resized images
+- **BUG-2** [HIGH]: Changed multi-dimensional scoring from `spatial*0.5+gradient*0.3+variance*0.2` to `max(spatial, weighted)` to prevent NCC dilution
+- **BUG-3** [MEDIUM]: Fixed `calculateVarianceScore` — uniform backgrounds return neutral 0.5 instead of 0
+- **BUG-4** [MEDIUM]: Lowered adaptive detection threshold from 0.35 → 0.22
+- **BUG-5** [HIGH]: Fixed heuristic tier classification — shortSide priority prevents panorama misclassification; added 48px+96px dual-size fallback in `getAllPotentialConfigs`
+- **BUG-6** [MEDIUM]: Replaced `fs.readFileSync` with static JSON import for universal browser/Node catalog loading
+- **BUG-7** [MEDIUM]: Expanded global search range from 55% → 75%
+- **BUG-8** [MEDIUM]: Made `interpolateAlphaMap`/`warpAlphaMap` support rectangular (non-square) dimensions
+- **BUG-9** [LOW]: Removed redundant single Worker in `watermarkEngine.js` — unified to WorkerPool only
+- **Scaled match gating** [NEW]: `calculateProbeConfidence` differentiates scaled vs exact catalog matches with higher base-NCC (0.14 vs 0.10), gradient (0.18 vs 0.12), and probe (0.35 vs 0.18) thresholds; jitter disabled for scaled
+
+### Frontend: UI Bug Fixes & UX Enhancements
+- **BUG-UI-1** [HIGH]: Fixed `showLoadingFail` classList mismatch + i18n-ized hardcoded text
+- **BUG-UI-3** [HIGH]: Fixed Stats View displaying hardcoded values instead of actual anchor/algorithm
+- **BUG-UI-5** [MEDIUM]: `downloadImage` regenerates URL from blob when processedUrl is missing
+- **BUG-UI-6** [HIGH]: Replaced mouse events with pointer-events + `setPointerCapture` to prevent drag leaks
+- **BUG-UI-7** [LOW]: `applyProfileTheme` now applies DOM styles instead of unused CSS variables
+- **Added**: Dark mode manual toggle (auto/dark/light three-state cycle, stored in localStorage)
+- **Added**: Detection phase indicator in tier badge (catalog-probe / adaptive-search / global-free)
+- **Removed**: mesh-blob dead code (~40 lines CSS + HTML elements)
 
 ### Test Suite Optimization
-- Merged 7 duplicate test files into parent files (61 → 56 files)
-- Added 6 new test files with 66 test cases (alpha map formula, noise floor, gradient penalty, NCC scoring, detection recall, CLI batch)
-- Updated 5 existing tests to align with new formula
-- **Total: 158/158 core tests passing**
+- Deleted 8 empty test stubs (zero test() calls)
+- Merged 6 redundant test groups into parent files (catalog 4→1, registry 2→1, detector 3→1, parameters 2→1)
+- Added 5 new coverage files: `v2_2_probe_gating.test.js`, `v2_2_frontend.test.js`, `v2_2_adaptive_rect.test.js`, `e2e_integration.test.js`, `parameter_overrides.test.js`
+- Extracted shared `TC` constants to `test_utils.js` (resolutions, thresholds, profiles, image types)
+- **Total: 49 test files, ~390 tests**
 
 ### Documentation
-- Created `DIAGNOSTIC_PLAN.md` — comprehensive architecture analysis, upstream comparison, bug inventory, fix plan
-- Updated `TECHNICAL_GUIDE.md` — corrected alpha map formula documentation, added precision guidance
+- Created `DIAGNOSTIC_PLAN.md` — comprehensive backend diagnosis, frontend analysis, test audit (3 chapters)
+- Updated all README files with v2.2.2 changes
 
 ## Short-term Plans (v2.3)
 
-1. **96-20260520 variant support**: Add newer Gemini watermark template variant for updated watermark margins
-2. **Extended candidate selection**: Research and integrate upstream `candidateSelector.js` logic for more robust multi-trial evaluation
-3. **Preview edge cleanup**: Implement halo detection and edge refinement from upstream `watermarkProcessor.js`
-4. **Embedded alpha maps**: Replace PNG file loading with base64-embedded alpha maps to eliminate I/O/encoding variability
+1. **Enhanced watermark variant support**: Add newer Gemini template variants for updated watermark margins
+2. **Real sample integration tests**: Use docs/ sample images as regression fixtures in CI
+3. **True SSIM calculation**: Replace PSNR-based quality estimation with proper sliding-window SSIM
+4. **WASM acceleration**: WebAssembly-accelerated NCC and Sobel gradient computation
 5. **Extend multi-pass removal + alpha calibration** to doubao and other non-gemini profiles
-6. **WASM acceleration** for NCC and Sobel gradient computation
-7. **Complete CLI pipe mode** end-to-end integration tests
-8. **True SSIM calculation** replacing PSNR estimation
+6. **Complete CLI pipe mode** end-to-end integration tests
 
 ## Mid-term Plans
 
-1. Frequency-domain false positive defense (spectral analysis)
-2. Prepare real alphaMap assets for DALL-E 3 profile
-3. Unify Web/CLI Engine: abstract `AssetLoader` interface
-4. Adaptive auto-tuning: image entropy-based detection threshold adjustment
-5. Chrome extension implementation
+1. **Frequency-domain false positive defense**: Spectral analysis for robust non-watermark rejection
+2. **Prepare real alphaMap assets** for DALL-E 3 profile
+3. **Unify Web/CLI Engine**: Abstract `AssetLoader` interface for cross-platform asset loading
+4. **Adaptive auto-tuning**: Image entropy-based detection threshold adjustment
+5. **Browser extension**: Chrome extension packaging
+6. **Embedded alpha maps**: Replace PNG file loading with base64-embedded maps for zero I/O overhead
 
 ## Long-term Plans
 
 1. Maintain verifiable, explainable, pure-mathematical watermark removal benchmark
 2. Productization: Chrome extension, page integration, SDK publishing
 3. Continuously expand real sample library targeting complex backgrounds and slightly-scaled exports
+4. Multi-platform deployment: Web, CLI, Python, browser extension, Docker
 
 ## Verification Commands
 
 ```bash
-pnpm lint                  # 0 errors, 0 warnings
-pnpm test                  # Run full test suite
-pnpm build                 # clean (static Tailwind CSS)
-pnpm test:python           # Python bridge
+pnpm lint                  # 0 errors
+pnpm test                  # core test suite
+pnpm build                 # static Tailwind CSS build
 ```

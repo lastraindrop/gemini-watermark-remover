@@ -45,8 +45,8 @@ export class DetectorContext {
 const _defaultContext = new DetectorContext();
 
 const SEARCH_CONFIG = {
-    RANGE_X: 0.55,
-    RANGE_Y: 0.55,
+    RANGE_X: 0.75,
+    RANGE_Y: 0.75,
     CANDIDATES_LIMIT_PER_SIZE: 5,
     PROXIMITY_THRESHOLD: 8,
     FINE_TUNE_RANGE: 4,
@@ -261,7 +261,8 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                         const varianceScore = calculateVarianceScore(searchData, fx, fy, sizeW, sizeH);
                         const spatial = Math.max(0, confidence);
                         const gradient = Math.max(0, gradientConf);
-                        confidence = spatial * 0.5 + gradient * 0.3 + varianceScore * 0.2;
+                        const weighted = spatial * 0.5 + gradient * 0.3 + varianceScore * 0.2;
+                        confidence = Math.max(spatial, weighted);
                     }
 
                     const stage2Threshold = noiseReduction ? config.THRESHOLDS.STAGE2_NR : config.THRESHOLDS.STAGE2_CLEAN;
@@ -465,8 +466,8 @@ export function calculateLocalContrastCorrelation(imageData, x, y, logoW, logoH,
  * Verify if a watermark is likely present at the given position
  */
 export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'gemini', options = {}) {
-    const { deepScan = false, gradientPenalty = 0.30 } = options;
-    
+    const { deepScan = false, gradientPenalty = 0.30, isScaledMatch = false } = options;
+
     if (profile === 'doubao') {
         const logoW = pos.width;
         const logoH = pos.height;
@@ -496,6 +497,11 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
      }
 
     let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
+    const baseNcc = confidence;
+    const baseNccGate = isScaledMatch ? 0.14 : 0.10;
+
+    if (baseNcc < baseNccGate) return { confidence: baseNcc, x: pos.x, y: pos.y };
+
     const localContrastConf = calculateLocalContrastCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
     confidence = Math.max(confidence, localContrastConf);
 
@@ -507,15 +513,15 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
         const gradientsA = new Float32Array(logoW * logoH);
         const gradientConf = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
 
-        // Use a softer threshold (0.02) and cap the penalty at 0.50 to avoid
-        // suppressing valid detections on busy backgrounds where gradient
-        // correlation is naturally low.
         if (gradientConf < 0.02) confidence = confidence * Math.min(gradientPenalty, 0.50);
-        else confidence = Math.max(confidence, gradientConf);
+        else {
+            const gradGate = isScaledMatch ? 0.18 : 0.12;
+            if (confidence >= gradGate) confidence = Math.max(confidence, gradientConf);
+        }
     }
 
-    // Sliding window fine-tuning
-    if (confidence < 0.50) {
+    // Sliding window fine-tuning (exact/official matches only)
+    if (confidence < 0.50 && !isScaledMatch) {
         let bestConf = confidence;
         let bestX = pos.x;
         let bestY = pos.y;
@@ -533,7 +539,9 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
                     const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const gradientConf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, gradientsI, gradientsA);
                     const combined = Math.max(nccConf, localConf);
-                    conf = gradientConf < 0.02 ? combined * Math.min(gradientPenalty, 0.50) : Math.max(combined, gradientConf);
+                    conf = gradientConf < 0.02 ? combined * Math.min(gradientPenalty, 0.50)
+                        : nccConf >= 0.12 ? Math.max(combined, gradientConf)
+                        : combined;
                 } else {
                     const nccConf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
@@ -575,6 +583,7 @@ function calculateVarianceScore(imageData, x, y, logoW, logoH) {
 
     const refStd = regionStdDev(data, imgWidth, x, refY, refH);
     if (refStd < 1e-6) return 0.5;
+    if (refStd < 5.0) return 0.5;
 
     const ratio = wmStd / refStd;
     return Math.max(0, Math.min(1, 1 - ratio));

@@ -54,7 +54,14 @@ export function getAllPotentialConfigs(imageWidth, imageHeight, profileId = 'gem
     const profile = getProfile(profileId);
     if (profile.getHeuristicConfig) {
         const anchors = profile.anchors || ['bottom-right'];
-        return anchors.map(anchor => profile.getHeuristicConfig(imageWidth, imageHeight, anchor));
+        const configs = anchors.map(anchor => profile.getHeuristicConfig(imageWidth, imageHeight, anchor));
+        if (profileId === 'gemini') {
+            const has48 = configs.some(c => (c.logoSize || c.logoWidth) === 48);
+            const has96 = configs.some(c => (c.logoSize || c.logoWidth) === 96);
+            if (!has48) configs.push({ logoSize: 48, marginRight: 32, marginBottom: 32, isOfficial: false });
+            if (!has96) configs.push({ logoSize: 96, marginRight: 64, marginBottom: 64, isOfficial: false });
+        }
+        return configs;
     }
     
     return [detectWatermarkConfig(imageWidth, imageHeight, profileId)];

@@ -4,11 +4,8 @@
  */
 
 import { calculateAlphaMap } from './alphaMap.js';
-import { removeWatermark } from './blendModes.js';
 import { resetDetectorBuffers } from './detector.js';
 import { detectWatermarks } from './detectionPipeline.js';
-import { removeRepeatedWatermarkLayers } from './multiPassRemoval.js';
-import { shouldRecalibrateAlphaStrength, recalibrateAlphaStrength } from './alphaCalibration.js';
 import { applyRemovalStrategy } from './applyRemoval.js';
 import { WorkerPool } from './workerPool.js';
 
@@ -17,8 +14,6 @@ export class WatermarkEngine {
         this.alphaMaps = {};
         this._worker = null;
         this._workerPool = null;
-        this._workerHandlers = new Map();
-        this._nextTaskId = 0;
         this._reusableCanvas = null;
         this._reusableCtx = null;
         this._useWorker = false;
@@ -34,11 +29,11 @@ export class WatermarkEngine {
     }
 
     /**
-     * Lazy-initialize or get the persistent worker
+     * Lazy-initialize worker pool (v2.2: single pool instead of pool+single worker)
      */
-    _getWorker() {
+    _getWorkerPool() {
         if (typeof window === 'undefined' || !window.Worker || window.GM_info || this._workerFailed) return null;
-        if (!this._worker) {
+        if (!this._workerPool) {
             try {
                 let workerUrl;
                 try {
@@ -49,99 +44,36 @@ export class WatermarkEngine {
                     const base = appScript || (typeof window !== 'undefined' ? window.location.href : '');
                     workerUrl = new URL('worker.js', base);
                 }
-                this._worker = new Worker(workerUrl);
-                this._worker.onmessage = (e) => {
-                    const { taskId, imageData, error } = e.data;
-                    const handler = this._workerHandlers.get(taskId);
-                    if (handler) {
-                        this._workerHandlers.delete(taskId);
-                        if (error) {
-                            handler.reject(new Error(error));
-                        } else {
-                            handler.resolve(imageData);
-                        }
-                    }
-                };
-                this._worker.onerror = (e) => {
-                    console.warn('Worker error, switching to main thread:', e);
-                    this._useWorker = false;
-                    this._workerFailed = true;
-                    this._workerHandlers.forEach(h => h.reject(new Error('Worker crashed')));
-                    this._workerHandlers.clear();
-                    if (this._worker) {
-                        try {
-                            this._worker.terminate();
-                        } catch {}
-                        this._worker = null;
-                    }
-                };
-                this._useWorker = true;
-
                 this._workerPool = new WorkerPool(workerUrl, 2);
+                this._useWorker = this._workerPool.isAvailable;
             } catch (err) {
-                console.warn('Failed to start worker:', err);
+                console.warn('Failed to start worker pool:', err);
                 this._useWorker = false;
                 this._workerFailed = true;
                 return null;
             }
         }
-        return this._worker;
+        if (!this._workerPool.isAvailable) {
+            this._useWorker = false;
+            return null;
+        }
+        return this._workerPool;
     }
 
     getExecutionMode() {
-        return this._useWorker && this._getWorker() !== null ? 'worker-assisted' : 'main-thread';
+        return this._useWorker && this._getWorkerPool() !== null ? 'worker-assisted' : 'main-thread';
     }
 
     async _performWorkerRemoval(imageData, matches) {
-        if (this._workerPool && this._workerPool.isAvailable) {
-            try {
-                return await this._workerPool.postTask(imageData, matches);
-            } catch {
-                this._useWorker = false;
-                throw new Error('Worker pool failed');
-            }
+        if (!this._workerPool || !this._workerPool.isAvailable) {
+            throw new Error('Worker pool not available');
         }
-
-        const worker = this._getWorker();
-        if (!worker || !this._useWorker) {
-            throw new Error('Worker not available');
+        try {
+            return await this._workerPool.postTask(imageData, matches);
+        } catch {
+            this._useWorker = false;
+            throw new Error('Worker pool failed');
         }
-
-        const copy = new Uint8ClampedArray(imageData.data);
-        const taskId = this._nextTaskId++;
-
-        return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this._workerHandlers.delete(taskId);
-                reject(new Error('Worker removal timed out'));
-            }, Math.max(5000, (imageData.width * imageData.height) / 500000));
-
-            this._workerHandlers.set(taskId, {
-                resolve: (result) => {
-                    clearTimeout(timer);
-                    resolve(result);
-                },
-                reject: (err) => {
-                    clearTimeout(timer);
-                    reject(err);
-                }
-            });
-
-            try {
-                worker.postMessage(
-                    {
-                        imageData: { width: imageData.width, height: imageData.height, data: copy },
-                        matches,
-                        taskId
-                    },
-                    [copy.buffer]
-                );
-            } catch (err) {
-                clearTimeout(timer);
-                this._workerHandlers.delete(taskId);
-                reject(err);
-            }
-        }).then(resultImageData => resultImageData.data);
     }
 
     /**
@@ -254,9 +186,9 @@ export class WatermarkEngine {
 
         if (overallBest.matches.length > 0) {
             let workerUsed = false;
-            const worker = this._getWorker();
+            const pool = this._getWorkerPool();
 
-            if (worker && this._useWorker) {
+            if (pool && this._useWorker) {
                 try {
                     const modifiedData = await this._performWorkerRemoval(imageData, overallBest.matches);
                     imageData.data.set(modifiedData);
@@ -275,7 +207,8 @@ export class WatermarkEngine {
             lastResult = {
                 config: overallBest.winner.config,
                 pos: overallBest.winner.pos,
-                profileId: overallBest.profileId
+                profileId: overallBest.profileId,
+                source: overallBest.winner.source
             };
         }
 
@@ -290,7 +223,8 @@ export class WatermarkEngine {
             removedCount,
             config: lastResult ? lastResult.config : null,
             pos: lastResult ? lastResult.pos : null,
-            profileId: lastResult ? lastResult.profileId : requestedProfileId
+            profileId: lastResult ? lastResult.profileId : requestedProfileId,
+            _detectionSource: lastResult?.source || null
         };
     }
 

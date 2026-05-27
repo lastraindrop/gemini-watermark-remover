@@ -2,6 +2,17 @@ import { registry } from '../src/core/templates/registry.js';
 import { getCatalogConfig, getAllCatalogConfigs } from '../src/core/catalog.js';
 import { calculateWatermarkPosition } from '../src/core/config.js';
 
+export const TC = {
+    RES_0_5K: 512, RES_1K: 1024, RES_2K: 2048, RES_4K: 4096,
+    LOGO_48: 48, LOGO_96: 96,
+    MARGIN_32: 32, MARGIN_64: 64,
+    THRESHOLD: 0.18, PROBE_THRESHOLD: 0.18, FALLBACK_THRESHOLD: 0.30,
+    SCALED_THRESHOLD: 0.35, ADAPTIVE_THRESHOLD: 0.22,
+    PROFILES: { GEMINI: 'gemini', DOUBAO: 'doubao', DALLE3: 'dalle3', AUTO: 'auto' },
+    LOGO_VALUE: 255,
+    TYPES: { SOLID: 'solid', GRADIENT: 'gradient', RANDOM: 'random', GRID: 'grid', NOISE: 'noise' },
+};
+
 function pseudoRandom01(seed) {
     const x = Math.sin(seed) * 10000;
     return x - Math.floor(x);

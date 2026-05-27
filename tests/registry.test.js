@@ -66,7 +66,7 @@ describe('TemplateRegistry Core Tests', () => {
         assert.strictEqual(matches.length, 0);
     });
 
-    test('findMatches should return entries within 0.015 tolerance', () => {
+    test('findMatches should return entries within 0.10 tolerance', () => {
         const r = new TemplateRegistry();
         r.registerProfile({ id: 'test-tol' });
         r.addCatalogEntries('test-tol', [
@@ -80,16 +80,16 @@ describe('TemplateRegistry Core Tests', () => {
         assert.strictEqual(matches[0].isOfficial, true);
     });
 
-    test('Should handle near-matches at tolerance boundary', () => {
+    test('Should handle near-matches at 0.10 tolerance boundary', () => {
         const r = new TemplateRegistry();
         r.registerProfile({ id: 'boundary-test' });
         r.addCatalogEntries('boundary-test', [
             { width: 1000, height: 1000 }
         ]);
-        
-        const withinTol = r.findMatches('boundary-test', 1049, 1049);
-        const outsideTol = r.findMatches('boundary-test', 1051, 1051);
-        
+
+        const withinTol = r.findMatches('boundary-test', 1099, 1099);
+        const outsideTol = r.findMatches('boundary-test', 1101, 1101);
+
         assert.strictEqual(withinTol.length, 1);
         assert.strictEqual(outsideTol.length, 0);
     });
@@ -123,7 +123,27 @@ describe('TemplateRegistry Core Tests', () => {
     });
 
     test('Global registry gemini catalog should have entries', () => {
-        const gemCatalog = registry.getCatalog('gemini');
-        assert.ok(gemCatalog.length > 0);
+        const catalog = registry.getCatalog('gemini');
+        assert.ok(catalog.length > 0);
+    });
+
+    test('Global registry: Doubao should support multi-anchor matches', () => {
+        const matches = registry.findMatches('doubao', 2730, 1535);
+        assert.strictEqual(matches.length, 2);
+        const anchors = matches.map(m => m.anchor);
+        assert.ok(anchors.includes('top-left'));
+        assert.ok(anchors.includes('bottom-right'));
+    });
+
+    test('Global registry: Standard resolution match', () => {
+        const matches = registry.findMatches('gemini', 1024, 1024);
+        assert.strictEqual(matches.length, 1);
+        assert.strictEqual(matches[0].tier, '1k');
+        assert.strictEqual(matches[0].logoSize, 96);
+    });
+
+    test('Global registry: Unknown resolution returns empty', () => {
+        const matches = registry.findMatches('gemini', 1234, 5678);
+        assert.strictEqual(matches.length, 0);
     });
 });

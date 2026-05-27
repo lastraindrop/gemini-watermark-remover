@@ -101,10 +101,10 @@ export function showLoadingFail(text) {
     const retryBtn = el.querySelector('#retryBtn');
     const spinner = el.querySelector('.animate-spin');
 
-    if (mainTextEl) mainTextEl.textContent = 'Critical Error';
+    if (mainTextEl) mainTextEl.textContent = i18n.t('status.error') || 'Critical Error';
     if (subTextEl) {
         subTextEl.textContent = text;
-        subTextEl.classList.replace('text-gray-400', 'text-red-500');
+        subTextEl.classList.add('text-red-500');
     }
     if (retryBtn) retryBtn.classList.remove('hidden');
     if (spinner) spinner.classList.add('hidden');

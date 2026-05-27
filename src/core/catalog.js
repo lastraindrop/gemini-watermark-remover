@@ -1,35 +1,14 @@
 import { registry } from './templates/registry.js';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import catalogJSON from './catalogs.json' with { type: 'json' };
 
 let _catalogData = null;
 const _loadedProfiles = new Set();
 
-function isNodeRuntime() {
-    try {
-        return typeof process !== 'undefined' && process.versions && process.versions.node;
-    } catch {
-        return false;
-    }
-}
-
 function getCatalogData() {
     if (_catalogData) return _catalogData;
 
-    if (isNodeRuntime()) {
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = dirname(__filename);
-        try {
-            _catalogData = JSON.parse(readFileSync(join(__dirname, 'catalogs.json'), 'utf8'));
-        } catch {
-            // Fall through to empty default
-        }
-    }
+    _catalogData = catalogJSON || { WATERMARK_CONFIGS: {}, CATALOGS: { gemini: [], doubao: [], dalle3: [] } };
 
-    if (!_catalogData) {
-        _catalogData = { WATERMARK_CONFIGS: {}, CATALOGS: { gemini: [], doubao: [], dalle3: [] } };
-    }
     return _catalogData;
 }
 

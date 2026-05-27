@@ -269,9 +269,12 @@ export async function detectProfileWatermarks({
             pos,
             alphaMap.data,
             profile.id,
-            detectionOptions
+            { ...detectionOptions, isScaledMatch: !!config.scaledFrom }
         );
-        if (verification.confidence > probeThreshold) {
+        const effectiveThreshold = config.scaledFrom
+            ? Math.max(probeThreshold, 0.35)
+            : (config.isOfficial ? probeThreshold : Math.max(probeThreshold, 0.22));
+        if (verification.confidence > effectiveThreshold) {
             upsertMatch(matches, {
                 config,
                 pos: { ...pos, x: verification.x, y: verification.y },
@@ -301,7 +304,7 @@ export async function detectProfileWatermarks({
             imageData,
             alphaMaps,
             defaultConfig,
-            threshold: options.adaptiveMinConfidence ?? 0.35
+            threshold: options.adaptiveMinConfidence ?? 0.22
         });
         if (adaptiveResult) {
             const size = adaptiveResult.region.width;

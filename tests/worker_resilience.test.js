@@ -84,9 +84,8 @@ describe('Worker Resilience (Timeout Fallback)', () => {
         global.Worker = function() { throw new Error('Worker not available'); };
 
         const engine = new WatermarkEngine();
-        // _getWorker should handle exception gracefully
-        const worker = engine._getWorker();
-        assert.strictEqual(worker, null, 'Should return null when Worker fails to construct');
+        const pool = engine._getWorkerPool();
+        assert.strictEqual(pool, null, 'Should return null when Worker fails to construct');
         assert.strictEqual(engine._useWorker, false, 'Should disable worker on failure');
         
         engine.destroy();
@@ -99,6 +98,7 @@ describe('Worker Resilience (Timeout Fallback)', () => {
 
         global.Worker = class {
             constructor() {
+                this._inUse = false;
                 this.onmessage = null;
                 this.onerror = null;
             }
@@ -118,6 +118,7 @@ describe('Worker Resilience (Timeout Fallback)', () => {
         };
 
         const engine = new WatermarkEngine();
+        engine._getWorkerPool();
         const imgData = { width: 10, height: 10, data: new Uint8ClampedArray(400).fill(100) };
         const originalPixel = imgData.data[0];
 
@@ -139,6 +140,7 @@ describe('Worker Resilience (Timeout Fallback)', () => {
 
         global.Worker = class {
             constructor() {
+                this._inUse = false;
                 this.onmessage = null;
                 this.onerror = null;
             }
@@ -149,13 +151,14 @@ describe('Worker Resilience (Timeout Fallback)', () => {
         };
 
         const engine = new WatermarkEngine();
+        engine._getWorkerPool();
         const imgData = { width: 4, height: 4, data: new Uint8ClampedArray(64).fill(100) };
 
         await assert.rejects(
             () => engine._performWorkerRemoval(imgData, [
                 { alphaMap: new Float32Array(16).fill(0.5), pos: { x: 0, y: 0, width: 4, height: 4 } }
             ]),
-            /timed out/,
+            /Worker pool failed|timed out/,
             'Worker timeout should reject with informative message'
         );
 

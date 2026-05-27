@@ -312,13 +312,15 @@ function updateSingleUI(item, removedCount, confidence, latency, config, pos, pr
     document.getElementById('sideOriginal').src = item.originalUrl;
     document.getElementById('sideProcessed').src = item.processedUrl;
 
-    if (config && elements.tierBadge) {
-        const profile = getAllProfiles().find(p => p.id === profileId) || { id: 'AUTO' };
-        const detectionType = config.isOfficial ? i18n.t('detection.official') : i18n.t('detection.heuristic');
-        elements.tierBadge.textContent = `${profile.id.toUpperCase()} - ${config.tier || detectionType} - ${config.anchor || 'BR'}`;
+    if (elements.tierBadge) {
+        const profile = getAllProfiles().find(p => p.id === profileId) || { id: profileId || 'AUTO' };
+        const sourceLabel = item._detectionSource || '';
+        const tierLabel = config?.tier || '';
+        const parts = [profile.id.toUpperCase(), sourceLabel, tierLabel, config?.anchor].filter(Boolean);
+        elements.tierBadge.textContent = parts.join(' — ');
         elements.tierBadge.classList.remove('hidden');
         if (profile.brandColor) applyProfileTheme(profile);
-        updateStatsUI(config, pos, confidence, profileId);
+        updateStatsUI(config, pos, confidence, profile.id);
     }
 
     if (elements.lastLatency) elements.lastLatency.textContent = `${i18n.t('info.latency')}: ${latency}ms`;

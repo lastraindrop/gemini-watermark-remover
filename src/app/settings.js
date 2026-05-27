@@ -31,6 +31,8 @@ export function loadSettings(elements) {
 }
 
 export function setupLanguageSelector(elements) {
+    setupDarkModeToggle();
+
     const select = document.getElementById('langSelect');
     if (!select) return;
 
@@ -115,4 +117,31 @@ export function getEngineOptions(elements, behavior = {}) {
     }
 
     return opts;
+}
+
+function setupDarkModeToggle() {
+    const btn = document.getElementById('darkModeToggle');
+    if (!btn) return;
+
+    const STORAGE_KEY = 'gwr_dark_mode';
+    let mode = (typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY)) || 'auto';
+
+    const prefersDark = () => typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    const apply = () => {
+        const isDark = mode === 'dark' || (mode === 'auto' && prefersDark());
+        document.documentElement.classList.toggle('dark', isDark);
+    };
+
+    apply();
+
+    btn.addEventListener('click', () => {
+        const cycle = { auto: 'dark', dark: 'light', light: 'auto' };
+        mode = cycle[mode] || 'auto';
+        localStorage.setItem(STORAGE_KEY, mode);
+        btn.setAttribute('data-mode', mode);
+        apply();
+    });
+
+    btn.setAttribute('data-mode', mode);
 }

@@ -22,15 +22,24 @@ export function updateStatsUI(config, pos, confidence, profileId) {
     const statCoord = document.getElementById('statCoord');
     const statConfidence = document.getElementById('statConfidence');
     const statAlgo = document.getElementById('statAlgo');
-    if (statAnchor) statAnchor.textContent = (config.anchor || 'BOTTOM-RIGHT').toUpperCase();
+    if (statAnchor) statAnchor.textContent = (pos?.anchor || config?.anchor || 'AUTO').toUpperCase();
     if (statCoord) statCoord.textContent = pos ? `${Math.round(pos.x)}, ${Math.round(pos.y)}` : 'AUTO';
     if (statConfidence) statConfidence.textContent = `${confidence}%`;
     if (statAlgo) statAlgo.textContent = (profileId || 'AUTO').toUpperCase();
 }
 
 export function applyProfileTheme(profile) {
-    document.documentElement.style.setProperty('--primary', profile.brandColor);
-    document.documentElement.style.setProperty('--primary-glow', `${profile.brandColor}66`);
+    if (!profile?.brandColor) return;
+    const headerIcon = document.querySelector('header .bg-emerald-500');
+    if (headerIcon) {
+        headerIcon.classList.remove('bg-emerald-500', 'shadow-glow-emerald');
+        headerIcon.style.backgroundColor = profile.brandColor;
+    }
+    const tierBadge = document.getElementById('tierBadge');
+    if (tierBadge) {
+        tierBadge.classList.remove('bg-indigo-500', 'bg-emerald-500', 'shadow-glow-indigo', 'shadow-glow-emerald');
+        tierBadge.style.backgroundColor = profile.brandColor;
+    }
 }
 
 export function setupSlider(elements) {
@@ -40,33 +49,37 @@ export function setupSlider(elements) {
     const resize = slider.querySelector('.resize');
     const handle = slider.querySelector('.handle');
 
-    const updateSlider = (e) => {
+    let dragging = false;
+
+    const updateSlider = (clientX) => {
         const rect = slider.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const x = clientX - rect.left;
         const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
-
         if (resize) resize.style.width = `${percent}%`;
         if (handle) handle.style.left = `${percent}%`;
     };
 
-    slider.addEventListener('mousedown', () => {
-        const moveHandler = (e) => updateSlider(e);
-        const upHandler = () => {
-            document.removeEventListener('mousemove', moveHandler);
-            document.removeEventListener('mouseup', upHandler);
-        };
-        document.addEventListener('mousemove', moveHandler);
-        document.addEventListener('mouseup', upHandler);
-    });
+    const onPointerMove = (e) => {
+        if (!dragging) return;
+        e.preventDefault();
+        updateSlider(e.clientX);
+    };
 
-    slider.addEventListener('touchstart', () => {
-        const moveHandler = (e) => updateSlider(e);
-        const upHandler = () => {
-            document.removeEventListener('touchmove', moveHandler);
-            document.removeEventListener('touchend', upHandler);
-        };
-        document.addEventListener('touchmove', moveHandler);
-        document.addEventListener('touchend', upHandler);
-    }, { passive: true });
+    const onPointerUp = () => {
+        dragging = false;
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerUp);
+    };
+
+    slider.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.resize') || e.target.closest('.handle') || e.target === slider) {
+            dragging = true;
+            e.preventDefault();
+            slider.setPointerCapture(e.pointerId);
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
+            document.addEventListener('pointercancel', onPointerUp);
+        }
+    });
 }

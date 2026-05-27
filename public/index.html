@@ -17,10 +17,6 @@
   </script>
 </head>
 <body class="antialiased selection:bg-emerald-500 selection:text-white overflow-x-hidden">
-  <!-- Mesh Background blobs -->
-  <div class="mesh-blob mesh-blob-1"></div>
-  <div class="mesh-blob mesh-blob-2"></div>
-
   <!-- Agent Status Bar -->
   <div class="fixed top-0 left-0 right-0 z-[100] h-1 bg-slate-900/10 backdrop-blur-sm overflow-hidden flex">
       <div id="loadingLine" class="h-full bg-emerald-500 transition-all duration-300 w-0"></div>
@@ -75,9 +71,7 @@
         <input id="fileInput" type="file" multiple accept="image/jpeg,image/png,image/webp" class="hidden">
         <input id="folderInput" type="file" multiple accept="image/*" webkitdirectory directory class="hidden">
         <div class="glass-premium w-full min-w-0 rounded-2xl p-3 md:p-4 group-hover:p-3 transition-all duration-300">
-          <div class="relative w-full min-w-0 h-72 md:h-80 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/50 flex flex-col items-center justify-center transition-colors duration-300 group-hover:bg-white dark:group-hover:bg-slate-900 group-hover:border-emerald-500 shadow-inner overflow-hidden px-4">
-            <div class="mesh-blob mesh-blob-1 opacity-5 group-hover:opacity-10 transition-opacity"></div>
-            
+          <div class="relative w-full min-w-0 h-72 md:h-80 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/50 flex flex-col items-center justify-center transition-colors duration-300 group-hover:bg-white dark:group-hover:bg-slate-900 group-hover:border-emerald-500 shadow-inner overflow-hidden px-4">            
             <div class="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mb-6 text-emerald-500 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 shadow-glow-emerald">
               <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
             </div>
@@ -138,6 +132,9 @@
 
         <div class="flex w-full sm:w-auto items-center justify-center gap-2 sm:ml-auto">
             <span id="memoryCount" class="text-[9px] font-mono text-slate-400 mr-2 hidden">0</span>
+            <button id="darkModeToggle" class="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl transition-all" title="Toggle dark mode" aria-label="Toggle dark mode">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+            </button>
             <button id="toggleAdvancedBtn" class="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl transition-all" title="Advanced Settings" aria-label="Advanced Settings">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
             </button>
@@ -261,7 +258,6 @@
 
                 <!-- Stats View -->
                 <div id="statsView" class="hidden glass-premium rounded-3xl p-8 border border-white/5 bg-slate-900/40 backdrop-blur-3xl overflow-hidden relative">
-                    <div class="mesh-blob mesh-blob-1 opacity-10"></div>
                       <div class="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-8">
                          <div>
                              <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1" data-i18n="stats.anchor">Anchor Point</p>
