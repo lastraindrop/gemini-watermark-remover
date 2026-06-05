@@ -136,6 +136,14 @@ class Engine {
 /**
  * Basic Arg Parser (Zero Dependency Replacement for Yargs)
  */
+function getArgValue(args, i, flagName) {
+    const val = args[i + 1];
+    if (val === undefined || val.startsWith('-')) {
+        throw new Error(`Missing value for ${flagName}`);
+    }
+    return val;
+}
+
 export function parseArgs(args) {
     const opts = {
         _: [],
@@ -149,19 +157,19 @@ export function parseArgs(args) {
     };
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
-        if (arg === '--output' || arg === '-o') opts.output = args[++i];
-        else if (arg === '--out-dir' || arg === '-d') opts.outDir = args[++i];
-        else if (arg === '--profile' || arg === '-p') opts.profile = args[++i];
-        else if (arg === '--format' || arg === '-f') opts.format = args[++i];
+        if (arg === '--output' || arg === '-o') { opts.output = getArgValue(args, i++, arg); }
+        else if (arg === '--out-dir' || arg === '-d') { opts.outDir = getArgValue(args, i++, arg); }
+        else if (arg === '--profile' || arg === '-p') { opts.profile = getArgValue(args, i++, arg); }
+        else if (arg === '--format' || arg === '-f') { opts.format = getArgValue(args, i++, arg); }
         else if (arg === '--overwrite') opts.overwrite = true;
         else if (arg === '--json') opts.json = true;
         else if (arg === '--pipe') opts.pipe = true;
         else if (arg === '--no-deepScan') opts.deepScan = false;
         else if (arg === '--noiseReduction') opts.noiseReduction = true;
         // v2.1 Advanced CLI Flags
-        else if (arg === '--probeThreshold') opts.probeThreshold = parseFloat(args[++i]);
-        else if (arg === '--fallbackThreshold') opts.fallbackThreshold = parseFloat(args[++i]);
-        else if (arg === '--gradientPenalty') opts.gradientPenalty = parseFloat(args[++i]);
+        else if (arg === '--probeThreshold') { opts.probeThreshold = parseFloat(getArgValue(args, i++, arg)); }
+        else if (arg === '--fallbackThreshold') { opts.fallbackThreshold = parseFloat(getArgValue(args, i++, arg)); }
+        else if (arg === '--gradientPenalty') { opts.gradientPenalty = parseFloat(getArgValue(args, i++, arg)); }
         else if (!arg.startsWith('-')) opts._.push(arg);
     }
     return opts;

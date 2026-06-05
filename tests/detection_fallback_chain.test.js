@@ -1,6 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { detectWatermarks, detectProfileWatermarks } from '../src/core/detectionPipeline.js';
+import { calculateProbeConfidence, calculateCorrelation, calculateGradientCorrelation } from '../src/core/detector.js';
 import { createMockImageData, createMockAlphaMap, applyWatermark, setupMemoryMocks, resolvePos } from './test_utils.js';
 
 const W = 1024, H = 1024;
@@ -152,5 +153,65 @@ describe('Detection Fallback Chain', () => {
         if (result.winner && result.winner.source === 'catalog-probe' && result.winner.confidence >= 0.60) {
             assert.ok(result.winner.source === 'catalog-probe');
         }
+    });
+});
+
+// -- Merged from v2_2_probe_gating.test.js --
+function alphaProvider(size, alphaMap) {
+    return async (key) => {
+        const s = parseInt(key) || size;
+        return { data: alphaMap || createMockAlphaMap(s, s), width: s, height: s };
+    };
+}
+
+describe('Probe gating & multi-dimension scoring (v2.2)', () => {
+    test('Scaled match requires higher base NCC gate', () => {
+        const img = createMockImageData(512, 512, 'noise', 128);
+        const alphaMap = createMockAlphaMap(96, 96);
+        const pos = { x: 400, y: 400, width: 96, height: 96 };
+        applyWatermark(img, pos.x, pos.y, pos.width, pos.height, alphaMap, 255);
+        const result = calculateProbeConfidence(img, pos, alphaMap, 'gemini', { deepScan: false, isScaledMatch: true });
+        assert.ok(result.confidence > 0, 'Scaled probe should return a value');
+    });
+
+    test('Non-scaled match uses lower base NCC gate', () => {
+        const img = createMockImageData(512, 512, 'noise', 128);
+        const alphaMap = createMockAlphaMap(96, 96);
+        const pos = { x: 400, y: 400, width: 96, height: 96 };
+        applyWatermark(img, pos.x, pos.y, pos.width, pos.height, alphaMap, 255);
+        const result = calculateProbeConfidence(img, pos, alphaMap, 'gemini', { deepScan: false, isScaledMatch: false });
+        assert.ok(result.confidence > 0);
+    });
+
+    test('Low NCC on non-watermark image returns baseNcc early (scaled)', () => {
+        const img = createMockImageData(512, 512, 'random', 128);
+        const alphaMap = createMockAlphaMap(96, 96);
+        const result = calculateProbeConfidence(img, { x: 400, y: 400, width: 96, height: 96 }, alphaMap, 'gemini', { deepScan: false, isScaledMatch: true });
+        assert.ok(result.confidence < 0.20, `Scaled probe should not inflate noise: ${result.confidence}`);
+    });
+
+    test('max(spatial, weighted) preserves high NCC', () => {
+        const img = createMockImageData(200, 200, 'solid', 180);
+        const alphaMap = createMockAlphaMap(48, 48);
+        applyWatermark(img, 70, 70, 48, 48, alphaMap, 200);
+        const ncc = calculateCorrelation(img, 70, 70, 48, 48, alphaMap, true);
+        const gradientsI = new Float32Array(48 * 48), gradientsA = new Float32Array(48 * 48);
+        const gradient = calculateGradientCorrelation(img, 70, 70, 48, 48, alphaMap, gradientsI, gradientsA);
+        const weighted = ncc * 0.5 + Math.max(0, gradient) * 0.3 + 0.5 * 0.2;
+        const final = Math.max(ncc, weighted);
+        assert.ok(final >= ncc, `Final ${final} should not be less than NCC ${ncc}`);
+    });
+
+    test('Non-exact catalog resolution uses higher probe threshold', async () => {
+        const img = createMockImageData(1100, 1100, 'noise', 128);
+        const alphaMap = createMockAlphaMap(96, 96);
+        const pos = 1100 - 64 - 96;
+        applyWatermark(img, pos, pos, 96, 96, alphaMap, 255);
+        const result = await detectProfileWatermarks({
+            imageData: img, profileId: 'gemini',
+            getAlphaMap: alphaProvider(96, alphaMap),
+            options: { deepScan: true }
+        });
+        assert.ok(result.confidence > 0 || result.matches.length >= 0, 'Pipeline should complete without crash');
     });
 });

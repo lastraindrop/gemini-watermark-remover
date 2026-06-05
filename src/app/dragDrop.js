@@ -1,11 +1,10 @@
 import i18n from '../i18n.js';
 import { ENGINE_LIMITS } from '../core/config.js';
 import { getEngineOptions } from './settings.js';
-import { state } from './state.js';
+import { state, objectUrlManager } from './state.js';
 import { AuditLog, showToast, resetGlobalProgress } from './ui.js';
 import { processSingle, processQueue } from './processing.js';
 import { clearManualRegion, setManualSelectionEnabled } from './manualSelection.js';
-import { resetWorkspace } from '../app.js';
 
 let _dragState = { depth: 0 };
 
@@ -85,7 +84,12 @@ export function handleFiles(files, elements, onSingleSuccess, onBatchItemSuccess
     if (skipped > 0) showToast(i18n.t('toast.invalidFiles', { count: skipped }), 'info');
     if (validFiles.length === 0) return;
 
-    resetWorkspace(false);
+    // Inline cleanup to avoid circular import from app.js
+    objectUrlManager.clear();
+    elements.singlePreview.style.display = 'none';
+    elements.multiPreview.style.display = 'none';
+    clearManualRegion(elements);
+    setManualSelectionEnabled(elements, false);
     state.imageQueue = validFiles.map((file, index) => ({
         id: Date.now() + index,
         file,

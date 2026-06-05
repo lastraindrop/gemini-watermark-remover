@@ -1,4 +1,4 @@
-# GWR Developer Guide (v2.2.2)
+# GWR Developer Guide (v2.2.3)
 
 本指南说明当前分支的工程结构、参数一致化规则、检测管线（五层）、前端构建架构、测试策略，以及新增模板或修改检测策略时必须遵守的流程。
 
@@ -10,11 +10,11 @@
 - `src/core/config.js`：根据图片尺寸生成候选参数（官方目录 → 近似尺寸 → 启发式）
 - `src/core/detector.js`：候选评分（NCC、局部对比度、梯度相关、方差评分）、三维评分融合
 - `src/core/detectionPipeline.js`：统一 Web/CLI 的五层检测管线（Catalog → Scaled → Heuristic → Adaptive → Global）
-- `src/core/adaptiveDetector.js`：自适应检测（粗到细多尺度搜索 + 三维评分）
+- `src/core/adaptiveDetector.js`：自适应检测（粗到细多尺度搜索 + 三维评分，支持矩形尺寸）
 - `src/core/multiPassRemoval.js`：多遍移除（带近黑/纹理安全检查）
-- `src/core/alphaCalibration.js`：Alpha 增益校准（14 档粗搜索 + 精细调整）
+- `src/core/alphaCalibration.js`：Alpha 增益校准（14 档粗搜索 + 精细调整，边界条件已修复）
 - `src/core/decisionPolicy.js`：分层决策策略（direct-match / needs-validation / insufficient）
-- `src/core/watermarkEngine.js`：主引擎，协调检测→移除→校准管线
+- `src/core/watermarkEngine.js`：主引擎，协调检测→移除→校准管线（已移除废弃 _worker 单例）
 - `src/core/blendModes.js`：反向 alpha 混合恢复（支持 alphaGain 参数）
 - `src/core/utils.js`：共享工具函数（cloneImageData, calculateNearBlackRatio, regionStdDev）
 - `src/core/worker.js`：Web Worker 入口，批量处理像素恢复
@@ -22,26 +22,26 @@
 
 ### 应用层
 
-- `src/app.js`：薄入口，协调子模块
+- `src/app.js`：薄入口，协调子模块（含版本号展示）
 - `src/app/state.js`：全局状态管理、ObjectURL 生命周期
-- `src/app/processing.js`：批处理、并发、下载、ZIP 输出
+- `src/app/processing.js`：批处理、并发、下载、ZIP 输出（重复行已修复）
 - `src/app/ui.js`：界面交互辅助（toast、审计日志、进度条）
-- `src/app/dragDrop.js`：窗口级拖拽、文件验证、URL 获取、文件夹递归
+- `src/app/dragDrop.js`：窗口级拖拽、文件验证、URL 获取、文件夹递归（已消除与 app.js 的循环导入）
 - `src/app/keyboard.js`：快捷键绑定 (1/2/3/Esc/Ctrl+S)
-- `src/app/settings.js`：参数持久化、语言选择、引擎选项构建
-- `src/app/viewModes.js`：View 切换、对比滑块、Stats UI、Profile 主题
+- `src/app/settings.js`：参数持久化、语言选择、引擎选项构建（已消除 i18n 重复导入）
+- `src/app/viewModes.js`：View 切换、对比滑块、Stats UI、Profile 主题（改用 `data-profile-icon` 属性）
 - `src/app/magnifier.js`：3x 放大镜（Slider 视图专用）
-- `public/index.html`、`src/tailwind.css`：前端骨架与样式（Tailwind 静态构建，无外部CDN；使用系统字体栈；`public/index.html` 容错加载 `../dist/` 资源以兼容多部署场景）
+- `public/index.html`、`src/tailwind.css`：前端骨架与样式（Tailwind 静态构建；标题已更新为三平台支持；statsView 支持暗色模式；版本号展示；重试按钮）
 
 ### SDK 层
 
-- `src/sdk/index.js`：独立 fork 公开 API 入口
+- `src/sdk/index.js`：独立 fork 公开 API 入口（calculateSSIM 已标记 @deprecated）
 - `src/sdk/index.d.ts`：TypeScript 类型声明
 
 ### 入口层
 
-- `src/cli.js`、`src/cli/gwrCli.js`、`src/cli/gwrRemoveCommand.js`：CLI
-- `python/remover.py`、`python/gui.py`：Python bridge 与 GUI
+- `src/cli.js`、`src/cli/gwrCli.js`、`src/cli/gwrRemoveCommand.js`：CLI（参数验证已增强）
+- `python/remover.py`、`python/gui.py`：Python bridge 与 GUI（pipe 模式已补 profile 参数）
 - `src/userscript/index.js`：userscript 入口
 - `build.js`：打包与静态资源内联
 
@@ -159,10 +159,12 @@ else conf = combined
 当前验证基线应至少包括：
 
 ```bash
-pnpm lint         # ESLint
-pnpm test         # 主测试集 (49 文件, ~390 tests)
+pnpm lint         # ESLint (0 errors, 0 warnings on source)
+pnpm test         # 主测试集 (48 文件, ~450+ tests)
 pnpm build        # 静态 Tailwind CSS 构建
 ```
+
+测试套件已优化：4 文件合并（consistency→config, v2_2_*→parent tests），新增 3 覆盖文件（setup.js, edge_alpha_maps, engine_lifecycle, template_resolution）。所有修改模块（core/app/cli/python/i18n）均已通过对应测试验证。
 
 ## 8. 文档维护规则
 

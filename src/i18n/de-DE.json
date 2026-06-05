@@ -31,6 +31,7 @@
   "btn.manualReprocess": "Manuellen Bereich anwenden",
   "btn.manualUseDetected": "Erkannten Bereich nutzen",
   "btn.manualClear": "Bereich leeren",
+  "btn.retry": "Wiederholen",
   "settings.model": "Modell",
   "settings.advanced": "Advanced Configuration",
   "settings.threshold": "Detection Sensitivity",
@@ -59,6 +60,7 @@
   "loading.text": "Verarbeitung...",
   "status.loading": "Ressourcen werden geladen...",
   "status.init": "Initialisierung",
+  "status.initializing": "INITIALISIERE",
   "status.pending": "Ausstehend...",
   "status.copied": "Erfolgreich in die Zwischenablage kopiert!",
   "status.processing": "Verarbeitung...",
@@ -74,7 +76,7 @@
   "info.latency": "Latenz",
   "original.not_gemini": "⚠️ Dieses Bild wurde möglicherweise nicht mit Gemini erstellt. Verlustfreie Verarbeitung nicht möglich.",
   "original.not_original": "⚠️ Dieses Bild hat möglicherweise nicht die Originalgröße. Verlustfreie Verarbeitung nicht möglich.",
-  "original.pass": "✅ Dieses Bild wurde mit Gemini erstellt. Verlustfreie Verarbeitung unterstützt.",
+  "original.pass": "�?Dieses Bild wurde mit Gemini erstellt. Verlustfreie Verarbeitung unterstützt.",
   "settings.deepScan": "Tiefenscan",
   "settings.noiseReduction": "Rauschunterdrückung",
   "loading.subtext": "KI-Präzisions-Kantenentfernung...",
@@ -111,5 +113,5 @@
   "shortcuts.esc": "Esc: Arbeitsbereich zurücksetzen",
   "shortcuts.view": "1/2/3: Ansichtsmodus wechseln",
   "shortcuts.download": "Ctrl+S: Herunterladen",
-  "shortcuts.compare": "←/→: Vergleichen"
+  "shortcuts.compare": "�?�? Vergleichen"
 }

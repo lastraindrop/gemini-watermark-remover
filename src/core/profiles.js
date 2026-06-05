@@ -103,7 +103,12 @@ export const DEFAULT_PROFILE = PROFILES.gemini;
 export const GEMINI_PROFILE = PROFILES.gemini;
 
 export function getProfile(id) {
-    return registry.getProfile(id) || PROFILES.gemini;
+    const profile = registry.getProfile(id);
+    if (!profile) {
+        console.warn(`Unknown profile "${id}", falling back to gemini`);
+        return PROFILES.gemini;
+    }
+    return profile;
 }
 
 export function getAllProfiles() {

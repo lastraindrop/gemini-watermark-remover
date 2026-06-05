@@ -85,7 +85,7 @@ export function showLoading(text, subText = '') {
     const retryBtn = el.querySelector('#retryBtn');
     const spinner = el.querySelector('.animate-spin');
 
-    if (mainTextEl) mainTextEl.textContent = text || i18n.t('loading.text');
+    if (mainTextEl) mainTextEl.textContent = text || i18n.t('status.initializing') || 'INITIALIZING';
     if (subTextEl) subTextEl.textContent = subText || i18n.t('loading.subtext');
     if (retryBtn) retryBtn.classList.add('hidden');
     if (spinner) spinner.classList.remove('hidden');

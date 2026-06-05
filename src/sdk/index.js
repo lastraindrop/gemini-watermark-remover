@@ -17,5 +17,10 @@ import { RestorationMetrics } from '../core/restorationMetrics.js';
 
 export const calculateMSE = (buffer1, buffer2) => RestorationMetrics.calculateMSE(buffer1, buffer2);
 export const calculatePSNR = (buffer1, buffer2) => RestorationMetrics.calculatePSNR(buffer1, buffer2);
-export const calculateSSIM = (buffer1, buffer2) => RestorationMetrics.calculateSSIM(buffer1, buffer2);
+/**
+ * @deprecated This is NOT a real SSIM calculation. It is a linear mapping of PSNR values
+ * to [0, 1] range. Use calculatePSNR() and estimateQualityFromPSNR() instead.
+ * This export is maintained for backward compatibility and will be removed in v3.0.
+ */
+export const calculateSSIM = (buffer1, buffer2) => RestorationMetrics.estimateQualityFromPSNR(buffer1, buffer2);
 export const estimateQualityFromPSNR = (buffer1, buffer2) => RestorationMetrics.estimateQualityFromPSNR(buffer1, buffer2);

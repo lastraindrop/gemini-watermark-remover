@@ -2,54 +2,71 @@
 
 ## Current Status
 
-- **Version**: v2.2.2
-- **Verification baseline**: core suite passing, 0 lint errors
+- **Version**: v2.2.3
+- **Verification baseline**: core suite passing, 0 lint errors on source
 - **Architecture**: Five-phase detection pipeline (Catalog → Scaled → Heuristic → Adaptive → Global) + scaled match gating + decision policy + shared removal + worker pool
-- **Test suite**: 49 test files (optimized, 8 empty stubs removed, 6 groups merged, 5 new coverage files added)
+- **Test suite**: 48 test files (optimized: 4 files merged, 3 v2_2_* consolidated, 3 new coverage files, shared DOM mock via setup.js)
+- **Frontend**: Multi-profile UI (Gemini/Doubao/DALL-E 3), dark mode, version display, retry button, statsView dark-mode aware, i18n 7 languages synchronized
 
-## Completed (v2.2.2 — Watermark Detection Recall & Frontend Fix)
+## Completed (v2.2.3 — Architecture Audit & Comprehensive Fix)
 
-### Backend: Detection Miss Root Cause Fix
-- **BUG-1** [CRITICAL]: Relaxed `registry.findMatches()` tolerance from 0.05 → 0.10; added `findCloseMatches()` with 0.25 tolerance for cropped/resized images
-- **BUG-2** [HIGH]: Changed multi-dimensional scoring from `spatial*0.5+gradient*0.3+variance*0.2` to `max(spatial, weighted)` to prevent NCC dilution
-- **BUG-3** [MEDIUM]: Fixed `calculateVarianceScore` — uniform backgrounds return neutral 0.5 instead of 0
-- **BUG-4** [MEDIUM]: Lowered adaptive detection threshold from 0.35 → 0.22
-- **BUG-5** [HIGH]: Fixed heuristic tier classification — shortSide priority prevents panorama misclassification; added 48px+96px dual-size fallback in `getAllPotentialConfigs`
-- **BUG-6** [MEDIUM]: Replaced `fs.readFileSync` with static JSON import for universal browser/Node catalog loading
-- **BUG-7** [MEDIUM]: Expanded global search range from 55% → 75%
-- **BUG-8** [MEDIUM]: Made `interpolateAlphaMap`/`warpAlphaMap` support rectangular (non-square) dimensions
-- **BUG-9** [LOW]: Removed redundant single Worker in `watermarkEngine.js` — unified to WorkerPool only
-- **Scaled match gating** [NEW]: `calculateProbeConfidence` differentiates scaled vs exact catalog matches with higher base-NCC (0.14 vs 0.10), gradient (0.18 vs 0.12), and probe (0.35 vs 0.18) thresholds; jitter disabled for scaled
+### Critical Bug Fixes (Backend)
+- **BUG-01**: doubao detection path — shared DetectorContext buffer reuse (was allocating 2× Float32Array per call)
+- **BUG-02**: CLI `parseArgs` — missing argument value validation (now throws clear errors)
+- **BUG-03**: `adaptiveDetector.scoreCandidate` — separate width/height for rectangular watermark safety
+- **BUG-05**: `WatermarkEngine.destroy()` — removed dead single-worker code path
+- **BUG-08**: Python `remover.py` pipe method — added missing `--profile` parameter
 
-### Frontend: UI Bug Fixes & UX Enhancements
-- **BUG-UI-1** [HIGH]: Fixed `showLoadingFail` classList mismatch + i18n-ized hardcoded text
-- **BUG-UI-3** [HIGH]: Fixed Stats View displaying hardcoded values instead of actual anchor/algorithm
-- **BUG-UI-5** [MEDIUM]: `downloadImage` regenerates URL from blob when processedUrl is missing
-- **BUG-UI-6** [HIGH]: Replaced mouse events with pointer-events + `setPointerCapture` to prevent drag leaks
-- **BUG-UI-7** [LOW]: `applyProfileTheme` now applies DOM styles instead of unused CSS variables
-- **Added**: Dark mode manual toggle (auto/dark/light three-state cycle, stored in localStorage)
-- **Added**: Detection phase indicator in tier badge (catalog-probe / adaptive-search / global-free)
-- **Removed**: mesh-blob dead code (~40 lines CSS + HTML elements)
+### Medium Bug Fixes (Backend)
+- **BUG-04**: `cli.js` — removed unreachable version check code
+- **BUG-06**: `WorkerPool.terminate()` — added `_terminated` flag preventing reuse after destruction
+- **BUG-09**: `alphaCalibration.js` — fine search now allows gain ≤ 1.0 (previously filtered out)
+- **BUG-11**: `profiles.getProfile()` — now warns on unknown profile ID instead of silently falling back
+- **A3**: `detector.js` function property anti-pattern — added `@deprecated` JSDoc
+- **A4**: `sdk/index.js` `calculateSSIM` — marked as deprecated PSNR-based estimate
+
+### Frontend Bug Fixes
+- **BUG-FE-01**: `processing.js` — removed duplicate `_detectionSource` assignment line
+- **BUG-FE-02**: `resetWorkspace()` — now clears stale `downloadBtn.onclick` preventing revoked URL downloads
+- **BUG-FE-03**: `dragDrop.js ↔ app.js` — eliminated circular import by inlining cleanup logic
+- **BUG-FE-04**: `settings.js` — replaced double i18n dynamic import with static `supportedLanguages` import
+- **BUG-FE-05**: `viewModes.applyProfileTheme()` — replaced hardcoded CSS class selector with `data-profile-icon` attribute
+- **BUG-FE-06**: `showLoadingFail` — added retry button to loading overlay (was referencing nonexistent element)
+- **BUG-FE-07**: `statsView` — added `dark:` variant for light-mode compatibility
+- **BUG-FE-08**: `auditConsole` toggle — replaced implicit double-toggle with explicit state check
+
+### Architecture & Frontend Alignment
+- **FE1**: Page title, hero text, and meta description now reflect Gemini + Doubao + DALL·E 3
+- **UX1**: Loading screen "INITING" typo fixed to "INITIALIZING"
+- **UX6**: Hero title `break-all` → `break-words` to prevent mid-word breaks
+- **FE2**: Version number displayed in footer (from package.json)
+- **UX8**: Loading text simplified; "Warping neural boundaries..." → "Preparing engine..."
+
+### i18n
+- 7 language files: added `status.initializing` + `btn.retry` keys
+- `ja-JP.json`: fully rewritten to fix pre-existing UTF-8 encoding corruption
+- `en-US.json` title/branding updated to multi-platform
 
 ### Test Suite Optimization
-- Deleted 8 empty test stubs (zero test() calls)
-- Merged 6 redundant test groups into parent files (catalog 4→1, registry 2→1, detector 3→1, parameters 2→1)
-- Added 5 new coverage files: `v2_2_probe_gating.test.js`, `v2_2_frontend.test.js`, `v2_2_adaptive_rect.test.js`, `e2e_integration.test.js`, `parameter_overrides.test.js`
-- Extracted shared `TC` constants to `test_utils.js` (resolutions, thresholds, profiles, image types)
-- **Total: 49 test files, ~390 tests**
-
-### Documentation
-- Created `DIAGNOSTIC_PLAN.md` — comprehensive backend diagnosis, frontend analysis, test audit (3 chapters)
-- Updated all README files with v2.2.2 changes
+- **Merged** consistency.test.js → config.test.js (+3 protocol compliance tests)
+- **Merged** v2_2_adaptive_rect.test.js → adaptive_detector.test.js (+5 rect interpolation tests)
+- **Merged** v2_2_frontend.test.js → frontend_interaction.test.js (+3 download/theme tests)
+- **Merged** v2_2_probe_gating.test.js → detection_fallback_chain.test.js (+6 probe gating tests)
+- **Created** `tests/setup.js` — unified DOM mock (eliminated ~180 lines of duplication across 4 files)
+- **Created** `tests/edge_alpha_maps.test.js` — empty/white/NaN/single-pixel alpha map boundary tests (6 tests)
+- **Created** `tests/engine_lifecycle.test.js` — destroy→reuse, concurrent instances, getExecutionMode (6 tests)
+- **Created** `tests/template_resolution.test.js` — getProfilesToTry, getAllPotentialConfigs, profile validation (10 tests)
+- **Extended** `tests/test_utils.js` — added `createWatermarkedImage()`, `getExpectedLogoSize()`, `extractRegion()`
+- **Total: 48 test files (reduced from 49, net -1)**
 
 ## Short-term Plans (v2.3)
 
-1. **Enhanced watermark variant support**: Add newer Gemini template variants for updated watermark margins
-2. **Real sample integration tests**: Use docs/ sample images as regression fixtures in CI
-3. **True SSIM calculation**: Replace PSNR-based quality estimation with proper sliding-window SSIM
-4. **WASM acceleration**: WebAssembly-accelerated NCC and Sobel gradient computation
-5. **Extend multi-pass removal + alpha calibration** to doubao and other non-gemini profiles
-6. **Complete CLI pipe mode** end-to-end integration tests
+1. **True SSIM calculation**: Replace PSNR-based quality estimation with proper sliding-window SSIM
+2. **WASM acceleration**: WebAssembly-accelerated NCC and Sobel gradient computation for large images
+3. **Extend multi-pass removal + alpha calibration** to doubao and other non-gemini profiles
+4. **Complete CLI pipe mode** end-to-end integration tests
+5. **Browser E2E tests**: Playwright/Puppeteer browser integration tests for the web UI
+6. **Performance regression tests**: Baseline timing for 512/1K/2K/4K images
 
 ## Mid-term Plans
 

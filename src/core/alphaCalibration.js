@@ -88,11 +88,13 @@ export function recalibrateAlphaStrength(params) {
     const refinedCandidates = [];
     for (let delta = -0.05; delta <= 0.05; delta += 0.01) {
         const v = Number((bestGain + delta).toFixed(2));
-        if (v > 1 && v < 3) refinedCandidates.push(v);
+        // Allow testing gains both below and above the coarse best,
+        // including gain=1.0 when bestGain was improved by a coarse candidate
+        if (v > 0.8 && v < 3) refinedCandidates.push(v);
     }
 
     for (const alphaGain of refinedCandidates) {
-        if (alphaGain <= 1 || alphaGain >= 3) continue;
+        if (alphaGain <= 0.8 || alphaGain >= 3) continue;
         const candidate = cloneImageData(sourceImageData);
         removeWatermark(candidate, alphaMap, position, { alphaGain });
         const candidateNearBlackRatio = calculateNearBlackRatio(candidate, position);

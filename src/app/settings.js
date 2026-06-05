@@ -1,4 +1,4 @@
-import i18n from '../i18n.js';
+import i18n, { supportedLanguages } from '../i18n.js';
 import { AuditLog } from './ui.js';
 import { getAllProfiles } from '../core/profiles.js';
 import { applyProfileTheme } from './viewModes.js';
@@ -36,18 +36,16 @@ export function setupLanguageSelector(elements) {
     const select = document.getElementById('langSelect');
     if (!select) return;
 
-    import('../i18n.js').then(mod => {
-        select.innerHTML = '';
-        mod.supportedLanguages.forEach(lang => {
-            const opt = document.createElement('option');
-            opt.value = lang.code;
-            opt.textContent = lang.shortLabel || lang.label;
-            opt.title = lang.label;
-            select.appendChild(opt);
-        });
-        select.value = i18n.locale;
-        select.title = mod.supportedLanguages.find(lang => lang.code === select.value)?.label || 'Language';
+    select.innerHTML = '';
+    supportedLanguages.forEach(lang => {
+        const opt = document.createElement('option');
+        opt.value = lang.code;
+        opt.textContent = lang.shortLabel || lang.label;
+        opt.title = lang.label;
+        select.appendChild(opt);
     });
+    select.value = i18n.locale;
+    select.title = supportedLanguages.find(lang => lang.code === select.value)?.label || 'Language';
 
     select.addEventListener('change', async () => {
         await i18n.switchLocale(select.value);

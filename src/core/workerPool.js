@@ -8,10 +8,11 @@ export class WorkerPool {
         this._nextTaskId = 0;
         this._initialized = false;
         this._failed = false;
+        this._terminated = false;
     }
 
     _ensureWorkers() {
-        if (this._initialized || this._failed) return;
+        if (this._initialized || this._failed || this._terminated) return;
         this._initialized = true;
 
         if (typeof window === 'undefined' || !window.Worker || window.GM_info) {
@@ -115,6 +116,7 @@ export class WorkerPool {
     }
 
     get isAvailable() {
+        if (this._terminated) return false;
         this._ensureWorkers();
         return !this._failed && this._workers.length > 0;
     }
@@ -142,12 +144,11 @@ export class WorkerPool {
     }
 
     terminate() {
+        this._terminated = true;
         this._failAll();
         for (const worker of this._workers) {
             try { worker.terminate(); } catch {}
         }
         this._workers = [];
-        this._initialized = false;
-        this._failed = false;
     }
 }

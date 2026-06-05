@@ -31,6 +31,7 @@
   "btn.manualReprocess": "Appliquer la zone manuelle",
   "btn.manualUseDetected": "Utiliser la zone detectee",
   "btn.manualClear": "Effacer la zone",
+  "btn.retry": "Reessayer",
   "settings.model": "Modèle",
   "settings.advanced": "Advanced Configuration",
   "settings.threshold": "Detection Sensitivity",
@@ -59,6 +60,7 @@
   "loading.text": "Traitement...",
   "status.loading": "Chargement des ressources...",
   "status.init": "Initialisation",
+  "status.initializing": "INITIALISATION",
   "status.pending": "En attente...",
   "status.copied": "Copié avec succès dans le presse-papiers !",
   "status.processing": "Traitement...",
@@ -74,7 +76,7 @@
   "info.latency": "Latence",
   "original.not_gemini": "⚠️ Cette image n'a peut-être pas été faite avec Gemini. Traitement sans perte indisponible.",
   "original.not_original": "⚠️ La taille de l'image a été modifiée. Traitement sans perte indisponible.",
-  "original.pass": "✅ Image faite avec Gemini. Traitement sans perte pris en charge.",
+  "original.pass": "�?Image faite avec Gemini. Traitement sans perte pris en charge.",
   "settings.deepScan": "Analyse approfondie (Deep Scan)",
   "settings.noiseReduction": "Réduction du bruit (Noise Reduction)",
   "loading.subtext": "L'IA retire précisément les bords du filigrane...",
@@ -111,5 +113,5 @@
   "shortcuts.esc": "Esc: Réinitialiser l'espace de travail",
   "shortcuts.view": "1/2/3: Changer les modes d'affichage",
   "shortcuts.download": "Ctrl+S: Télécharger",
-  "shortcuts.compare": "←/→: Comparer"
+  "shortcuts.compare": "�?�? Comparer"
 }

@@ -12,7 +12,6 @@ import { WorkerPool } from './workerPool.js';
 export class WatermarkEngine {
     constructor() {
         this.alphaMaps = {};
-        this._worker = null;
         this._workerPool = null;
         this._reusableCanvas = null;
         this._reusableCtx = null;
@@ -235,10 +234,6 @@ export class WatermarkEngine {
         if (this._workerPool) {
             this._workerPool.terminate();
             this._workerPool = null;
-        }
-        if (this._worker) {
-            this._worker.terminate();
-            this._worker = null;
         }
         this._reusableCanvas = null;
         this._reusableCtx = null;

@@ -1,5 +1,5 @@
 import { calculateWatermarkPosition, getAllPotentialConfigs } from './config.js';
-import { calculateProbeConfidence, calculateCorrelation, detectWatermark } from './detector.js';
+import { calculateProbeConfidence, calculateCorrelation, detectWatermark, DetectorContext } from './detector.js';
 import { detectAdaptiveWatermarkRegion } from './adaptiveDetector.js';
 import { PROFILES } from './profiles.js';
 import { decideDetectionTier } from './decisionPolicy.js';
@@ -207,6 +207,7 @@ export async function detectProfileWatermarks({
     options = {}
 }) {
     const profile = getProfile(profileId);
+    const sharedContext = new DetectorContext();
     const detectionOptions = {
         deepScan: options.deepScan !== false,
         noiseReduction: options.noiseReduction === true,
@@ -219,7 +220,7 @@ export async function detectProfileWatermarks({
         const { x, y, width, height, assetKey } = validateManualConfig(imageData, options.manualConfig);
         const alphaMap = await tryGetAlphaMap(getAlphaMap, assetKey || profile.defaultAsset || '96', width, height);
         if (alphaMap) {
-            const verification = calculateProbeConfidence(imageData, { x, y, width, height }, alphaMap.data, profile.id, detectionOptions);
+            const verification = calculateProbeConfidence(imageData, { x, y, width, height }, alphaMap.data, profile.id, detectionOptions, sharedContext);
             return {
                 profileId: profile.id,
                 matches: [{
@@ -269,7 +270,8 @@ export async function detectProfileWatermarks({
             pos,
             alphaMap.data,
             profile.id,
-            { ...detectionOptions, isScaledMatch: !!config.scaledFrom }
+            { ...detectionOptions, isScaledMatch: !!config.scaledFrom },
+            sharedContext
         );
         const effectiveThreshold = config.scaledFrom
             ? Math.max(probeThreshold, 0.35)

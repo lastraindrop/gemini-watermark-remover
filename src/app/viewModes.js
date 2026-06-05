@@ -30,14 +30,12 @@ export function updateStatsUI(config, pos, confidence, profileId) {
 
 export function applyProfileTheme(profile) {
     if (!profile?.brandColor) return;
-    const headerIcon = document.querySelector('header .bg-emerald-500');
+    const headerIcon = document.querySelector('[data-profile-icon]');
     if (headerIcon) {
-        headerIcon.classList.remove('bg-emerald-500', 'shadow-glow-emerald');
         headerIcon.style.backgroundColor = profile.brandColor;
     }
     const tierBadge = document.getElementById('tierBadge');
     if (tierBadge) {
-        tierBadge.classList.remove('bg-indigo-500', 'bg-emerald-500', 'shadow-glow-indigo', 'shadow-glow-emerald');
         tierBadge.style.backgroundColor = profile.brandColor;
     }
 }

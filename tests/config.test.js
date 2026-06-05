@@ -2,10 +2,9 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { detectWatermarkConfig, calculateWatermarkPosition, getAllPotentialConfigs } from '../src/core/config.js';
 import { registry } from '../src/core/templates/registry.js';
+import { GEMINI_SIZE_CATALOG, getCatalogConfig } from '../src/core/catalog.js';
 
-import { GEMINI_SIZE_CATALOG } from '../src/core/catalog.js';
-
-describe('Watermark Config Logic - Priority & Fallback', () => {
+describe('Watermark Config Logic - Priority, Fallback & Protocol Consistency', () => {
 
     test('Catalog Priority: Standards from GEMINI_SIZE_CATALOG should match', async () => {
         for (const entry of GEMINI_SIZE_CATALOG.slice(0, 3)) {
@@ -13,11 +12,43 @@ describe('Watermark Config Logic - Priority & Fallback', () => {
             assert.ok(config);
             assert.strictEqual(config.isOfficial, true, `Official resolution ${entry.width}x${entry.height} should be marked`);
             
-            // Fix: Map tier back to the expected configuration
             const { WATERMARK_CONFIGS } = await import('../src/core/catalog.js');
             const expectedSize = WATERMARK_CONFIGS[entry.tier].logoSize;
             assert.strictEqual(config.logoSize, expectedSize, `Logo size mismatch for ${entry.width}x${entry.height}`);
         }
+    });
+
+    test('All GEMINI_SIZE_CATALOG entries produce valid protocol-compliant configs', () => {
+        for (const entry of GEMINI_SIZE_CATALOG) {
+            const config = getCatalogConfig(entry.width, entry.height);
+            assert.ok(config, `Missing config for catalog entry: ${entry.width}x${entry.height}`);
+            assert.strictEqual(typeof config.logoSize, 'number', `Missing logoSize for ${entry.width}x${entry.height}`);
+            assert.strictEqual(typeof config.marginRight, 'number', `Missing marginRight for ${entry.width}x${entry.height}`);
+            assert.strictEqual(typeof config.marginBottom, 'number', `Missing marginBottom for ${entry.width}x${entry.height}`);
+            assert.strictEqual(config.isOfficial, true, `Entry should be marked as official: ${entry.width}x${entry.height}`);
+            assert.ok([48, 96].includes(config.logoSize), `Invalid logoSize: ${config.logoSize}`);
+            assert.ok(config.marginRight >= 0, `Negative marginRight: ${config.marginRight}`);
+            assert.ok(config.marginBottom >= 0, `Negative marginBottom: ${config.marginBottom}`);
+        }
+    });
+
+    test('Heuristic fallback protocol compliance (logoSize, marginRight, marginBottom)', () => {
+        const largeConfig = detectWatermarkConfig(5000, 5000);
+        assert.strictEqual(typeof largeConfig.logoSize, 'number');
+        assert.strictEqual(typeof largeConfig.marginRight, 'number');
+        assert.strictEqual(typeof largeConfig.marginBottom, 'number');
+        assert.strictEqual(largeConfig.logoSize, 96);
+
+        const smallConfig = detectWatermarkConfig(300, 300);
+        assert.strictEqual(typeof smallConfig.logoSize, 'number');
+        assert.strictEqual(typeof smallConfig.marginRight, 'number');
+        assert.strictEqual(typeof smallConfig.marginBottom, 'number');
+        assert.strictEqual(smallConfig.logoSize, 48);
+    });
+
+    test('Anti-regression: "margin" property should NOT exist', () => {
+        const config = detectWatermarkConfig(1024, 1024);
+        assert.strictEqual(config.margin, undefined, 'Legacy "margin" property detected! Use marginRight/marginBottom instead.');
     });
 
     test('Heuristic Fallback: Large non-standard image (3000x3000)', () => {

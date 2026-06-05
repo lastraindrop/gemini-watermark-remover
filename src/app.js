@@ -13,6 +13,18 @@ import { switchViewMode, setupSlider, updateStatsUI, applyProfileTheme } from '.
 import { setupMagnifier } from './app/magnifier.js';
 import { clearManualRegion, setupManualSelection, setManualSelectionEnabled, updateManualSelectionOverlay, writeManualRegion } from './app/manualSelection.js';
 
+let _pkgVersion = null;
+async function getVersion() {
+    if (_pkgVersion) return _pkgVersion;
+    try {
+        const pkg = await import('../package.json');
+        _pkgVersion = pkg.default?.version || pkg.version || 'dev';
+    } catch {
+        _pkgVersion = 'dev';
+    }
+    return _pkgVersion;
+}
+
 const elements = {
     uploadArea: document.getElementById('uploadArea'),
     fileInput: document.getElementById('fileInput'),
@@ -63,6 +75,12 @@ async function init() {
     }, 8000);
 
     try {
+        // Display version from package.json
+        const versionEl = document.getElementById('versionDisplay');
+        if (versionEl) {
+            getVersion().then(v => { versionEl.textContent = `v${v}`; });
+        }
+
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations()
                 .then(registrations => registrations.forEach(registration => registration.unregister()))
@@ -70,6 +88,10 @@ async function init() {
         }
 
         AuditLog.log('Neural engine initializing...', 'process');
+
+        // Wire retry button for loading failure recovery
+        const retryBtn = document.getElementById('retryBtn');
+        if (retryBtn) retryBtn.addEventListener('click', () => window.location.reload());
 
         if (elements.profileSelect) {
             getAllProfiles().filter(p => !p.experimental).forEach(p => {
@@ -172,8 +194,16 @@ function setupEventListeners() {
     document.getElementById('exportLogBtn')?.addEventListener('click', () => AuditLog.exportCSV());
     elements.auditConsoleToggle?.addEventListener('click', (e) => {
         if (e.target instanceof Element && e.target.closest('#exportLogBtn')) return;
-        elements.auditConsole?.classList.toggle('translate-y-0');
-        elements.auditConsole?.classList.toggle('translate-y-[calc(100%-48px)]');
+        const panel = elements.auditConsole;
+        if (!panel) return;
+        const isOpen = panel.classList.contains('translate-y-0');
+        if (isOpen) {
+            panel.classList.remove('translate-y-0');
+            panel.classList.add('translate-y-[calc(100%-48px)]');
+        } else {
+            panel.classList.add('translate-y-0');
+            panel.classList.remove('translate-y-[calc(100%-48px)]');
+        }
     });
 
     elements.toggleAdvancedBtn?.addEventListener('click', () => {
@@ -326,6 +356,7 @@ function updateSingleUI(item, removedCount, confidence, latency, config, pos, pr
     if (elements.lastLatency) elements.lastLatency.textContent = `${i18n.t('info.latency')}: ${latency}ms`;
 
     elements.downloadBtn.onclick = () => downloadImage(item);
+    elements.downloadBtn.classList.remove('hidden');
 
     AuditLog.log(`[PASS] ${item.name} | Profile: ${profileId} | Conf: ${confidence}% | ${latency}ms`, 'success');
     showToast(i18n.t('toast.removed', { count: removedCount }), 'success');
@@ -385,6 +416,11 @@ function resetWorkspace(clearQueue = true) {
     elements.multiPreview.style.display = 'none';
     clearManualRegion(elements);
     setManualSelectionEnabled(elements, false);
+    // Clear stale download button handler to prevent downloading revoked URLs
+    if (elements.downloadBtn) {
+        elements.downloadBtn.onclick = null;
+        elements.downloadBtn.classList.add('hidden');
+    }
     if (clearQueue) {
         state.imageQueue = [];
         state.processedCount = 0;

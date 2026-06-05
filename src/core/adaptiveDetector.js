@@ -142,27 +142,30 @@ export function warpAlphaMap(alphaMap, size, { dx = 0, dy = 0, scale = 1 } = {},
 // 3D Candidate Scoring
 // ============================================================
 
-function scoreCandidate(imageData, alphaMap, alphaGrad, { x, y, size }, buffers) {
+function scoreCandidate(imageData, alphaMap, alphaGrad, { x, y, size, width: w, height: h }, buffers) {
+    const candW = w || size;
+    const candH = h || size;
     const { width: imgWidth, height: imgHeight, data } = imageData;
-    if (x < 0 || y < 0 || x + size > imgWidth || y + size > imgHeight) {
+    if (x < 0 || y < 0 || x + candW > imgWidth || y + candH > imgHeight) {
         return null;
     }
 
-    const spatial = Math.max(0, calculateCorrelation(imageData, x, y, size, size, alphaMap, true));
+    const spatial = Math.max(0, calculateCorrelation(imageData, x, y, candW, candH, alphaMap, true));
 
-    const gradientsI = buffers?.gradientsI || new Float32Array(size * size);
-    const gradientsA = buffers?.gradientsA || new Float32Array(size * size);
+    const bufferSizeNeeded = candW * candH;
+    const gradientsI = buffers?.gradientsI || new Float32Array(bufferSizeNeeded);
+    const gradientsA = buffers?.gradientsA || new Float32Array(bufferSizeNeeded);
     const gradient = Math.max(0, calculateGradientCorrelation(
-        imageData, x, y, size, size, alphaMap, gradientsI, gradientsA
+        imageData, x, y, candW, candH, alphaMap, gradientsI, gradientsA
     ));
 
     let varianceScore = 0;
-    if (y > size) {
-        const refY = Math.max(0, y - Math.round(size * 1.2));
-        const refH = Math.min(size, y - refY);
+    if (y > candH) {
+        const refY = Math.max(0, y - Math.round(candH * 1.2));
+        const refH = Math.min(candH, y - refY);
         if (refH > 8) {
-            const wmStd = regionStdDev(data, imgWidth, x, y, size);
-            const refStd = regionStdDev(data, imgWidth, x, refY, refH);
+            const wmStd = regionStdDev(data, imgWidth, x, y, Math.min(candW, candH));
+            const refStd = regionStdDev(data, imgWidth, x, refY, Math.min(candW, refH));
             if (refStd > EPSILON) {
                 varianceScore = clamp(1 - wmStd / refStd, 0, 1);
             }

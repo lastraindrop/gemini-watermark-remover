@@ -22,11 +22,7 @@ if (args.includes('--version') || args.includes('-v')) {
 }
 
 if (args.length > 0 && args[0] !== 'remove' && !args[0].startsWith('-')) {
-    // This is probably an old-style direct input path or version check
-    if (args.includes('--version') || args.includes('-v')) {
-        console.log(`Gemini Watermark Remover v${pkg.version} (Legacy Entry)`);
-        process.exit(0);
-    }
+    // This is probably an old-style direct input path
 }
 
 // Convert -i/<input> -o/<output> to the new command format if needed

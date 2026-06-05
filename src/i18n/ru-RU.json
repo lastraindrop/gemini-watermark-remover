@@ -30,7 +30,8 @@
   "btn.startProcess": "Начать пакетную обработку",
   "btn.manualReprocess": "Применить ручную область",
   "btn.manualUseDetected": "Использовать найденную область",
-  "btn.manualClear": "Очистить область",
+  "btn.manualClear": "Ochistit oblast",
+  "btn.retry": "Povtorit",
   "settings.model": "Модель",
   "settings.advanced": "Advanced Configuration",
   "settings.threshold": "Detection Sensitivity",
@@ -58,7 +59,8 @@
   "footer.copyright": "© {{year}} Gemini Watermark Remover. Все права защищены.",
   "loading.text": "Обработка...",
   "status.loading": "Загрузка ресурсов...",
-  "status.init": "Инициализация",
+  "status.init": "Initsializatsiya",
+  "status.initializing": "INITSIALIZATSIYA",
   "status.pending": "Ожидание...",
   "status.copied": "Успешно скопировано в буфер обмена!",
   "status.processing": "Обработка...",
@@ -74,7 +76,7 @@
   "info.latency": "Задержка",
   "original.not_gemini": "⚠️ Это изображение может быть не из Gemini. Обработка без потерь недоступна.",
   "original.not_original": "⚠️ Размер изображения изменен. Обработка без потерь недоступна.",
-  "original.pass": "✅ Изображение из Gemini. Поддерживается обработка без потерь.",
+  "original.pass": "�?Изображение из Gemini. Поддерживается обработка без потерь.",
   "settings.deepScan": "Глубокое сканирование (Deep Scan)",
   "settings.noiseReduction": "Шумоподавление (Noise Reduction)",
   "loading.subtext": "ИИ выполняет точное удаление краев водяных знаков...",
@@ -111,5 +113,5 @@
   "shortcuts.esc": "Esc: Сбросить рабочую область",
   "shortcuts.view": "1/2/3: Переключить режимы просмотра",
   "shortcuts.download": "Ctrl+S: Скачать",
-  "shortcuts.compare": "←/→: Сравнить"
+  "shortcuts.compare": "�?�? Сравнить"
 }

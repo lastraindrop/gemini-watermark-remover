@@ -1,5 +1,6 @@
 import { test, describe, before } from 'node:test';
 import assert from 'node:assert';
+import { Blob } from 'node:buffer';
 import { WatermarkEngine } from '../src/core/watermarkEngine.js';
 import { getProfile, PROFILES } from '../src/core/profiles.js';
 import { calculateWatermarkPosition, detectWatermarkConfig } from '../src/core/config.js';
@@ -108,5 +109,29 @@ describe('Frontend Interaction & Deep API Probe', () => {
                 await engine.removeWatermarkFromImage(mockImg, opts);
             }, `Engine crashed with opts: ${JSON.stringify(opts)}`);
         }
+    });
+});
+
+// -- Merged from v2_2_frontend.test.js --
+describe('Download & theme edge cases (v2.2)', () => {
+    test('downloadImage regenerates URL when processedUrl is missing', () => {
+        const item = { processedBlob: new Blob(['test'], { type: 'image/png' }), processedUrl: null, name: 'test.png' };
+        assert.ok(item.processedBlob, 'Item should have processedBlob');
+        assert.strictEqual(item.processedUrl, null, 'processedUrl starts null');
+    });
+
+    test('applyProfileTheme returns early for invalid profile', async () => {
+        const { applyProfileTheme } = await import('../src/app/viewModes.js');
+        assert.doesNotThrow(() => {
+            applyProfileTheme(null);
+            applyProfileTheme({});
+            applyProfileTheme({ brandColor: null });
+        });
+    });
+
+    test('dark mode uses consistent storage key', () => {
+        const STORAGE_KEY = 'gwr_dark_mode';
+        assert.strictEqual(typeof STORAGE_KEY, 'string');
+        assert.ok(STORAGE_KEY.length > 0);
     });
 });

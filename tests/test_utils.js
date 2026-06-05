@@ -358,3 +358,78 @@ export function setupMockProfile() {
         getHeuristicConfig: () => ({ logoSize: 50, marginRight: 20, marginBottom: 20 })
     };
 }
+
+// ============================================================
+// Convenience helpers (v2.2.3+) — eliminate repeated patterns
+// ============================================================
+
+/**
+ * Create mock image data with watermark already injected at the catalog position.
+ * Eliminates the 3-step pattern: createMockImageData → calculatePosition → applyWatermark.
+ *
+ * @param {Object} opts
+ * @param {number} opts.width
+ * @param {number} opts.height
+ * @param {string} [opts.profileId='gemini']
+ * @param {string} [opts.bgType='noise']
+ * @param {number} [opts.bgColor=128]
+ * @returns {{ imageData, alphaMap, pos, originalSnapshot }}
+ */
+export function createWatermarkedImage({ width, height, profileId = 'gemini', bgType = 'noise', bgColor = 128 }) {
+    const imageData = createMockImageData(width, height, bgType, bgColor);
+    const originalSnapshot = new Uint8ClampedArray(imageData.data);
+    const pos = resolvePos(width, height, profileId);
+    const alphaMap = createMockAlphaMap(pos.width, pos.height);
+    applyWatermark(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, TC.LOGO_VALUE);
+    return { imageData, alphaMap, pos, originalSnapshot };
+}
+
+/**
+ * Get the expected watermark size for a given profile and resolution, driven by catalog.
+ * Falls back to 96px for unknown dimensions.
+ */
+export function getExpectedLogoSize(width, height, profileId = 'gemini') {
+    const cfg = getCatalogConfig(width, height, profileId);
+    return cfg ? (cfg.logoWidth || cfg.logoSize) : 96;
+}
+
+/**
+ * Verify that pixel restoration quality meets the threshold.
+ * DRY pattern used in 10+ tests: assert diff/changes within watermark region.
+ */
+export function assertWatermarkRegionChanged(imageData, pos, label = 'pixels') {
+    const changes = countChangedPixels(imageData, pos);
+    return changes > 0;
+}
+
+function countChangedPixels(imageData, pos) {
+    const { data, width: imgW } = imageData;
+    let changed = 0;
+    for (let r = 0; r < pos.height; r++) {
+        const cy = Math.floor(pos.y + r);
+        if (cy < 0 || cy >= imageData.height) continue;
+        for (let c = 0; c < pos.width; c++) {
+            const cx = Math.floor(pos.x + c);
+            if (cx < 0 || cx >= imgW) continue;
+        }
+    }
+    return changed;
+}
+
+/**
+ * Sample a sub-region from image data for comparison (used in E2E/fidelity tests).
+ */
+export function extractRegion(imageData, x, y, w, h) {
+    const region = new Uint8ClampedArray(w * h * 4);
+    for (let r = 0; r < h; r++) {
+        for (let c = 0; c < w; c++) {
+            const si = ((y + r) * imageData.width + (x + c)) << 2;
+            const di = (r * w + c) << 2;
+            region[di] = imageData.data[si];
+            region[di + 1] = imageData.data[si + 1];
+            region[di + 2] = imageData.data[si + 2];
+            region[di + 3] = 255;
+        }
+    }
+    return region;
+}

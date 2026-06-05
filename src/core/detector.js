@@ -465,14 +465,22 @@ export function calculateLocalContrastCorrelation(imageData, x, y, logoW, logoH,
 /**
  * Verify if a watermark is likely present at the given position
  */
-export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'gemini', options = {}) {
+export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'gemini', options = {}, context = null) {
     const { deepScan = false, gradientPenalty = 0.30, isScaledMatch = false } = options;
 
     if (profile === 'doubao') {
         const logoW = pos.width;
         const logoH = pos.height;
-        const gradientsI = new Float32Array(logoW * logoH);
-        const gradientsA = new Float32Array(logoW * logoH);
+        const bufferSizeNeeded = logoW * logoH;
+        let gradientsI, gradientsA;
+        if (context && context.getGradientBuffers) {
+            const bufs = context.getGradientBuffers(bufferSizeNeeded);
+            gradientsI = bufs.gradientsI;
+            gradientsA = bufs.gradientsA;
+        } else {
+            gradientsI = new Float32Array(bufferSizeNeeded);
+            gradientsA = new Float32Array(bufferSizeNeeded);
+        }
         let confidence = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
 
         const nccConf = calculateCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, true);
@@ -700,6 +708,11 @@ export function resetDetectorBuffers(context) {
     }
 }
 
+/**
+ * @deprecated Use DetectorContext instance via context parameter of detectWatermark() instead.
+ * These properties were exposed for testing and are maintained for backward compatibility.
+ * They will be removed in a future major version.
+ */
 Object.defineProperty(detectWatermark, '_blurBuffer', {
     get() { return _defaultContext._blurBuffer; },
     set(v) { _defaultContext._blurBuffer = v; },

@@ -1,4 +1,4 @@
-# Technical Guide — Gemini Watermark Remover v2.2.2
+# Technical Guide — Gemini Watermark Remover v2.2.3
 
 ## 1. Overview
 
@@ -380,27 +380,27 @@ Complete type coverage for all exported functions, classes, interfaces, and cons
 
 ### 10.1 Test Coverage
 
-523 tests across 100 suites covering:
-- **Core Algorithms** (35 files): detector, blendModes, alphaMap, multiPass, alphaCalibration, adaptiveDetector, decisionPolicy, local_contrast, overrides
-- **Pipeline** (4 files): detection fallback chain, cross-module integration, parameter matrix, end-to-end regression
-- **Engine** (8 files): catalog, config, profiles, registry, watermarkEngine, worker protocol, worker resilience, concurrency
-- **CLI** (2 files): integration, edge cases
-- **SDK** (3 files): API surface, metrics precision, REST restoration
-- **Integration** (5 files): product audit, architecture gaps, multiPass, security, rectangular
-- **UI** (4 files): frontend contract, frontend interaction, manual selection, i18n
+~450+ tests across 48 test files covering:
+- **Core Algorithms**: detector, blendModes, alphaMap, multiPass, alphaCalibration, adaptiveDetector, decisionPolicy
+- **Pipeline**: detection fallback chain, probe gating, parameter matrix, end-to-end regression
+- **Engine**: catalog, config, profiles, registry, watermarkEngine, worker protocol, worker resilience
+- **CLI**: integration, edge cases
+- **SDK**: API surface, metrics precision
+- **Integration**: product audit, architecture gaps, edge alpha maps, engine lifecycle, template resolution
+- **UI**: frontend contract, frontend interaction, i18n
 
 ### 10.2 Test Architecture Principles
 
-1. **No internal state access**: Tests use `DetectorContext` API, not raw `detectWatermark._*`
+1. **No internal state access**: Tests use `DetectorContext` API, not raw property accessors
 2. **No hardcoded catalog values**: Tests use `resolvePos()` and `resolveLogoSize()` runtime queries
-3. **Merged duplicates**: 3 fully-duplicated test files eliminated; overlapping coverage consolidated
-4. **Gap coverage**: DetectorContext isolation, lazy catalog loading, `applyRemovalStrategy` edge cases
+3. **Unified DOM mock**: `tests/setup.js` provides `setupNodeDOM()`/`teardownNodeDOM()` shared by all DOM-dependent tests
+4. **Merged duplicates**: 4 test file groups merged; v2_2_* version-prefixed tests consolidated into parent files
 
 ### 10.3 Verification Commands
 
 ```bash
-pnpm test                  # 523/523 passing (concurrency=4)
-pnpm lint                  # 0 errors, 0 warnings
+pnpm test                  # 48 files, ~450+ tests
+pnpm lint                  # 0 errors, 0 warnings on source
 pnpm build                 # clean production build
 ```
 
@@ -450,5 +450,5 @@ pnpm build                 # clean production build
 
 ---
 
-*Document version: 2.2.1 — 2026-05-24*
-*Corresponds to: v2.2.1, 523/523 tests, 0 eslint errors, build clean*
+*Document version: 2.2.3 — 2026-06-05*
+*Corresponds to: v2.2.3, 48 test files, 0 eslint errors on source, build clean*

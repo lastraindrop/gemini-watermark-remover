@@ -29,7 +29,6 @@ export async function processSingle(item, options, callbacks = {}) {
         const endTime = performance.now();
         const { canvas, confidence, config, pos, removedCount, profileId } = result;
         if (result._detectionSource) item._detectionSource = result._detectionSource;
-        if (result._detectionSource) item._detectionSource = result._detectionSource;
         
         const latency = (endTime - startTime).toFixed(0);
         const confPercent = (confidence * 100).toFixed(0);

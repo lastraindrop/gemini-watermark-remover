@@ -92,15 +92,15 @@ class GeminiWatermarkRemover:
         except Exception as e:
             return [{"status": "error", "message": str(e)}]
 
-    def remove_watermark_pipe(self, image_bytes: bytes, deep_scan: bool = True, noise_reduction: bool = False) -> bytes:
+    def remove_watermark_pipe(self, image_bytes: bytes, deep_scan: bool = True, noise_reduction: bool = False, profile: str = "gemini") -> bytes:
         """
         Processes image via stdin/stdout pipe.
         Returns processed image bytes.
         """
         if self.cli_path.endswith(".js"):
-            cmd = ["node", self.cli_path, "remove", "--pipe"]
+            cmd = ["node", self.cli_path, "remove", "--pipe", "--profile", profile]
         else:
-            cmd = [self.cli_path, "remove", "--pipe"]
+            cmd = [self.cli_path, "remove", "--pipe", "--profile", profile]
         if not deep_scan: cmd.append("--no-deepScan")
         if noise_reduction: cmd.append("--noiseReduction")
         

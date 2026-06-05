@@ -1,6 +1,6 @@
-# Gemini Watermark Remover - 用户指南 (v2.2.2)
+# Gemini Watermark Remover - 用户指南 (v2.2.3)
 
-本工具用于对 Gemini、Doubao 生成图片进行本地检测、分析与去水印。DALL-E 3 目前仅作为实验性研究 profile 保留。当前实现是在原有梯度滤波基础上，新增了自适应检测、三维多维评分、多遍移除与 Alpha 增益校准等增强。
+本工具用于对 Gemini、Doubao、DALL·E 3 生成图片进行本地检测、分析与去水印。当前实现包含五阶段检测管线、自适应三维评分、多遍移除与 Alpha 增益校准等增强。
 
 ## 0. 如何打开
 
@@ -67,14 +67,15 @@ results = remover.remove_watermark(
 
 ## 3. 检测原理
 
-当前流程可以理解为四层：
+当前流程为五层检测管线：
 
-1. **`catalog` 精确匹配**：先查找官方目录尺寸（registry.MAX_SCALE_MISMATCH = 0.02，即 2% 缩放容差），若匹配则使用目录配置的 logo 大小与边距。
-2. **`catalog` 近似匹配**：若精确匹配失败，尝试 scaled catalog（宽高比容差 5%，缩放比容差 8%），从最近官方尺寸等比缩放。
-3. **`heuristic` 启发式补充**：对于大面积不规则尺寸，根据像素数+短边联合判断 tier 级别（0.5k/1k/2k/4k），使用标准尺寸模板。
-4. **`deepScan` 梯度滤波**：在检测相位（Phase 1 probes + Phase 2 全局搜索 + 抖动精搜）中统一应用梯度相关滤波。只有 Sobel 边缘结构与水印模板边缘结构匹配的候选才会被保留，纯亮度噪声假阳性被压制。
+1. **Catalog 精确匹配**：查找官方目录尺寸（10% 缩放容差），使用目录配置的 logo 大小与边距。
+2. **Scaled Catalog 近似匹配**：若精确匹配失败，尝试从最近官方尺寸等比缩放（宽高比容差 5%，缩放比容差 8%）。
+3. **Heuristic 启发式补充**：根据短边像素数联合判断 tier 级别（0.5k/1k/2k/4k），生成模板配置候选。
+4. **Adaptive 自适应搜索**：粗到细多尺度搜索，使用三维评分（空间 NCC × 0.5 + 梯度 NCC × 0.3 + 方差 × 0.2）。
+5. **Global Fallback 全局回退**：全图扫描，受锚点位置容差和置信度阈值保护。
 
-这意味着页面上看到的"检测位置"不是界面猜出来的，而是引擎真实返回的 `pos` 与 `confidence`。
+检测结果经 `decisionPolicy` 分层判定为 `direct-match` / `needs-validation` / `insufficient` 三个级别。
 
 ## 4. 常见问题
 
