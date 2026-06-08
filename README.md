@@ -1,31 +1,30 @@
 [中文说明](README_zh.md)
 
-# Gemini & Doubao Watermark Remover (v2.2.2)
+# Gemini & Doubao Watermark Remover (v2.5.0)
 
-A production-grade watermark detection and removal tool supporting Gemini, Doubao, and DALL-E 3 AI-generated images. Features a five-phase detection pipeline with 3D scoring, adaptive multi-scale search, multi-pass removal with safety gates, alpha gain calibration, and a decision policy tier system.
+A production-grade watermark detection and removal tool supporting Gemini, Doubao, and DALL-E 3 AI-generated images. Features a five-phase detection pipeline with 3D scoring, adaptive multi-scale search, multi-pass removal with safety gates, weighted alpha gain estimation, **multi-margin template probing**, **inline asset embedding**, and a decision policy tier system.
 
 ## What this release covers
 
+- **Multi-margin template probing**: 48px/96px templates probed at all standard Gemini margins (32/64/96px) to prevent false-positive catalog matches from nested watermark geometries
+- **Weighted alpha gain estimation**: template-alpha-weighted luminance comparison eliminates 2x under-estimation on small watermarks, with pre-scaled alpha maps avoiding cumulative multi-pass over-correction
+- **Inline asset embedding**: all 10 watermark template PNGs compiled as base64 data URLs into the bundle — eliminates CORS/canvas-tainting issues when opened via `file://` protocol
+- **Unified card-based layout**: single-image and batch processing now share the same card grid UI, removing the legacy comparison-slider single-preview path
+- **Enhanced manual mode**: dedicated selection canvas with drag-to-select, 48px/96px template size selector, and force-process toggle for difficult images
+- **Performance presets**: fast/balanced/thorough modes with granular overrides for search range, jitter, fine-tune, and thresholds
+- **Gradient penalty → weighted blend**: replaced aggressive multiplicative penalty (70% reduction) with consistent spatial×0.5+gradient×0.3+variance×0.2 weighted scoring
+- **Unified detection thresholds**: single-source-of-truth `DETECTION_THRESHOLDS` in `config.js`
 - **Five-phase detection pipeline**: Catalog → Scaled → Heuristic → Adaptive → Global
-- **3D multidimensional scoring**: `max(spatialNCC, weighted)` strategy prevents NCC dilution by downstream scores
-- **Scaled match gating**: differentiated base-NCC and gradient thresholds for scaled catalog matches, suppressing false positives
-- **Catalog tolerance**: 10% strict matching + 25% loose matching (`findCloseMatches`), significantly improving recall on non-exact resolutions
-- **Adaptive detector**: coarse-to-fine multi-scale search (threshold 0.22)
+- **3D multidimensional scoring**: `max(spatialNCC, weighted)` strategy prevents NCC dilution
+- **Adaptive detector**: coarse-to-fine multi-scale search with rectangular dimension support (Doubao 401×173, DALL-E 120×40)
 - **Multi-pass removal**: iterative removal with near-black safety and texture protection
-- **Alpha gain calibration**: automatic search for optimal alpha multiplier (supports rectangular watermarks)
-- **Subpixel outline refinement**: 27-position shift×scale×gain search after removal
-- **Template interpolation and warping**: for size/position adjustment (rectangular dimensions supported)
+- **Alpha gain calibration**: automatic search for optimal alpha multiplier
 - **Decision policy**: three-tier classification (direct-match / needs-validation / insufficient)
-- **Multi-profile**: Gemini catalog-first matching, Doubao multi-anchor (TL+BR) with rectangular dimensions, DALL-E 3 experimental
+- **Multi-profile**: Gemini catalog-first matching, Doubao multi-anchor (TL+BR), DALL-E 3 experimental
 - **Worker pool**: multi-worker task queue for parallel pixel restoration in browser
-- **Dark mode toggle**: manual auto/dark/light selection
-- **DetectorContext**: encapsulated memory-pooled buffer management
-- **Lazy catalog loading**: static JSON import for browser compatibility
-- **Restoration metrics**: MSE, PSNR, and quality estimation
-- **applyRemovalStrategy**: shared removal logic used by engine, worker, and CLI
-- Frontend drag-and-drop, ZIP batch download, keyboard shortcuts
-- Localized UI (7 languages), optimized test suite (49 files, ~390 tests)
-- SDK/API entrypoint under `@lastraindrop/gemini-watermark-remover`
+- **Dark mode + UI enhancements**: re-process button (no workspace reset needed), dynamic preset parameter hints, magnifier bounds clamping
+- **Localized UI**: 7 languages, optimized test suite (44 files, 107+ tests)
+- **SDK/API entrypoint** under `@lastraindrop/gemini-watermark-remover`
 
 ## Verification baseline
 

@@ -19,7 +19,7 @@ import sharp from 'sharp';
 
 import { PROFILES, getProfile } from '../src/core/profiles.js';
 import { CATALOGS, getAllCatalogConfigs, getCatalogConfig } from '../src/core/catalog.js';
-import { getAllPotentialConfigs, calculateWatermarkPosition, detectWatermarkConfig } from '../src/core/config.js';
+import { getAllPotentialConfigs, calculateWatermarkPosition, detectWatermarkConfig, DETECTION_THRESHOLDS } from '../src/core/config.js';
 import { removeWatermark } from '../src/core/blendModes.js';
 import { calculateProbeConfidence, detectWatermark } from '../src/core/detector.js';
 import { createMockImageData, createMockAlphaMap, applyWatermark } from './test_utils.js';
@@ -185,8 +185,8 @@ describe('Doubao E2E Detection & Removal', () => {
 
         // Verify detection
         const result = calculateProbeConfidence(img, pos, alphaMap, 'doubao');
-        assert.ok(result.confidence > 0.15, 
-            `Expected confidence > 0.15, got ${result.confidence.toFixed(3)}`);
+                assert.ok(result.confidence > DETECTION_THRESHOLDS.FINAL_ANCHORED,
+                    `Expected confidence > ${DETECTION_THRESHOLDS.FINAL_ANCHORED}, got ${result.confidence.toFixed(3)}`);
     });
 
     test('TL watermark: calculateProbeConfidence detects injected watermark', () => {
@@ -202,7 +202,7 @@ describe('Doubao E2E Detection & Removal', () => {
 
         const result = calculateProbeConfidence(img, pos, alphaMap, 'doubao');
         assert.ok(result.confidence > 0.15,
-            `Expected confidence > 0.15, got ${result.confidence.toFixed(3)}`);
+                    `Expected confidence > ${DETECTION_THRESHOLDS.FINAL_ANCHORED}, got ${result.confidence.toFixed(3)}`);
     });
 
     test('BR watermark: removal reconstruction accuracy', () => {
@@ -371,7 +371,7 @@ describe('Doubao Edge Cases', () => {
             const pos = calculateWatermarkPosition(w, h, cfg);
             const alpha = createMockAlphaMap(pos.width, pos.height);
             const result = calculateProbeConfidence(img, pos, alpha, 'doubao', { deepScan: true });
-            assert.ok(result.confidence > 0.12, `Detection failed for anchor ${cfg.anchor} under heavy noise: ${result.confidence}`);
+            assert.ok(result.confidence > DETECTION_THRESHOLDS.STAGE2_CLEAN, `Detection failed for anchor ${cfg.anchor} under heavy noise: ${result.confidence}`);
         }
     });
 });

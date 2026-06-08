@@ -8,10 +8,10 @@ import { AuditLog, showToast, resetGlobalProgress } from './app/ui.js';
 import { downloadImage, downloadAllAsZip, processSingle } from './app/processing.js';
 import { setupWindowDragAndDrop, handleFiles } from './app/dragDrop.js';
 import { setupKeyboardShortcuts } from './app/keyboard.js';
-import { setupLanguageSelector, saveSettings, loadSettings, getEngineOptions } from './app/settings.js';
+import { setupLanguageSelector, saveSettings, loadSettings, getEngineOptions, syncTogglesToPreset } from './app/settings.js';
 import { switchViewMode, setupSlider, updateStatsUI, applyProfileTheme } from './app/viewModes.js';
 import { setupMagnifier } from './app/magnifier.js';
-import { clearManualRegion, setupManualSelection, setManualSelectionEnabled, updateManualSelectionOverlay, writeManualRegion } from './app/manualSelection.js';
+import { clearManualRegion, setupManualSelection, setManualSelectionEnabled, updateManualSelectionOverlay, writeManualRegion, showManualSelectCanvas, hideManualSelectCanvas } from './app/manualSelection.js';
 
 let _pkgVersion = null;
 async function getVersion() {
@@ -66,8 +66,24 @@ const elements = {
     manualClearBtn: document.getElementById('manualClearBtn'),
     manualReprocessBtn: document.getElementById('manualReprocessBtn'),
     manualSelectionLayer: document.getElementById('manualSelectionLayer'),
-    manualSelectionBox: document.getElementById('manualSelectionBox')
+    manualSelectionBox: document.getElementById('manualSelectionBox'),
+    reprocessBtn: document.getElementById('reprocessBtn')
 };
+
+// v2.3: Performance preset — radiogroup, provide getter/setter to read and restore current value
+Object.defineProperty(elements, 'performanceSelect', {
+    get() {
+        const checked = document.querySelector('input[name="performancePreset"]:checked');
+        return checked ? { value: checked.value } : { value: 'balanced' };
+    },
+    set(val) {
+        const radio = document.querySelector(`input[name="performancePreset"][value="${val}"]`)
+            || document.querySelector('input[name="performancePreset"][value="balanced"]');
+        if (radio) radio.checked = true;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 async function init() {
     const loadingTimeout = setTimeout(() => {
@@ -127,6 +143,7 @@ async function init() {
         clearTimeout(loadingTimeout);
         setupEventListeners();
         loadSettings(elements);
+        syncTogglesToPreset(elements);
     } catch (error) {
         clearTimeout(loadingTimeout);
         AuditLog.log(`Critical Fault: ${error.message}`, 'err');
@@ -136,7 +153,6 @@ async function init() {
 
 function setupEventListeners() {
     const handleFilesWrapper = (files) => handleFiles(files, elements,
-        updateSingleUI,
         updateCardUI,
         updateCardErrorUI,
         onBatchComplete
@@ -218,12 +234,27 @@ function setupEventListeners() {
         if (elements.penaltyVal) elements.penaltyVal.textContent = e.target.value;
     });
 
+    // v2.3: Performance preset radio buttons — persist choice + sync toggles
+    document.querySelectorAll('input[name="performancePreset"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            syncTogglesToPreset(elements);
+            saveSettings(elements);
+            AuditLog.log(`Performance preset: ${radio.value}`, 'info');
+        });
+    });
+
     elements.manualModeToggle?.addEventListener('change', (e) => {
         const active = e.target.checked;
         setManualControlsActive(active);
         if (active) {
-            switchViewMode('slider', elements);
+            // v2.6: Show manual selection canvas with original image
+            const item = getActiveSingleItem();
+            if (item?.originalUrl) {
+                showManualSelectCanvas(elements, item.originalUrl);
+            }
             AuditLog.log('Manual Mode enabled', 'warn');
+        } else {
+            hideManualSelectCanvas();
         }
     });
 
@@ -238,6 +269,42 @@ function setupEventListeners() {
     elements.modeSideBtn?.addEventListener('click', () => switchViewMode('side', elements));
     elements.modeStatsBtn?.addEventListener('click', () => switchViewMode('stats', elements));
 
+    // v2.3: Reprocess current image with updated settings
+    elements.reprocessBtn?.addEventListener('click', async () => {
+        if (state.isProcessing) {
+            showToast(i18n.t('toast.processingBusy'), 'info');
+            return;
+        }
+        const item = getActiveSingleItem();
+        if (!item?.originalImg) {
+            showToast(i18n.t('status.error'), 'err');
+            return;
+        }
+        state.isProcessing = true;
+        elements.reprocessBtn.setAttribute('disabled', 'true');
+        elements.reprocessBtn.classList.add('opacity-60', 'cursor-wait');
+        document.getElementById('resultContainer')?.classList.add('scan-active');
+
+        try {
+            const opts = getEngineOptions(elements, { ignoreManual: true });
+            await processSingle(item, opts, {
+                onSuccess: ({ item: pItem, removedCount, confidence, latency, config, pos, profileId }) => {
+                    updateSingleUI(pItem, removedCount, confidence, latency, config, pos, profileId);
+                    updateManualSelectionOverlay(elements);
+                    AuditLog.log(`Re-processed with ${elements.performanceSelect?.value || 'balanced'} preset`, 'success');
+                },
+                onError: (error) => {
+                    showToast(error?.message || i18n.t('status.error'), 'err');
+                }
+            });
+        } finally {
+            document.getElementById('resultContainer')?.classList.remove('scan-active');
+            elements.reprocessBtn?.removeAttribute('disabled');
+            elements.reprocessBtn?.classList.remove('opacity-60', 'cursor-wait');
+            state.isProcessing = false;
+        }
+    });
+
     setupSlider(elements);
     setupMagnifier(elements);
     setupManualSelection(elements, {
@@ -251,7 +318,9 @@ function setupEventListeners() {
 function setManualControlsActive(active) {
     elements.manualCoords?.classList.toggle('opacity-40', !active);
     elements.manualCoords?.classList.toggle('pointer-events-none', !active);
-    setManualSelectionEnabled(elements, active && elements.singlePreview?.style.display !== 'none');
+    const canvas = document.getElementById('manualSelectCanvas');
+    if (canvas) canvas.classList.toggle('hidden', !active);
+    setManualSelectionEnabled(elements, active);
 }
 
 function getActiveSingleItem() {
@@ -357,6 +426,7 @@ function updateSingleUI(item, removedCount, confidence, latency, config, pos, pr
 
     elements.downloadBtn.onclick = () => downloadImage(item);
     elements.downloadBtn.classList.remove('hidden');
+    elements.reprocessBtn?.classList.remove('hidden');
 
     AuditLog.log(`[PASS] ${item.name} | Profile: ${profileId} | Conf: ${confidence}% | ${latency}ms`, 'success');
     showToast(i18n.t('toast.removed', { count: removedCount }), 'success');
@@ -473,7 +543,7 @@ document.addEventListener('paste', (e) => {
     }
     if (files.length > 0) {
         AuditLog.log(`Pasted ${files.length} images from clipboard`, 'info');
-        handleFiles(files, elements, updateSingleUI, updateCardUI, updateCardErrorUI, onBatchComplete);
+        handleFiles(files, elements, updateCardUI, updateCardErrorUI, onBatchComplete);
     }
 });
 

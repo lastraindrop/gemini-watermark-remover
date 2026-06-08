@@ -1,35 +1,20 @@
-function getImageMetrics(slider, image) {
-    const naturalWidth = image?.naturalWidth || image?.width || 0;
-    const naturalHeight = image?.naturalHeight || image?.height || 0;
-    const rect = slider?.getBoundingClientRect();
-    if (!rect || naturalWidth <= 0 || naturalHeight <= 0 || rect.width <= 0 || rect.height <= 0) return null;
-
-    const scale = Math.min(rect.width / naturalWidth, rect.height / naturalHeight);
-    const width = naturalWidth * scale;
-    const height = naturalHeight * scale;
+function getImageMetrics(img) {
+    const naturalWidth = img?.naturalWidth || img?.width || 0;
+    const naturalHeight = img?.naturalHeight || img?.height || 0;
+    const rect = img?.getBoundingClientRect();
+    if (!rect || naturalWidth <= 0 || naturalHeight <= 0) return null;
     return {
         naturalWidth,
         naturalHeight,
-        scale,
-        left: (rect.width - width) / 2,
-        top: (rect.height - height) / 2,
-        width,
-        height,
-        sliderRect: rect
+        scaleX: rect.width / naturalWidth,
+        scaleY: rect.height / naturalHeight,
+        left: rect.left,
+        top: rect.top
     };
 }
 
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
-}
-
-function clientToImagePoint(event, metrics) {
-    const x = event.clientX - metrics.sliderRect.left - metrics.left;
-    const y = event.clientY - metrics.sliderRect.top - metrics.top;
-    return {
-        x: Math.round(clamp(x, 0, metrics.width) / metrics.scale),
-        y: Math.round(clamp(y, 0, metrics.height) / metrics.scale)
-    };
 }
 
 export function readManualRegion(elements) {
@@ -47,105 +32,145 @@ export function writeManualRegion(elements, region) {
     if (elements.manualH) elements.manualH.value = String(Math.max(1, Math.round(region.height)));
 }
 
+export function readManualTemplateSize() {
+    const checked = document.querySelector('input[name="manualTemplateSize"]:checked');
+    return checked ? Number(checked.value) : 48;
+}
+
+export function readManualForceProcess() {
+    return document.getElementById('manualForceToggle')?.checked || false;
+}
+
 export function clearManualRegion(elements) {
     [elements.manualX, elements.manualY, elements.manualW, elements.manualH].forEach(input => {
         if (input) input.value = '';
     });
-    updateManualSelectionOverlay(elements);
 }
 
-function releasePointer(layer, pointerId) {
-    try {
-        layer.releasePointerCapture?.(pointerId);
-    } catch {
-        // Pointer capture may already be gone after a cancellation.
-    }
+/**
+ * Show the manual selection canvas with the original image loaded.
+ * Called when manual mode is toggled on and an image is available.
+ */
+export function showManualSelectCanvas(elements, originalUrl) {
+    const canvas = document.getElementById('manualSelectCanvas');
+    const img = document.getElementById('manualSelectImage');
+    if (!canvas || !img) return;
+
+    img.src = originalUrl || '';
+    canvas.classList.remove('hidden');
+    document.getElementById('manualSelectBox')?.classList.add('hidden');
 }
 
-export function updateManualSelectionOverlay(elements) {
-    const layer = elements.manualSelectionLayer;
-    const box = elements.manualSelectionBox;
-    const slider = elements.comparisonSlider;
-    const image = document.getElementById('sliderOriginal');
-    if (!layer || !box || !slider || !image) return;
+/**
+ * Hide the manual selection canvas.
+ */
+export function hideManualSelectCanvas() {
+    document.getElementById('manualSelectCanvas')?.classList.add('hidden');
+}
 
-    const metrics = getImageMetrics(slider, image);
+export function setManualSelectionEnabled(elements, enabled) {
+    elements.manualSelectionLayer?.classList.toggle('hidden', !enabled);
+    elements.comparisonSlider?.classList.toggle('manual-select-active', enabled);
+}
+
+export function setupManualSelection(elements, callbacks = {}) {
+    const canvas = document.getElementById('manualSelectCanvas');
+    if (!canvas) return;
+
+    let startPoint = null;
+
+    const img = document.getElementById('manualSelectImage');
+    if (!img) return;
+
+    const getMetrics = () => getImageMetrics(img);
+
+    const finishSelection = () => {
+        if (!startPoint) return;
+        try { canvas.releasePointerCapture?.(startPoint.pointerId); } catch {}
+        startPoint = null;
+        callbacks.onSelection?.();
+    };
+
+    canvas.addEventListener('pointerdown', (event) => {
+        if (elements.manualModeToggle && !elements.manualModeToggle.checked) return;
+        const metrics = getMetrics();
+        if (!metrics) return;
+        event.preventDefault();
+        canvas.setPointerCapture?.(event.pointerId);
+        const px = Math.round((event.clientX - metrics.left) / metrics.scaleX);
+        const py = Math.round((event.clientY - metrics.top) / metrics.scaleY);
+        startPoint = {
+            x: clamp(px, 0, Math.max(0, metrics.naturalWidth - 1)),
+            y: clamp(py, 0, Math.max(0, metrics.naturalHeight - 1)),
+            pointerId: event.pointerId
+        };
+        writeManualRegion(elements, { ...startPoint, width: 1, height: 1 });
+        updateManualSelectBox(img);
+    });
+
+    canvas.addEventListener('pointermove', (event) => {
+        if (!startPoint) return;
+        const metrics = getMetrics();
+        if (!metrics) return;
+        event.preventDefault();
+        const px = Math.round((event.clientX - metrics.left) / metrics.scaleX);
+        const py = Math.round((event.clientY - metrics.top) / metrics.scaleY);
+        const cx = clamp(px, 0, Math.max(0, metrics.naturalWidth - 1));
+        const cy = clamp(py, 0, Math.max(0, metrics.naturalHeight - 1));
+        const x = clamp(Math.min(startPoint.x, cx), 0, Math.max(0, metrics.naturalWidth - 1));
+        const y = clamp(Math.min(startPoint.y, cy), 0, Math.max(0, metrics.naturalHeight - 1));
+        const width = clamp(Math.abs(cx - startPoint.x), 1, metrics.naturalWidth - x);
+        const height = clamp(Math.abs(cy - startPoint.y), 1, metrics.naturalHeight - y);
+        writeManualRegion(elements, { x, y, width, height });
+        updateManualSelectBox(img);
+    });
+
+    canvas.addEventListener('pointerup', finishSelection);
+    canvas.addEventListener('pointercancel', finishSelection);
+
+    // Update overlay when coordinate inputs change
+    [elements.manualX, elements.manualY, elements.manualW, elements.manualH].forEach(input => {
+        input?.addEventListener('input', () => updateManualSelectBox(img));
+    });
+
+    img.addEventListener('load', () => updateManualSelectBox(img));
+    window.addEventListener('resize', () => updateManualSelectBox(img));
+}
+
+/**
+ * Render the selection box overlay on the manualSelectCanvas based on current
+ * coordinate inputs.
+ */
+function updateManualSelectBox(image) {
+    const box = document.getElementById('manualSelectBox');
+    if (!box || !image) return;
+    const metrics = getImageMetrics(image);
+    const elements = {
+        manualX: document.getElementById('manualX'),
+        manualY: document.getElementById('manualY'),
+        manualW: document.getElementById('manualW'),
+        manualH: document.getElementById('manualH')
+    };
     const region = readManualRegion(elements);
     if (!metrics || !region) {
         box.classList.add('hidden');
         return;
     }
 
+    const rect = image.getBoundingClientRect();
     const x = clamp(region.x, 0, Math.max(0, metrics.naturalWidth - 1));
     const y = clamp(region.y, 0, Math.max(0, metrics.naturalHeight - 1));
     const width = clamp(region.width, 1, Math.max(1, metrics.naturalWidth - x));
     const height = clamp(region.height, 1, Math.max(1, metrics.naturalHeight - y));
 
-    box.style.left = `${metrics.left + x * metrics.scale}px`;
-    box.style.top = `${metrics.top + y * metrics.scale}px`;
-    box.style.width = `${width * metrics.scale}px`;
-    box.style.height = `${height * metrics.scale}px`;
+    box.style.left = `${(rect.left - metrics.left) + x * metrics.scaleX}px`;
+    box.style.top = `${(rect.top - metrics.top) + y * metrics.scaleY}px`;
+    box.style.width = `${width * metrics.scaleX}px`;
+    box.style.height = `${height * metrics.scaleY}px`;
     box.classList.remove('hidden');
 }
 
-export function setManualSelectionEnabled(elements, enabled) {
-    elements.manualSelectionLayer?.classList.toggle('hidden', !enabled);
-    elements.comparisonSlider?.classList.toggle('manual-select-active', enabled);
-    if (enabled) updateManualSelectionOverlay(elements);
-}
-
-export function setupManualSelection(elements, callbacks = {}) {
-    const layer = elements.manualSelectionLayer;
-    const slider = elements.comparisonSlider;
-    const image = document.getElementById('sliderOriginal');
-    if (!layer || !slider || !image) return;
-
-    let startPoint = null;
-
-    const finishSelection = (event) => {
-        if (!startPoint) return;
-        releasePointer(layer, event.pointerId);
-        startPoint = null;
-        updateManualSelectionOverlay(elements);
-        callbacks.onSelection?.();
-    };
-
-    layer.addEventListener('pointerdown', (event) => {
-        if (elements.manualModeToggle && !elements.manualModeToggle.checked) return;
-        const metrics = getImageMetrics(slider, image);
-        if (!metrics) return;
-        event.preventDefault();
-        layer.setPointerCapture?.(event.pointerId);
-        const point = clientToImagePoint(event, metrics);
-        startPoint = {
-            x: clamp(point.x, 0, Math.max(0, metrics.naturalWidth - 1)),
-            y: clamp(point.y, 0, Math.max(0, metrics.naturalHeight - 1))
-        };
-        writeManualRegion(elements, { ...startPoint, width: 1, height: 1 });
-        updateManualSelectionOverlay(elements);
-    });
-
-    layer.addEventListener('pointermove', (event) => {
-        if (!startPoint) return;
-        const metrics = getImageMetrics(slider, image);
-        if (!metrics) return;
-        event.preventDefault();
-        const point = clientToImagePoint(event, metrics);
-        const x = clamp(Math.min(startPoint.x, point.x), 0, Math.max(0, metrics.naturalWidth - 1));
-        const y = clamp(Math.min(startPoint.y, point.y), 0, Math.max(0, metrics.naturalHeight - 1));
-        const width = clamp(Math.abs(point.x - startPoint.x), 1, metrics.naturalWidth - x);
-        const height = clamp(Math.abs(point.y - startPoint.y), 1, metrics.naturalHeight - y);
-        writeManualRegion(elements, { x, y, width, height });
-        updateManualSelectionOverlay(elements);
-    });
-
-    layer.addEventListener('pointerup', finishSelection);
-    layer.addEventListener('pointercancel', finishSelection);
-
-    [elements.manualX, elements.manualY, elements.manualW, elements.manualH].forEach(input => {
-        input?.addEventListener('input', () => updateManualSelectionOverlay(elements));
-    });
-
-    image.addEventListener('load', () => updateManualSelectionOverlay(elements));
-    window.addEventListener('resize', () => updateManualSelectionOverlay(elements));
+// Backward-compat: legacy callers still use updateManualSelectionOverlay
+export function updateManualSelectionOverlay(elements) {
+    updateManualSelectBox(document.getElementById('manualSelectImage'));
 }

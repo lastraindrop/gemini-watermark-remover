@@ -21,11 +21,15 @@ export function setupMagnifier(elements) {
         }
 
         lens.classList.remove('hidden');
-        lens.style.left = `${x - 75}px`;
-        lens.style.top = `${y - 75}px`;
+
+        const LENS_SIZE = 150; // 75px offset in each direction, 150px total
+        const clampedLeft = Math.max(0, Math.min(rect.width - LENS_SIZE, x - 75));
+        const clampedTop = Math.max(0, Math.min(rect.height - LENS_SIZE, y - 75));
+        lens.style.left = `${clampedLeft}px`;
+        lens.style.top = `${clampedTop}px`;
 
         const zoom = 3;
-        lens.style.backgroundImage = `url(${processedImg.src})`;
+        lens.style.backgroundImage = `url(${processedImg?.src || ''})`;
         lens.style.backgroundSize = `${rect.width * zoom}px ${rect.height * zoom}px`;
         lens.style.backgroundPosition = `-${x * zoom - 75}px -${y * zoom - 75}px`;
     };

@@ -47,15 +47,23 @@ export function calculateNearBlackRatio(imageData, position) {
 }
 
 /**
- * Compute luminance standard deviation for a square region of image data.
+ * Compute luminance standard deviation for a rectangular region of image data.
+ * @param {Uint8ClampedArray} data - Image pixel data (RGBA)
+ * @param {number} imgWidth - Image width in pixels
+ * @param {number} x - Region X start
+ * @param {number} y - Region Y start
+ * @param {number} regionW - Region width (or size for square regions)
+ * @param {number} [regionH] - Region height (defaults to regionW for backward compat)
  */
-export function regionStdDev(data, imgWidth, x, y, size) {
-    if (x < 0 || y < 0 || x + size > imgWidth || size <= 0) return 0;
+export function regionStdDev(data, imgWidth, x, y, regionW, regionH) {
+    const rw = regionW;
+    const rh = regionH !== undefined ? regionH : regionW;
+    if (x < 0 || y < 0 || x + rw > imgWidth || rw <= 0 || rh <= 0) return 0;
     let sum = 0, sq = 0, n = 0;
-    const maxY = Math.min(y + size, Math.floor(data.length / (imgWidth * 4)));
+    const maxY = Math.min(y + rh, Math.floor(data.length / (imgWidth * 4)));
     for (let row = y; row < maxY; row++) {
         const base = (row * imgWidth + x) << 2;
-        for (let col = 0; col < size && (base + (col << 2) + 2) < data.length; col++) {
+        for (let col = 0; col < rw && (base + (col << 2) + 2) < data.length; col++) {
             const idx = base + (col << 2);
             const lum = data[idx] * 0.2126 + data[idx + 1] * 0.7152 + data[idx + 2] * 0.0722;
             sum += lum;

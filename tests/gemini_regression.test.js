@@ -7,7 +7,7 @@ import sharp from 'sharp';
 
 import { calculateAlphaMap } from '../src/core/alphaMap.js';
 import { detectWatermarks } from '../src/core/detectionPipeline.js';
-import { detectWatermarkConfig, calculateWatermarkPosition, getAllPotentialConfigs } from '../src/core/config.js';
+import { detectWatermarkConfig, calculateWatermarkPosition, getAllPotentialConfigs, DETECTION_THRESHOLDS } from '../src/core/config.js';
 import { runRemoveCommand } from '../src/cli/gwrRemoveCommand.js';
 import { applyWatermark } from './test_utils.js';
 
@@ -181,8 +181,12 @@ describe('Gemini detection regressions', () => {
         });
 
         assert.ok(result.winner, 'Expected detector to find the weak watermark on a busy background');
-        assert.ok(result.confidence > 0.18, `Expected usable confidence, got ${result.confidence}`);
-        assert.strictEqual(result.matches.length, 1, 'Should produce exactly one match');
+        assert.ok(result.confidence > DETECTION_THRESHOLDS.DEFAULT_PROBE_THRESHOLD, `Expected usable confidence, got ${result.confidence}`);
+        // v2.5: Both 48px and 96px templates are now probed for Gemini images.
+        // The small template may correlate better with synthetic noise,
+        // but the pipeline should still find a valid match.
+        assert.ok(result.matches.length >= 1 && result.matches.length <= 2,
+            `Expected 1-2 matches, got ${result.matches.length}`);
     });
 
     test('busy 1365x768 image without watermark should not produce catalog-probe match', async () => {

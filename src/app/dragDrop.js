@@ -3,7 +3,7 @@ import { ENGINE_LIMITS } from '../core/config.js';
 import { getEngineOptions } from './settings.js';
 import { state, objectUrlManager } from './state.js';
 import { AuditLog, showToast, resetGlobalProgress } from './ui.js';
-import { processSingle, processQueue } from './processing.js';
+import { processQueue } from './processing.js';
 import { clearManualRegion, setManualSelectionEnabled } from './manualSelection.js';
 
 let _dragState = { depth: 0 };
@@ -64,7 +64,7 @@ function createImageCard(item, elements) {
     elements.imageList.appendChild(card);
 }
 
-export function handleFiles(files, elements, onSingleSuccess, onBatchItemSuccess, onBatchItemError, onBatchComplete) {
+export function handleFiles(files, elements, onBatchItemSuccess, onBatchItemError, onBatchComplete) {
     if (!state.engine) return;
     if (state.isProcessing) {
         showToast(i18n.t('toast.processingBusy'), 'info');
@@ -74,7 +74,7 @@ export function handleFiles(files, elements, onSingleSuccess, onBatchItemSuccess
     const validFiles = files.filter(file => {
         if (!isSupportedImageFile(file)) return false;
         if (file.size > ENGINE_LIMITS.MAX_FILE_SIZE) {
-            showToast(`${file.name} exceeds max size`, 'err');
+            showToast(i18n.t('error.fileTooLarge', { name: file.name }), 'err');
             return false;
         }
         return true;
@@ -100,53 +100,31 @@ export function handleFiles(files, elements, onSingleSuccess, onBatchItemSuccess
     state.processedCount = 0;
     resetGlobalProgress();
 
-    if (validFiles.length === 1) {
-        let engineOptions;
-        try {
-            engineOptions = getEngineOptions(elements, { optionalManual: true });
-        } catch (error) {
-            showToast(error.message, 'err');
-            return;
+    // v2.6: Unified card-based layout for all images (single + batch).
+    // Removes the legacy comparison-slider single-image view in favour of
+    // the same card grid used for batch mode. This simplifies the code,
+    // reduces per-frame layout thrashing, and makes the UX consistent.
+    state.activeSingleItem = null;
+    elements.singlePreview.style.display = 'none';
+    elements.multiPreview.style.display = 'block';
+    elements.imageList.innerHTML = '';
+    state.imageQueue.forEach(item => createImageCard(item, elements));
+
+    processQueue(getEngineOptions(elements, { ignoreManual: true }), {
+        onItemSuccess: ({ item, removedCount, confidence, latency }) => {
+            if (onBatchItemSuccess) onBatchItemSuccess(item, removedCount, confidence, latency);
+        },
+        onItemError: ({ item, error }) => {
+            if (onBatchItemError) onBatchItemError(item, error);
+        },
+        onComplete: () => {
+            const successCount = state.imageQueue.filter(i => i.status === 'success').length;
+            const failedCount = state.imageQueue.filter(i => i.status === 'error').length;
+            showToast(i18n.t('toast.batchComplete', { success: successCount, failed: failedCount }), failedCount ? 'info' : 'success');
+            elements.downloadAllBtn.style.display = successCount > 0 ? 'block' : 'none';
+            if (onBatchComplete) onBatchComplete();
         }
-        elements.singlePreview.style.display = 'block';
-        elements.multiPreview.style.display = 'none';
-        document.getElementById('resultContainer')?.classList.add('scan-active');
-        state.activeSingleItem = state.imageQueue[0];
-        state.isProcessing = true;
-
-        processSingle(state.imageQueue[0], engineOptions, {
-            onSuccess: ({ item, removedCount, confidence, latency, config, pos, profileId }) => {
-                if (onSingleSuccess) onSingleSuccess(item, removedCount, confidence, latency, config, pos, profileId);
-                elements.singlePreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            },
-            onError: () => {}
-        }).finally(() => {
-            document.getElementById('resultContainer')?.classList.remove('scan-active');
-            state.isProcessing = false;
-        });
-    } else {
-        state.activeSingleItem = null;
-        elements.singlePreview.style.display = 'none';
-        elements.multiPreview.style.display = 'block';
-        elements.imageList.innerHTML = '';
-        state.imageQueue.forEach(item => createImageCard(item, elements));
-
-        processQueue(getEngineOptions(elements, { ignoreManual: true }), {
-            onItemSuccess: ({ item, removedCount, confidence, latency }) => {
-                if (onBatchItemSuccess) onBatchItemSuccess(item, removedCount, confidence, latency);
-            },
-            onItemError: ({ item, error }) => {
-                if (onBatchItemError) onBatchItemError(item, error);
-            },
-            onComplete: () => {
-                const successCount = state.imageQueue.filter(i => i.status === 'success').length;
-                const failedCount = state.imageQueue.filter(i => i.status === 'error').length;
-                showToast(i18n.t('toast.batchComplete', { success: successCount, failed: failedCount }), failedCount ? 'info' : 'success');
-                elements.downloadAllBtn.style.display = successCount > 0 ? 'block' : 'none';
-                if (onBatchComplete) onBatchComplete();
-            }
-        });
-    }
+    });
 }
 
 export async function handleUrl(uri, elements, handleFilesFn) {
@@ -195,7 +173,9 @@ export async function handleDataTransferItems(items, elements, handleFilesFn) {
     if (files.length > 0) {
         AuditLog.log(`Deep-scanned ${files.length} items from drag-source`, 'info');
         handleFilesFn(files);
+        return true;
     }
+    return false;
 }
 
 export async function handleDropEvent(event, elements, handleFilesFn) {
@@ -205,7 +185,7 @@ export async function handleDropEvent(event, elements, handleFilesFn) {
     const uri = dataTransfer.getData('text/uri-list')
         .split('\n')
         .map(line => line.trim())
-        .find(line => line && !line.startsWith('#'));
+        .find(line => line && !line.startsWith('#') && !line.startsWith('file://'));
 
     if (uri) {
         await handleUrl(uri, elements, handleFilesFn);
@@ -215,7 +195,11 @@ export async function handleDropEvent(event, elements, handleFilesFn) {
     const items = dataTransfer.items;
     const hasEntries = items && Array.from(items).some(item => typeof item.webkitGetAsEntry === 'function');
     if (hasEntries) {
-        await handleDataTransferItems(items, elements, handleFilesFn);
+        const processed = await handleDataTransferItems(items, elements, handleFilesFn);
+        // Fallback: if entry-based traversal found no files, try direct file list
+        if (!processed) {
+            handleFilesFn(Array.from(dataTransfer.files || []));
+        }
         return;
     }
 

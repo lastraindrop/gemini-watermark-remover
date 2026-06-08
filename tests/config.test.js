@@ -1,6 +1,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { detectWatermarkConfig, calculateWatermarkPosition, getAllPotentialConfigs } from '../src/core/config.js';
+import {
+    detectWatermarkConfig, calculateWatermarkPosition, getAllPotentialConfigs,
+    DETECTION_THRESHOLDS, PERFORMANCE_PRESETS, DEFAULT_PERFORMANCE_PRESET
+} from '../src/core/config.js';
 import { registry } from '../src/core/templates/registry.js';
 import { GEMINI_SIZE_CATALOG, getCatalogConfig } from '../src/core/catalog.js';
 
@@ -126,5 +129,98 @@ describe('Watermark Config Logic - Priority, Fallback & Protocol Consistency', (
             const configs = getAllPotentialConfigs(3000, 2000, 'doubao');
             assert.ok(configs.length >= 2, 'Doubao heuristic should return configs for all anchors');
         });
+    });
+});
+
+// ─── v2.3: Performance Presets & Detection Thresholds ────────────────────────
+
+describe('v2.3 Performance Presets', () => {
+
+    test('All three presets exist with required keys', () => {
+        for (const key of ['fast', 'balanced', 'thorough']) {
+            const preset = PERFORMANCE_PRESETS[key];
+            assert.ok(preset, `Missing preset: ${key}`);
+            assert.strictEqual(typeof preset.label, 'string', `${key}: missing label`);
+            assert.strictEqual(typeof preset.deepScan, 'boolean', `${key}: missing deepScan`);
+            assert.strictEqual(typeof preset.noiseReduction, 'boolean', `${key}: missing noiseReduction`);
+            assert.ok(preset.overrides, `${key}: missing overrides`);
+            assert.ok(preset.overrides.RANGE_X, `${key}: missing RANGE_X`);
+            assert.ok(preset.overrides.RANGE_Y, `${key}: missing RANGE_Y`);
+            assert.ok(preset.overrides.THRESHOLDS, `${key}: missing THRESHOLDS override`);
+            assert.ok(preset.overrides.THRESHOLDS.COARSE, `${key}: missing COARSE threshold`);
+        }
+    });
+
+    test('DEFAULT_PERFORMANCE_PRESET is "balanced"', () => {
+        assert.strictEqual(DEFAULT_PERFORMANCE_PRESET, 'balanced');
+    });
+
+    test('Fast preset is faster than thorough (smaller range, less scanning)', () => {
+        const fast = PERFORMANCE_PRESETS.fast;
+        const thorough = PERFORMANCE_PRESETS.thorough;
+        assert.ok(fast.overrides.RANGE_X < thorough.overrides.RANGE_X, 'Fast RANGE_X should be < thorough');
+        assert.ok(fast.overrides.CANDIDATES_LIMIT_PER_SIZE < thorough.overrides.CANDIDATES_LIMIT_PER_SIZE, 'Fast should have fewer candidates');
+        assert.ok(fast.overrides.FINE_TUNE_RANGE < thorough.overrides.FINE_TUNE_RANGE, 'Fast should have smaller fine-tune range');
+    });
+
+    test('Fast preset disables deepScan, thorough enables it', () => {
+        assert.strictEqual(PERFORMANCE_PRESETS.fast.deepScan, false);
+        assert.strictEqual(PERFORMANCE_PRESETS.balanced.deepScan, true);
+        assert.strictEqual(PERFORMANCE_PRESETS.thorough.deepScan, true);
+    });
+
+    test('Thorough preset enables noise reduction', () => {
+        assert.strictEqual(PERFORMANCE_PRESETS.fast.noiseReduction, false);
+        assert.strictEqual(PERFORMANCE_PRESETS.balanced.noiseReduction, false);
+        assert.strictEqual(PERFORMANCE_PRESETS.thorough.noiseReduction, true);
+    });
+
+    test('Preset overrides are complete — all have required THRESHOLDS keys', () => {
+        const requiredThreshKeys = ['COARSE', 'FINAL_ANCHORED', 'FINAL_ALIGNED', 'FINAL_FREE'];
+        for (const [name, preset] of Object.entries(PERFORMANCE_PRESETS)) {
+            for (const key of requiredThreshKeys) {
+                assert.ok(preset.overrides.THRESHOLDS[key],
+                    `${name}: missing THRESHOLDS.${key}`);
+                assert.ok(Number.isFinite(preset.overrides.THRESHOLDS[key]),
+                    `${name}: THRESHOLDS.${key} is not finite`);
+            }
+        }
+    });
+});
+
+describe('v2.3 Detection Thresholds', () => {
+
+    test('All canonical thresholds are finite numbers', () => {
+        const keys = [
+            'ANCHORED_OFFICIAL', 'ANCHORED_OTHER', 'COARSE', 'STAGE2_NR', 'STAGE2_CLEAN',
+            'FINAL_ANCHORED', 'FINAL_ALIGNED', 'FINAL_FREE', 'DEFAULT_PROBE_THRESHOLD',
+            'SCALED_CONFIG_MIN', 'GLOBAL_FALLBACK_BELOW', 'GLOBAL_FALLBACK_MIN',
+            'ADAPTIVE_MIN_CONFIDENCE', 'SEARCH_RANGE_X', 'SEARCH_RANGE_Y'
+        ];
+        for (const key of keys) {
+            const val = DETECTION_THRESHOLDS[key];
+            assert.ok(val !== undefined, `Missing DETECTION_THRESHOLDS.${key}`);
+            assert.ok(Number.isFinite(val), `DETECTION_THRESHOLDS.${key}=${val} is not finite`);
+        }
+    });
+
+    test('SCALED_CONFIG_MIN is 0.25 (v2.3: lowered from 0.35)', () => {
+        assert.strictEqual(DETECTION_THRESHOLDS.SCALED_CONFIG_MIN, 0.25,
+            'Scaled config threshold should be 0.25');
+    });
+
+    test('Search ranges expanded to 0.90 (v2.3: from 0.75)', () => {
+        assert.strictEqual(DETECTION_THRESHOLDS.SEARCH_RANGE_X, 0.90);
+        assert.strictEqual(DETECTION_THRESHOLDS.SEARCH_RANGE_Y, 0.90);
+    });
+
+    test('Threshold monotonicity: FINAL_ANCHORED < FINAL_ALIGNED < FINAL_FREE', () => {
+        const { FINAL_ANCHORED, FINAL_ALIGNED, FINAL_FREE } = DETECTION_THRESHOLDS;
+        assert.ok(FINAL_ANCHORED < FINAL_ALIGNED, 'Anchored should be more permissive than aligned');
+        assert.ok(FINAL_ALIGNED < FINAL_FREE, 'Aligned should be more permissive than free');
+    });
+
+    test('LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN is 0.008 (v2.3: lowered from 0.015)', () => {
+        assert.strictEqual(DETECTION_THRESHOLDS.LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN, 0.008);
     });
 });

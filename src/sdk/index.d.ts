@@ -217,7 +217,7 @@ export function detectAdaptiveWatermarkRegion(params: {
   maxSearchSize?: number;
 }): AdaptiveRegion | null;
 
-export function interpolateAlphaMap(sourceAlpha: Float32Array, sourceSize: number, targetSize: number): Float32Array;
+export function interpolateAlphaMap(sourceAlpha: Float32Array, sourceWidth: number, targetSize: number, targetHeight?: number, sourceHeight?: number): Float32Array;
 
 export function warpAlphaMap(alphaMap: Float32Array, size: number, options?: { dx?: number; dy?: number; scale?: number }): Float32Array;
 

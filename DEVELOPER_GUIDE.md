@@ -1,4 +1,4 @@
-# GWR Developer Guide (v2.2.3)
+# GWR Developer Guide (v2.5.0)
 
 本指南说明当前分支的工程结构、参数一致化规则、检测管线（五层）、前端构建架构、测试策略，以及新增模板或修改检测策略时必须遵守的流程。
 
@@ -6,15 +6,15 @@
 
 ### 核心层
 
+- `src/core/config.js`：统一配置中心 — `DETECTION_THRESHOLDS`（所有检测阈值单点管理）、`PERFORMANCE_PRESETS`（快速/均衡/全面三档性能模式）、`ENGINE_LIMITS`、候选生成
 - `src/core/catalog.js`：尺寸与锚点目录，优先级最高
-- `src/core/config.js`：根据图片尺寸生成候选参数（官方目录 → 近似尺寸 → 启发式）
-- `src/core/detector.js`：候选评分（NCC、局部对比度、梯度相关、方差评分）、三维评分融合
-- `src/core/detectionPipeline.js`：统一 Web/CLI 的五层检测管线（Catalog → Scaled → Heuristic → Adaptive → Global）
-- `src/core/adaptiveDetector.js`：自适应检测（粗到细多尺度搜索 + 三维评分，支持矩形尺寸）
+- `src/core/detector.js`：候选评分（NCC、局部对比度、梯度相关、方差评分 v2.3 改进）、三维评分融合
+- `src/core/detectionPipeline.js`：统一 Web/CLI 的五层检测管线（Catalog → Scaled → Heuristic → Adaptive → Global），缩放配置阈值已降至 0.25
+- `src/core/adaptiveDetector.js`：自适应检测（粗到细多尺度搜索 + 三维评分，**v2.3 支持矩形尺寸**如 401×173）
 - `src/core/multiPassRemoval.js`：多遍移除（带近黑/纹理安全检查）
 - `src/core/alphaCalibration.js`：Alpha 增益校准（14 档粗搜索 + 精细调整，边界条件已修复）
 - `src/core/decisionPolicy.js`：分层决策策略（direct-match / needs-validation / insufficient）
-- `src/core/watermarkEngine.js`：主引擎，协调检测→移除→校准管线（已移除废弃 _worker 单例）
+- `src/core/watermarkEngine.js`：主引擎，协调检测→移除→校准管线
 - `src/core/blendModes.js`：反向 alpha 混合恢复（支持 alphaGain 参数）
 - `src/core/utils.js`：共享工具函数（cloneImageData, calculateNearBlackRatio, regionStdDev）
 - `src/core/worker.js`：Web Worker 入口，批量处理像素恢复
@@ -22,16 +22,16 @@
 
 ### 应用层
 
-- `src/app.js`：薄入口，协调子模块（含版本号展示）
+- `src/app.js`：薄入口，协调子模块（含版本号展示、预设同步、重处理按钮）
 - `src/app/state.js`：全局状态管理、ObjectURL 生命周期
-- `src/app/processing.js`：批处理、并发、下载、ZIP 输出（重复行已修复）
+- `src/app/processing.js`：批处理、并发、下载、ZIP 输出
 - `src/app/ui.js`：界面交互辅助（toast、审计日志、进度条）
-- `src/app/dragDrop.js`：窗口级拖拽、文件验证、URL 获取、文件夹递归（已消除与 app.js 的循环导入）
+- `src/app/dragDrop.js`：窗口级拖拽、文件验证、URL 获取、文件夹递归
 - `src/app/keyboard.js`：快捷键绑定 (1/2/3/Esc/Ctrl+S)
-- `src/app/settings.js`：参数持久化、语言选择、引擎选项构建（已消除 i18n 重复导入）
-- `src/app/viewModes.js`：View 切换、对比滑块、Stats UI、Profile 主题（改用 `data-profile-icon` 属性）
-- `src/app/magnifier.js`：3x 放大镜（Slider 视图专用）
-- `public/index.html`、`src/tailwind.css`：前端骨架与样式（Tailwind 静态构建；标题已更新为三平台支持；statsView 支持暗色模式；版本号展示；重试按钮）
+- `src/app/settings.js`：参数持久化、语言选择、引擎选项构建、**`syncTogglesToPreset()` v2.3**
+- `src/app/viewModes.js`：View 切换、对比滑块、Stats UI、Profile 主题
+- `src/app/magnifier.js`：3x 放大镜（Slider 视图专用，v2.3 边界钳制）
+- `public/index.html`、`src/tailwind.css`：前端骨架与样式（Tailwind 静态构建；v2.3 性能预设选择器、预设提示、重处理按钮）
 
 ### SDK 层
 
@@ -41,30 +41,33 @@
 ### 入口层
 
 - `src/cli.js`、`src/cli/gwrCli.js`、`src/cli/gwrRemoveCommand.js`：CLI（参数验证已增强）
-- `python/remover.py`、`python/gui.py`：Python bridge 与 GUI（pipe 模式已补 profile 参数）
+- `python/remover.py`、`python/gui.py`：Python bridge 与 GUI
 - `src/userscript/index.js`：userscript 入口
 - `build.js`：打包与静态资源内联
 
-## 2. 参数一致化原则
+## 2. 参数一致化原则（v2.3 更新）
 
 当前 Web、CLI、Python bridge 必须共享同一组引擎参数：
 
 - `profileId`：`gemini`、`doubao`、`auto`
-- `deepScan`：是否启用梯度滤波（梯度相关 + 亮度 NCC 融合）
-- `noiseReduction`：对输出进行更强的去噪预处理
+- `deepScan`：是否启用梯度滤波（**v2.3 由性能预设控制**，不再由 UI 独立切换）
+- `noiseReduction`：对输出进行降噪预处理（**v2.3 由性能预设控制**）
+- `adaptiveMode`：自适应多尺度搜索开关（`'auto'` 或 `'off'`）
 - `autoDownload`：单图与批量处理后的自动下载
 
-禁止在某一端私自引入新语义、改名或自行硬编码阈值。真正的策略应进入 `config.js`、`catalog.js`、`detector.js` 或 `detectionPipeline.js`。
+### 2.1 性能预设覆盖 (v2.3)
 
-### 2.1 动态参数覆盖 (v2.1)
+引擎参数 `deepScan`、`noiseReduction`、`adaptiveMode` 和搜索几何参数**由性能预设控制**。用户在 UI 中选择 `fast`/`balanced`/`thorough` 后，预设的 overrides 会通过 `deepMerge()` 与用户阈值/惩罚滑块合并。开发者在调整预设参数时，只需修改 `config.js` 中的 `PERFORMANCE_PRESETS` 对象——引擎选项自动保持一致。
+
+### 2.2 动态参数覆盖 (v2.1+)
 
 引擎现在支持从入口层（Web UI/CLI/Python）透传参数覆盖。开发者在调用 `removeWatermarkFromImage` 时可提供以下可选参数：
 
-- `probeThreshold`: (Number) 覆盖默认的探针灵敏度 (0.18)。
-- `fallbackThreshold`: (Number) 覆盖默认的全局回退阈值 (0.25)。
-- `gradientPenalty`: (Number) 覆盖梯度滤波惩罚 multiplier (0.30)。
-- `manualConfig`: (Object) `{ x, y, width, height }` 直接指定水印位置，绕过搜索管线。
-- `overrides`: (Object) 允许覆盖 `detector.js` 中的 `SEARCH_CONFIG` 全量常量（如 `RANGE_X`, `jitterRange` 等）。
+- `probeThreshold`: (Number) 覆盖默认的探针灵敏度（`DETECTION_THRESHOLDS.DEFAULT_PROBE_THRESHOLD`）
+- `fallbackThreshold`: (Number) 覆盖默认的全局回退阈值（`DETECTION_THRESHOLDS.GLOBAL_FALLBACK_MIN`）
+- `gradientPenalty`: (Number) 覆盖梯度滤波惩罚 multiplier（默认 0.30）
+- `manualConfig`: (Object) `{ x, y, width, height }` 直接指定水印位置，绕过搜索管线
+- `overrides`: (Object) 允许覆盖 `detector.js` 中的 `SEARCH_CONFIG` 全量常量
 
 ## 3. 梯度滤波机制（v2.1.0）
 
@@ -144,8 +147,11 @@ else conf = combined
 - 是否命中 catalog 精确尺寸（registry.MAX_SCALE_MISMATCH = 0.10）
 - 是否命中近似尺寸候选（catalog.getScaledCatalogConfigs / findCloseMatches）
 - `detector.js` 的置信度是否被局部纹理稀释（查看 `max(spatial, weighted)` 行为）
-- `detectionPipeline.js` 的全局回退是否过严（minGlobalConfidence = 0.25）
-- 缩放匹配的门控阈值是否过高（scaled baseNcc=0.14, gradient=0.18, probe=0.35）
+- **v2.3**: 缩放匹配门控是否过严（`SCALED_CONFIG_MIN = 0.25`，低于此值可能拒绝有效检测）
+- **v2.3**: 自适应检测器是否因矩形水印而失败（检查 `baseW !== baseH` 路径）
+- **v2.3**: 平滑背景的方差分数是否合理（应使用绝对差值模式，不再固定 0.5）
+- `detectionPipeline.js` 的全局回退是否过严（`GLOBAL_FALLBACK_MIN = 0.25`）
+- 性能预设是否设置为 `fast`（搜索范围仅 60%、无深度扫描、无自适应模式）
 
 当用户反馈"误报太多"时，优先检查：
 
@@ -160,11 +166,11 @@ else conf = combined
 
 ```bash
 pnpm lint         # ESLint (0 errors, 0 warnings on source)
-pnpm test         # 主测试集 (48 文件, ~450+ tests)
-pnpm build        # 静态 Tailwind CSS 构建
+pnpm test         # 主测试集 (44 文件, 107+ tests)
+pnpm build        # 生产构建
 ```
 
-测试套件已优化：4 文件合并（consistency→config, v2_2_*→parent tests），新增 3 覆盖文件（setup.js, edge_alpha_maps, engine_lifecycle, template_resolution）。所有修改模块（core/app/cli/python/i18n）均已通过对应测试验证。
+测试套件已优化：5 文件合并（bt709_color + ncc_scoring + local_contrast + gradient_penalty → detector_scoring; edge_alpha_maps → edge_cases），新增 19 项 v2.3 覆盖测试（PERFORMANCE_PRESETS、DETECTION_THRESHOLDS、矩形水印、平滑背景方差、缩放配置阈值、非正方形 alphaMap 防护）。所有修改模块（core/app/cli/python/i18n/tests）均已通过对应测试验证。
 
 ## 8. 文档维护规则
 

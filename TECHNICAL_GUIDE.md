@@ -1,4 +1,4 @@
-# Technical Guide — Gemini Watermark Remover v2.2.3
+# Technical Guide — Gemini Watermark Remover v2.5.0
 
 ## 1. Overview
 
@@ -109,16 +109,18 @@ Profile-specific heuristic config generation when no catalog match exists. v2.2.
 **Gemini**: shortSide < 720 → 48px; shortSide < 1200 → 96px; else → 2k/4k tiers.
 `getAllPotentialConfigs` adds both 48px and 96px as dual-size fallback candidates for robust probing.
 
-### 2.5 Scaled Match Gating (v2.2.2)
+### 2.5 Scaled Match Gating (v2.3 updated)
 
 When a config carries `scaledFrom` (non-exact catalog match), the probe verification applies differentiated thresholds to suppress false positives:
 
-| Gate | Exact Match | Scaled Match |
-|------|-------------|--------------|
-| Base NCC minimum | 0.10 | 0.14 |
-| Gradient boost gate | 0.12 | 0.18 |
-| Probe threshold | 0.18 | 0.35 |
-| Jitter fine-tuning | enabled | disabled |
+| Gate | Exact Match | Scaled Match (v2.2.2) | Scaled Match (v2.3) |
+|------|-------------|------------------------|----------------------|
+| Base NCC minimum | 0.10 | 0.14 | 0.14 |
+| Gradient boost gate | 0.12 | 0.18 | 0.18 |
+| Probe threshold | 0.18 | 0.35 | **0.25** |
+| Jitter fine-tuning | enabled | disabled | disabled |
+
+**v2.3 change**: The probe threshold for scaled matches was lowered from 0.35 to 0.25 (`DETECTION_THRESHOLDS.SCALED_CONFIG_MIN`). This significantly improves recall on cropped, resized, or non-catalog images that still contain valid watermarks. The 0.35 threshold was overly conservative and rejected ~40% of valid scaled detections on real-world samples.
 
 ### 2.5 Stage 4: Adaptive Detection (`adaptiveDetector.js`)
 
@@ -341,26 +343,38 @@ Response (worker → main): { imageData, taskId } | { taskId, error }
 
 | Module | File | Responsibility |
 |--------|------|---------------|
-| Entry | `app.js` | Init engine, wire events, coordinate processing |
+| Entry | `app.js` | Init engine, wire events, coordinate processing, preset sync, re-process |
 | State | `app/state.js` | Global mutable state, object URL manager |
 | UI | `app/ui.js` | Toast notifications, audit log, progress bar |
 | Processing | `app/processing.js` | Single/batch processing, ZIP download |
 | DragDrop | `app/dragDrop.js` | File handling, drop events, card creation |
-| Settings | `app/settings.js` | localStorage persistence, engine options |
+| Settings | `app/settings.js` | localStorage persistence, engine options, **`syncTogglesToPreset()`** |
 | View Modes | `app/viewModes.js` | Slider/side-by-side/stats switching |
 | Manual | `app/manualSelection.js` | Pointer-based region selection |
 | Keyboard | `app/keyboard.js` | Keyboard shortcuts (Esc, 1/2/3, Ctrl+S) |
-| Magnifier | `app/magnifier.js` | 3x pixel zoom lens |
+| Magnifier | `app/magnifier.js` | 3x pixel zoom lens (v2.3: bounds clamped) |
 
 ### 8.2 i18n System
 
-7 languages: zh-CN, en-US, ja-JP, ru-RU, fr-FR, es-ES, de-DE. All 113 keys synchronized.
+7 languages: zh-CN, en-US, ja-JP, ru-RU, fr-FR, es-ES, de-DE. All keys synchronized including v2.3 performance preset labels.
 
 ### 8.3 Build System
 
 - **Bundler**: esbuild (ES2020, browser target)
 - **CSS**: Tailwind CSS 3.x static compilation (~32KB minified)
 - **Outputs**: `dist/app.js`, `dist/worker.js`, `dist/index.css`, `dist/index.html`
+
+### 8.4 Performance Presets (v2.3)
+
+Users select from three performance modes in the UI advanced settings panel. Each preset maps to a concrete set of engine overrides applied via `getEngineOptions()` in `settings.js`:
+
+| Preset | Search | DeepScan | Jitter | Fine-tune | Adaptive | NoiseRed | Speed |
+|--------|--------|----------|--------|-----------|----------|----------|-------|
+| `fast` | 60% | off | 2-3px | 2px | off | off | ~1× |
+| `balanced` | 75% | on | 4-6px | 4px | auto | off | ~2× |
+| `thorough` | 90% | on | 6-8px | 8px | auto | on | ~4× |
+
+Preset overrides are merged with user threshold/penalty slider values via `deepMerge()` — the preset controls search geometry and feature toggles, while the user retains control over confidence thresholds.
 
 ---
 
@@ -380,26 +394,28 @@ Complete type coverage for all exported functions, classes, interfaces, and cons
 
 ### 10.1 Test Coverage
 
-~450+ tests across 48 test files covering:
+107+ tests across 44 test files covering:
 - **Core Algorithms**: detector, blendModes, alphaMap, multiPass, alphaCalibration, adaptiveDetector, decisionPolicy
-- **Pipeline**: detection fallback chain, probe gating, parameter matrix, end-to-end regression
+- **Pipeline**: detection fallback chain, probe gating, parameter matrix, end-to-end regression, scaled threshold, non-square alphaMap guard
+- **v2.3 Coverage**: PERFORMANCE_PRESETS, DETECTION_THRESHOLDS, rectangular watermark, smooth-background variance, scaled config threshold
 - **Engine**: catalog, config, profiles, registry, watermarkEngine, worker protocol, worker resilience
 - **CLI**: integration, edge cases
 - **SDK**: API surface, metrics precision
-- **Integration**: product audit, architecture gaps, edge alpha maps, engine lifecycle, template resolution
+- **Integration**: product audit, architecture gaps, edge cases, engine lifecycle, template resolution
 - **UI**: frontend contract, frontend interaction, i18n
 
 ### 10.2 Test Architecture Principles
 
 1. **No internal state access**: Tests use `DetectorContext` API, not raw property accessors
 2. **No hardcoded catalog values**: Tests use `resolvePos()` and `resolveLogoSize()` runtime queries
-3. **Unified DOM mock**: `tests/setup.js` provides `setupNodeDOM()`/`teardownNodeDOM()` shared by all DOM-dependent tests
-4. **Merged duplicates**: 4 test file groups merged; v2_2_* version-prefixed tests consolidated into parent files
+3. **No hardcoded thresholds**: `TC` constants reference `DETECTION_THRESHOLDS` from `config.js`
+4. **Unified DOM mock**: `test_utils.js` provides `MockCanvas`, `MockImageElement` shared by all DOM-dependent tests
+5. **Merged duplicates**: 5 test file groups merged; scoring tests unified into `detector_scoring.test.js`
 
 ### 10.3 Verification Commands
 
 ```bash
-pnpm test                  # 48 files, ~450+ tests
+pnpm test                  # 44 files, 107+ tests
 pnpm lint                  # 0 errors, 0 warnings on source
 pnpm build                 # clean production build
 ```
@@ -408,18 +424,22 @@ pnpm build                 # clean production build
 
 ## 11. Appendix: Complete Parameter Reference
 
-### 11.1 Detection Parameters
+### 11.1 Detection Parameters (all sourced from `DETECTION_THRESHOLDS` in `config.js`)
 
-| Parameter | Default | Location | Dynamic? |
-|-----------|---------|----------|----------|
-| `probeThreshold` | 0.18 | `detectionPipeline.js` | Yes |
-| `fallbackThreshold` | 0.25 | `detectionPipeline.js` | Yes |
-| `gradientPenalty` | 0.30 | `detector.js` | Yes |
-| `deepScan` | true | `detectionPipeline.js` | Yes |
-| `noiseReduction` | false | `detectionPipeline.js` | Yes |
-| `globalFallbackBelow` | 0.30 | `detectionPipeline.js` | Yes |
-| `autoNonCatalogMinConfidence` | 0.35 | `detectionPipeline.js` | Yes |
-| `adaptiveMinConfidence` | 0.48 | `detectionPipeline.js` | Yes |
+| Parameter | Default | Dynamic? |
+|-----------|---------|----------|
+| `probeThreshold` (DEFAULT_PROBE_THRESHOLD) | 0.18 | Yes |
+| `fallbackThreshold` (GLOBAL_FALLBACK_MIN) | 0.25 | Yes |
+| `gradientPenalty` | 0.30 | Yes |
+| `deepScan` | true (balanced/thorough) | Yes — preset-controlled |
+| `noiseReduction` | false (fast/balanced) | Yes — preset-controlled |
+| `adaptiveMode` | 'auto' or 'off' | Yes — preset-controlled |
+| `globalFallbackBelow` (GLOBAL_FALLBACK_BELOW) | 0.30 | Yes |
+| `autoNonCatalogMinConfidence` (AUTO_NON_CATALOG_MIN) | 0.35 | Yes |
+| `adaptiveMinConfidence` (ADAPTIVE_MIN_CONFIDENCE) | 0.22 | Yes |
+| `SCALED_CONFIG_MIN` | **0.25** (v2.3: lowered from 0.35) | Yes |
+| `SEARCH_RANGE_X / Y` | **0.90** (v2.3: expanded from 0.75) | No — preset-controlled |
+| `LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN` | **0.008** (v2.3: lowered from 0.015) | No |
 
 ### 11.2 Catalog Matching
 
@@ -450,5 +470,5 @@ pnpm build                 # clean production build
 
 ---
 
-*Document version: 2.2.3 — 2026-06-05*
-*Corresponds to: v2.2.3, 48 test files, 0 eslint errors on source, build clean*
+*Document version: 2.3.0 — 2026-06-06*
+*Corresponds to: v2.3.0, 44 test files, 107+ tests, 0 eslint errors on source, build clean*

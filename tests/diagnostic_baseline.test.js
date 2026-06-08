@@ -15,6 +15,9 @@ import { calculateWatermarkPosition, getAllPotentialConfigs } from '../src/core/
 import { GEMINI_PROFILE, PROFILES } from '../src/core/profiles.js';
 import { createMockImageData, createMockAlphaMap, applyWatermark, alphaToRGBA, resolvePos } from './test_utils.js';
 import { WATERMARK_CONFIGS } from '../src/core/catalog.js';
+import { DETECTION_THRESHOLDS } from '../src/core/config.js';
+
+const T = DETECTION_THRESHOLDS;
 
 function geminiWatermarkPos(imageWidth, imageHeight, size = 96) {
     const tierConfig = Object.values(WATERMARK_CONFIGS).find(t => t.logoSize === size)
@@ -55,12 +58,12 @@ describe('DIAG: Standard Gemini 1024x1024 Output', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: buildAlphaMapProvider(96),
-            options: { probeThreshold: 0.15, fallbackThreshold: 0.18, deepScan: true }
+            options: { probeThreshold: T.FINAL_ANCHORED, fallbackThreshold: T.DEFAULT_PROBE_THRESHOLD, deepScan: true }
         });
 
         console.log(`[S1.1] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner} matches=${result.matches.length} source=${result.winner?.source || 'none'}`);
         assert.ok(result.winner, 'Should detect watermark on uniform light background');
-        assert.ok(result.confidence > 0.15, `Confidence ${result.confidence} should be > 0.15`);
+        assert.ok(result.confidence > T.FINAL_ANCHORED, `Confidence ${result.confidence} should be > ${T.FINAL_ANCHORED}`);
         if (result.winner) {
             assert.ok(Math.abs(result.winner.pos.x - pos.x) <= 6, `X pos within 6px. Got ${result.winner.pos.x}, expected ${pos.x}`);
         }
@@ -77,7 +80,7 @@ describe('DIAG: Standard Gemini 1024x1024 Output', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: buildAlphaMapProvider(96),
-            options: { probeThreshold: 0.15, fallbackThreshold: 0.18, deepScan: true }
+            options: { probeThreshold: T.FINAL_ANCHORED, fallbackThreshold: T.DEFAULT_PROBE_THRESHOLD, deepScan: true }
         });
 
         console.log(`[S1.2] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner} source=${result.winner?.source || 'none'}`);
@@ -96,7 +99,7 @@ describe('DIAG: Standard Gemini 1024x1024 Output', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: buildAlphaMapProvider(96),
-            options: { probeThreshold: 0.15, fallbackThreshold: 0.18, deepScan: true }
+            options: { probeThreshold: T.FINAL_ANCHORED, fallbackThreshold: T.DEFAULT_PROBE_THRESHOLD, deepScan: true }
         });
 
         console.log(`[S1.3] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner} source=${result.winner?.source || 'none'}`);
@@ -114,7 +117,7 @@ describe('DIAG: Standard Gemini 1024x1024 Output', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: buildAlphaMapProvider(96),
-            options: { probeThreshold: 0.15, fallbackThreshold: 0.18, deepScan: true }
+            options: { probeThreshold: T.FINAL_ANCHORED, fallbackThreshold: T.DEFAULT_PROBE_THRESHOLD, deepScan: true }
         });
 
         console.log(`[S1.4] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner} source=${result.winner?.source || 'none'}`);
@@ -132,7 +135,7 @@ describe('DIAG: Standard Gemini 1024x1024 Output', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: buildAlphaMapProvider(96),
-            options: { probeThreshold: 0.15, fallbackThreshold: 0.18, deepScan: true }
+            options: { probeThreshold: T.FINAL_ANCHORED, fallbackThreshold: T.DEFAULT_PROBE_THRESHOLD, deepScan: true }
         });
 
         console.log(`[S1.5] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner} source=${result.winner?.source || 'none'}`);
@@ -161,7 +164,7 @@ describe('DIAG: Scaled/Resized Images', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: customProvider,
-            options: { probeThreshold: 0.15, fallbackThreshold: 0.18, deepScan: true }
+            options: { probeThreshold: T.FINAL_ANCHORED, fallbackThreshold: T.DEFAULT_PROBE_THRESHOLD, deepScan: true }
         });
 
         console.log(`[S2.1] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner} source=${result.winner?.source || 'none'}`);
@@ -185,7 +188,7 @@ describe('DIAG: Scaled/Resized Images', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: customProvider,
-            options: { probeThreshold: 0.15, fallbackThreshold: 0.18, deepScan: true }
+            options: { probeThreshold: T.FINAL_ANCHORED, fallbackThreshold: T.DEFAULT_PROBE_THRESHOLD, deepScan: true }
         });
 
         console.log(`[S2.2] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner} source=${result.winner?.source || 'none'}`);
@@ -204,7 +207,7 @@ describe('DIAG: Scaled/Resized Images', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: buildAlphaMapProvider(96),
-            options: { probeThreshold: 0.15, fallbackThreshold: 0.18, deepScan: true }
+            options: { probeThreshold: T.FINAL_ANCHORED, fallbackThreshold: T.DEFAULT_PROBE_THRESHOLD, deepScan: true }
         });
 
         console.log(`[S2.3] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner} source=${result.winner?.source || 'none'}`);
@@ -228,7 +231,7 @@ describe('DIAG: 48px Watermark Size', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: buildAlphaMapProvider(48),
-            options: { probeThreshold: 0.15, fallbackThreshold: 0.18, deepScan: true }
+            options: { probeThreshold: T.FINAL_ANCHORED, fallbackThreshold: T.DEFAULT_PROBE_THRESHOLD, deepScan: true }
         });
 
         console.log(`[S3.1] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner} source=${result.winner?.source || 'none'}`);
@@ -246,7 +249,7 @@ describe('DIAG: 48px Watermark Size', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: buildAlphaMapProvider(96),
-            options: { probeThreshold: 0.15, fallbackThreshold: 0.18, deepScan: true }
+            options: { probeThreshold: T.FINAL_ANCHORED, fallbackThreshold: T.DEFAULT_PROBE_THRESHOLD, deepScan: true }
         });
 
         console.log(`[S3.2] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner} source=${result.winner?.source || 'none'}`);
@@ -266,7 +269,7 @@ describe('DIAG: Negative - No Watermark Present', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: buildAlphaMapProvider(96),
-            options: { probeThreshold: 0.20, fallbackThreshold: 0.30, deepScan: true }
+            options: { probeThreshold: 0.20, fallbackThreshold: T.GLOBAL_FALLBACK_BELOW, deepScan: true }
         });
 
         console.log(`[S4.1] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner}`);
@@ -284,7 +287,7 @@ describe('DIAG: Negative - No Watermark Present', () => {
             imageData: img,
             profileId: 'gemini',
             getAlphaMap: buildAlphaMapProvider(96),
-            options: { probeThreshold: 0.20, fallbackThreshold: 0.30, deepScan: true }
+            options: { probeThreshold: 0.20, fallbackThreshold: T.GLOBAL_FALLBACK_BELOW, deepScan: true }
         });
 
         console.log(`[S4.2] conf=${result.confidence?.toFixed(4)} winner=${!!result.winner}`);
@@ -316,7 +319,7 @@ describe('DIAG: Gradient Penalty Impact', () => {
         console.log(`[S5.1] Penalty ratio: ${(nccWithGrad.confidence / Math.max(nccOnly.confidence, 0.001)).toFixed(4)}`);
 
         // With deepScan should not be drastically lower than without
-        if (nccOnly.confidence > 0.15) {
+        if (nccOnly.confidence > T.FINAL_ANCHORED) {
             const ratio = nccWithGrad.confidence / nccOnly.confidence;
             // Current code may produce ratio as low as 0.30 due to gradientPenalty
             // This documents the CURRENT behavior before fixes
@@ -337,7 +340,7 @@ describe('DIAG: Gradient Penalty Impact', () => {
         console.log(`[S5.2] NCC-only: ${nccOnly.confidence.toFixed(4)}, With gradient: ${nccWithGrad.confidence.toFixed(4)}`);
         console.log(`[S5.2] Penalty ratio: ${(nccWithGrad.confidence / Math.max(nccOnly.confidence, 0.001)).toFixed(4)}`);
 
-        if (nccOnly.confidence > 0.15) {
+        if (nccOnly.confidence > T.FINAL_ANCHORED) {
             const ratio = nccWithGrad.confidence / nccOnly.confidence;
             console.log(`[S5.2] Current penalty ratio on uniform bg: ${ratio.toFixed(4)}`);
         }
@@ -363,7 +366,7 @@ describe('DIAG: Global Detection Coverage', () => {
         console.log(`[S6.1] result=${JSON.stringify(result)}`);
         if (result) {
             console.log(`[S6.1] conf=${result.confidence.toFixed(4)} mode=${result.mode} pos=(${result.x},${result.y})`);
-            assert.ok(result.confidence > 0.15, `Global detection confidence ${result.confidence} too low`);
+            assert.ok(result.confidence > T.FINAL_ANCHORED, `Global detection confidence ${result.confidence} too low`);
             assert.ok(Math.abs(result.x - pos.x) <= 4, `X position off: got ${result.x}, expected ${pos.x}`);
             assert.ok(Math.abs(result.y - pos.y) <= 4, `Y position off: got ${result.y}, expected ${pos.y}`);
         } else {
@@ -386,7 +389,7 @@ describe('DIAG: Global Detection Coverage', () => {
         console.log(`[S6.2] result=${JSON.stringify(result)}`);
         if (result) {
             console.log(`[S6.2] conf=${result.confidence.toFixed(4)} mode=${result.mode} pos=(${result.x},${result.y})`);
-            assert.ok(result.confidence > 0.15, `Global detection confidence ${result.confidence} too low`);
+            assert.ok(result.confidence > T.FINAL_ANCHORED, `Global detection confidence ${result.confidence} too low`);
         } else {
             console.log('[S6.2] detectWatermark returned null');
         }

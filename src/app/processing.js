@@ -1,3 +1,4 @@
+import i18n from '../i18n.js';
 import { state, objectUrlManager } from './state.js';
 import { AuditLog, updateProgress } from './ui.js';
 import { loadImage, checkOriginal } from '../utils.js';
@@ -13,7 +14,7 @@ export async function processSingle(item, options, callbacks = {}) {
         const img = item.originalImg || await loadImage(item.file, { objectUrlManager });
         
         if (img.width * img.height > ENGINE_LIMITS.MAX_PIXELS) {
-            throw new Error(`Image too large: ${img.width}x${img.height} exceeds ${ENGINE_LIMITS.MAX_PIXELS / 1000000}MP limit.`);
+            throw new Error(i18n.t('error.imageTooLarge', { width: img.width, height: img.height, limit: ENGINE_LIMITS.MAX_PIXELS / 1000000 }));
         }
 
         item.originalImg = img;
@@ -34,7 +35,7 @@ export async function processSingle(item, options, callbacks = {}) {
         const confPercent = (confidence * 100).toFixed(0);
 
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        if (!blob) throw new Error('Failed to encode processed image as PNG');
+        if (!blob) throw new Error(i18n.t('error.encodeFailed'));
         if (item.processedUrl) objectUrlManager.revoke(item.processedUrl);
         item.processedBlob = blob;
         item.processedUrl = objectUrlManager.create(blob);

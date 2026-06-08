@@ -10,6 +10,7 @@
 import { calculateCorrelation, calculateGradientCorrelation } from './detector.js';
 import { removeWatermark } from './blendModes.js';
 import { regionStdDev } from './utils.js';
+import { DETECTION_THRESHOLDS } from './config.js';
 
 const DEFAULT_THRESHOLD = 0.35;
 const EPSILON = 1e-8;
@@ -53,13 +54,13 @@ function sobelMagnitude(gray, width, height) {
 // Alpha map utilities
 // ============================================================
 
-export function interpolateAlphaMap(sourceAlpha, sourceSize, targetSize, targetHeight) {
+export function interpolateAlphaMap(sourceAlpha, sourceWidth, targetSize, targetHeight, sourceHeight) {
     const tw = targetSize;
     const th = targetHeight || targetSize;
     if (tw <= 0 || th <= 0) return new Float32Array(0);
 
-    const sourceW = sourceSize;
-    const sourceH = sourceSize;
+    const sourceW = sourceWidth;
+    const sourceH = sourceHeight || sourceWidth;
     if (sourceW === tw && sourceH === th) return new Float32Array(sourceAlpha);
 
     const out = new Float32Array(tw * th);
@@ -160,19 +161,34 @@ function scoreCandidate(imageData, alphaMap, alphaGrad, { x, y, size, width: w, 
     ));
 
     let varianceScore = 0;
+    const minDim = Math.min(candW, candH);
     if (y > candH) {
+        // Reference region ABOVE the candidate (preferred — independent of watermark content)
         const refY = Math.max(0, y - Math.round(candH * 1.2));
         const refH = Math.min(candH, y - refY);
         if (refH > 8) {
-            const wmStd = regionStdDev(data, imgWidth, x, y, Math.min(candW, candH));
-            const refStd = regionStdDev(data, imgWidth, x, refY, Math.min(candW, refH));
+            const wmStd = regionStdDev(data, imgWidth, x, y, candW, candH);
+            const refStd = regionStdDev(data, imgWidth, x, refY, candW, refH);
+            if (refStd > EPSILON) {
+                varianceScore = clamp(1 - wmStd / refStd, 0, 1);
+            }
+        }
+    } else {
+        // v2.4: Watermark near top edge — use reference region BELOW instead.
+        // Previously this path was missing, causing varianceScore=0 for top-anchored watermarks.
+        const refY = y + Math.round(candH * 1.2);
+        const maxY = Math.floor(data.length / (imgWidth * 4));
+        const refH = Math.min(candH, maxY - refY);
+        if (refH > 8) {
+            const wmStd = regionStdDev(data, imgWidth, x, y, candW, candH);
+            const refStd = regionStdDev(data, imgWidth, x, refY, candW, refH);
             if (refStd > EPSILON) {
                 varianceScore = clamp(1 - wmStd / refStd, 0, 1);
             }
         }
     }
 
-    const confidence = spatial * 0.5 + gradient * 0.3 + varianceScore * 0.2;
+    const confidence = spatial * DETECTION_THRESHOLDS.SPATIAL_WEIGHT + gradient * DETECTION_THRESHOLDS.GRADIENT_WEIGHT + varianceScore * DETECTION_THRESHOLDS.VARIANCE_WEIGHT;
 
     return {
         confidence: clamp(confidence, 0, 1),
@@ -217,42 +233,58 @@ export function detectAdaptiveWatermarkRegion({
     maxSearchSize = 192
 }) {
     const { width, height } = imageData;
-    const baseSize = defaultConfig.logoSize;
 
-    const alphaBase = alphaMaps[baseSize] || alphaMaps['96'] || alphaMaps['48'];
+    // v2.3: Support rectangular watermarks (e.g. Doubao 401×173, DALL-E 120×40).
+    // Derive base width/height from config, falling back to logoSize for square profiles.
+    const baseW = defaultConfig.logoWidth || defaultConfig.logoSize;
+    const baseH = defaultConfig.logoHeight || defaultConfig.logoSize;
+    const isRectangular = baseW !== baseH;
+    const baseArea = baseW * baseH;
+
+    // Look up alpha map using the primary dimension key
+    const dimKey = isRectangular ? `${baseW}x${baseH}` : String(baseW);
+    let alphaBase = alphaMaps[dimKey] || alphaMaps[baseW] || alphaMaps['96'] || alphaMaps['48'];
     if (!alphaBase) return null;
 
     const buffers = {
-        gradientsI: new Float32Array(baseSize * baseSize),
-        gradientsA: new Float32Array(baseSize * baseSize)
+        gradientsI: new Float32Array(baseArea),
+        gradientsA: new Float32Array(baseArea)
     };
 
-    // Cache alpha maps at different sizes
+    // Cache alpha maps at different sizes; key = "WxH" to avoid collisions.
     const alphaCache = new Map();
-    alphaCache.set(baseSize, { data: alphaBase, grad: sobelMagnitude(alphaBase, baseSize, baseSize) });
+    const cacheKey = (w, h) => `${w}x${h}`;
+    alphaCache.set(cacheKey(baseW, baseH), { data: alphaBase, grad: sobelMagnitude(alphaBase, baseW, baseH) });
 
-    function getAlphaTemplate(size) {
-        if (alphaCache.has(size)) return alphaCache.get(size);
+    function getAlphaTemplate(tw, th) {
+        const key = cacheKey(tw, th);
+        if (alphaCache.has(key)) return alphaCache.get(key);
         let alpha;
-        if (size === baseSize) {
+        if (tw === baseW && th === baseH) {
             alpha = alphaBase;
         } else {
-            alpha = interpolateAlphaMap(alphaBase, baseSize, size);
+            alpha = interpolateAlphaMap(alphaBase, baseW, tw, th, baseH);
         }
-        const tpl = { data: alpha, grad: sobelMagnitude(alpha, size, size) };
-        alphaCache.set(size, tpl);
+        const tpl = { data: alpha, grad: sobelMagnitude(alpha, tw, th) };
+        alphaCache.set(key, tpl);
         return tpl;
     }
 
-    const minSize = clamp(Math.round(baseSize * 0.65), 24, 144);
-    const maxSize = clamp(
-        Math.min(Math.round(baseSize * 2.8), Math.floor(Math.min(width, height) * 0.4)),
-        minSize,
+    // Scale list: generate sizes for the reference dimension (larger of baseW/baseH
+    // for rectangular, or the single size for square). Aspect ratio is preserved.
+    const refDim = Math.max(baseW, baseH);
+    const aspectW = baseW / refDim;
+    const aspectH = baseH / refDim;
+    const minRef = clamp(Math.round(refDim * 0.65), 24, 144);
+    const maxRef = clamp(
+        Math.min(Math.round(refDim * 2.8), Math.floor(Math.min(width, height) * 0.4)),
+        minRef,
         maxSearchSize
     );
-    const scaleList = createScaleList(minSize, maxSize);
+    const scaleList = createScaleList(minRef, maxRef);
 
-    const marginRange = Math.max(32, Math.round(baseSize * 0.75));
+    const marginRange = Math.max(32, Math.round(refDim * 0.75));
+    const minSize = Math.min(minRef, Math.round(minRef * Math.min(aspectW, aspectH)));
     const minMarginRight = clamp(defaultConfig.marginRight - marginRange, 8, width - minSize - 1);
     const maxMarginRight = clamp(defaultConfig.marginRight + marginRange, minMarginRight, width - minSize - 1);
     const minMarginBottom = clamp(defaultConfig.marginBottom - marginRange, 8, height - minSize - 1);
@@ -268,35 +300,39 @@ export function detectAdaptiveWatermarkRegion({
 
     // Check default anchor first as seed
     {
-        const seedSize = defaultConfig.logoSize;
-        const seedX = width - defaultConfig.marginRight - seedSize;
-        const seedY = height - defaultConfig.marginBottom - seedSize;
-        if (seedX >= 0 && seedY >= 0 && seedX + seedSize <= width && seedY + seedSize <= height) {
-            const tpl = getAlphaTemplate(seedSize);
-            const score = scoreCandidate(imageData, tpl.data, tpl.grad, { x: seedX, y: seedY, size: seedSize }, buffers);
+        const seedW = baseW;
+        const seedH = baseH;
+        const seedX = width - defaultConfig.marginRight - seedW;
+        const seedY = height - defaultConfig.marginBottom - seedH;
+        if (seedX >= 0 && seedY >= 0 && seedX + seedW <= width && seedY + seedH <= height) {
+            const tpl = getAlphaTemplate(seedW, seedH);
+            const score = scoreCandidate(imageData, tpl.data, tpl.grad, { x: seedX, y: seedY, size: seedW, width: seedW, height: seedH }, buffers);
             if (score) {
-                pushTopK({ x: seedX, y: seedY, size: seedSize, ...score }, score.confidence);
+                pushTopK({ x: seedX, y: seedY, w: seedW, h: seedH, ...score }, score.confidence);
             }
         }
     }
 
     // Coarse search over scale × position grid
-    for (const size of scaleList) {
-        const tpl = getAlphaTemplate(size);
+    for (const ref of scaleList) {
+        const cw = Math.round(ref * aspectW);
+        const ch = Math.round(ref * aspectH);
+        if (cw < 4 || ch < 4) continue;
+        const tpl = getAlphaTemplate(cw, ch);
         for (let mr = minMarginRight; mr <= maxMarginRight; mr += 8) {
-            const x = width - mr - size;
+            const x = width - mr - cw;
             if (x < 0) continue;
             for (let mb = minMarginBottom; mb <= maxMarginBottom; mb += 8) {
-                const y = height - mb - size;
+                const y = height - mb - ch;
                 if (y < 0) continue;
 
-                const score = scoreCandidate(imageData, tpl.data, tpl.grad, { x, y, size }, buffers);
+                const score = scoreCandidate(imageData, tpl.data, tpl.grad, { x, y, size: ref, width: cw, height: ch }, buffers);
                 if (!score) continue;
 
-                const adjustedScore = score.confidence * Math.min(1, Math.sqrt(size / 96));
+                const adjustedScore = score.confidence * Math.min(1, Math.sqrt(ref / 96));
                 if (adjustedScore < 0.06) continue;
 
-                pushTopK({ x, y, size, ...score }, adjustedScore);
+                pushTopK({ x, y, w: cw, h: ch, ...score }, adjustedScore);
             }
         }
     }
@@ -306,23 +342,29 @@ export function detectAdaptiveWatermarkRegion({
     // Fine search around top-K candidates
     let best = null;
     for (const coarse of topK) {
-        const scaleLo = clamp(coarse.size - 10, minSize, maxSize);
-        const scaleHi = clamp(coarse.size + 10, minSize, maxSize);
+        const coarseW = coarse.w || coarse.size;
+        const coarseH = coarse.h || coarse.size;
+        const coarseRef = isRectangular ? Math.max(coarseW, coarseH) : coarseW;
+        const scaleLo = clamp(coarseRef - 10, minRef, maxRef);
+        const scaleHi = clamp(coarseRef + 10, minRef, maxRef);
 
-        for (let size = scaleLo; size <= scaleHi; size += 2) {
-            const tpl = getAlphaTemplate(size);
+        for (let ref = scaleLo; ref <= scaleHi; ref += 2) {
+            const fw = isRectangular ? Math.round(ref * aspectW) : ref;
+            const fh = isRectangular ? Math.round(ref * aspectH) : ref;
+            if (fw < 4 || fh < 4) continue;
+            const tpl = getAlphaTemplate(fw, fh);
             for (let dx = -8; dx <= 8; dx += 2) {
                 const x = coarse.x + dx;
-                if (x < 0 || x + size > width) continue;
+                if (x < 0 || x + fw > width) continue;
                 for (let dy = -8; dy <= 8; dy += 2) {
                     const y = coarse.y + dy;
-                    if (y < 0 || y + size > height) continue;
+                    if (y < 0 || y + fh > height) continue;
 
-                    const score = scoreCandidate(imageData, tpl.data, tpl.grad, { x, y, size }, buffers);
+                    const score = scoreCandidate(imageData, tpl.data, tpl.grad, { x, y, size: ref, width: fw, height: fh }, buffers);
                     if (!score) continue;
 
                     if (!best || score.confidence > best.confidence) {
-                        best = { x, y, size, ...score };
+                        best = { x, y, w: fw, h: fh, ...score };
                     }
                 }
             }
@@ -340,8 +382,8 @@ export function detectAdaptiveWatermarkRegion({
         region: {
             x: best.x,
             y: best.y,
-            width: best.size,
-            height: best.size
+            width: best.w,
+            height: best.h
         }
     };
 }

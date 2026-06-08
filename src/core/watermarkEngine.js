@@ -9,6 +9,34 @@ import { detectWatermarks } from './detectionPipeline.js';
 import { applyRemovalStrategy } from './applyRemoval.js';
 import { WorkerPool } from './workerPool.js';
 
+// v2.5: Inline all watermark template PNGs as base64 data URLs at build time.
+// This avoids CORS issues and canvas tainting when the page is opened via
+// file:// protocol, where crossOrigin='anonymous' is blocked and regular
+// image loading taints the canvas.
+import bg48 from '../assets/bg_48.png';
+import bg96 from '../assets/bg_96.png';
+import bgDoubao from '../assets/bg_doubao.png';
+import bgDoubaoBr from '../assets/bg_doubao_br.png';
+import bgDoubaoBrTall from '../assets/bg_doubao_br_tall.png';
+import bgDoubaoTl from '../assets/bg_doubao_tl.png';
+import bgDoubaoTlTall from '../assets/bg_doubao_tl_tall.png';
+import doubaoBr2kTpl from '../assets/doubao_br_2k_tpl.png';
+import doubaoTl2kTpl from '../assets/doubao_tl_2k_tpl.png';
+import doubaoTlRefinedMask from '../assets/doubao_tl_refined_mask.png';
+
+const INLINE_ASSETS = {
+    'bg_48': bg48,
+    'bg_96': bg96,
+    'bg_doubao': bgDoubao,
+    'bg_doubao_br': bgDoubaoBr,
+    'bg_doubao_br_tall': bgDoubaoBrTall,
+    'bg_doubao_tl': bgDoubaoTl,
+    'bg_doubao_tl_tall': bgDoubaoTlTall,
+    'doubao_br_2k_tpl': doubaoBr2kTpl,
+    'doubao_tl_2k_tpl': doubaoTl2kTpl,
+    'doubao_tl_refined_mask': doubaoTlRefinedMask,
+};
+
 export class WatermarkEngine {
     constructor() {
         this.alphaMaps = {};
@@ -83,14 +111,17 @@ export class WatermarkEngine {
         assetKey = String(assetKey);
         if (this._assetCache[assetKey]) return this._assetCache[assetKey];
 
-        // Determine path based on asset name (v1.8 naming convention)
+        // v2.5: Use build-time inlined base64 data URLs. This completely avoids
+        // CORS issues and canvas tainting that occur when loading external PNG
+        // files via file:// protocol (where crossOrigin='anonymous' is blocked).
         const assetName = assetKey.startsWith('bg_') ? assetKey : `bg_${assetKey}`;
+        const inlineSrc = INLINE_ASSETS[assetName] || INLINE_ASSETS[assetKey];
         
-        // v1.9.8 Inlining Optimization: Check for pre-loaded assets
         let src;
-        if (typeof window !== 'undefined' && window.GWR_INLINED_ASSETS && window.GWR_INLINED_ASSETS[assetName]) {
-            src = window.GWR_INLINED_ASSETS[assetName];
+        if (inlineSrc) {
+            src = inlineSrc;
         } else {
+            // Fallback: load from external URL (e.g. assets added at runtime)
             const assetBase = typeof window !== 'undefined' && window.GWR_ASSET_BASE ? window.GWR_ASSET_BASE : './';
             src = `${assetBase}assets/${assetName}.png`;
         }
@@ -98,7 +129,7 @@ export class WatermarkEngine {
         const img = await new Promise((resolve, reject) => {
             const i = new Image();
             i.onload = () => resolve(i);
-            i.onerror = () => reject(new Error(`Failed to load asset: ${src}`));
+            i.onerror = () => reject(new Error(`Failed to load asset: ${assetName}`));
             i.src = src;
         });
 
@@ -116,20 +147,18 @@ export class WatermarkEngine {
 
         const img = await this._loadAsset(assetKey);
         
-        if (!this._reusableCanvas) {
-            this._reusableCanvas = document.createElement('canvas');
-            this._reusableCtx = this._reusableCanvas.getContext('2d', { willReadFrequently: true });
-        }
-        
         const finalW = targetW || img.width;
         const finalH = targetH || img.height;
         
-        this._reusableCanvas.width = finalW;
-        this._reusableCanvas.height = finalH;
-        this._reusableCtx.clearRect(0, 0, finalW, finalH);
-        this._reusableCtx.drawImage(img, 0, 0, img.width, img.height, 0, 0, finalW, finalH);
+        // Always create a fresh canvas to avoid cross-origin tainting from
+        // any previous drawImage calls on the reusable canvas.
+        const canvas = document.createElement('canvas');
+        canvas.width = finalW;
+        canvas.height = finalH;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, finalW, finalH);
 
-        const imageData = this._reusableCtx.getImageData(0, 0, finalW, finalH);
+        const imageData = ctx.getImageData(0, 0, finalW, finalH);
         const alphaMap = calculateAlphaMap(imageData);
         
         this.alphaMaps[cacheKey] = { data: alphaMap, width: finalW, height: finalH };

@@ -1,13 +1,16 @@
 import { registry } from '../src/core/templates/registry.js';
 import { getCatalogConfig, getAllCatalogConfigs } from '../src/core/catalog.js';
-import { calculateWatermarkPosition } from '../src/core/config.js';
+import { calculateWatermarkPosition, DETECTION_THRESHOLDS } from '../src/core/config.js';
 
 export const TC = {
     RES_0_5K: 512, RES_1K: 1024, RES_2K: 2048, RES_4K: 4096,
     LOGO_48: 48, LOGO_96: 96,
     MARGIN_32: 32, MARGIN_64: 64,
-    THRESHOLD: 0.18, PROBE_THRESHOLD: 0.18, FALLBACK_THRESHOLD: 0.30,
-    SCALED_THRESHOLD: 0.35, ADAPTIVE_THRESHOLD: 0.22,
+    THRESHOLD: DETECTION_THRESHOLDS.DEFAULT_PROBE_THRESHOLD,
+    PROBE_THRESHOLD: DETECTION_THRESHOLDS.DEFAULT_PROBE_THRESHOLD,
+    FALLBACK_THRESHOLD: DETECTION_THRESHOLDS.GLOBAL_FALLBACK_BELOW,
+    SCALED_THRESHOLD: DETECTION_THRESHOLDS.SCALED_CONFIG_MIN,
+    ADAPTIVE_THRESHOLD: DETECTION_THRESHOLDS.ADAPTIVE_MIN_CONFIDENCE,
     PROFILES: { GEMINI: 'gemini', DOUBAO: 'doubao', DALLE3: 'dalle3', AUTO: 'auto' },
     LOGO_VALUE: 255,
     TYPES: { SOLID: 'solid', GRADIENT: 'gradient', RANDOM: 'random', GRID: 'grid', NOISE: 'noise' },
@@ -397,12 +400,12 @@ export function getExpectedLogoSize(width, height, profileId = 'gemini') {
  * Verify that pixel restoration quality meets the threshold.
  * DRY pattern used in 10+ tests: assert diff/changes within watermark region.
  */
-export function assertWatermarkRegionChanged(imageData, pos, label = 'pixels') {
-    const changes = countChangedPixels(imageData, pos);
+export function assertWatermarkRegionChanged(imageData, pos, originalSnapshot, label = 'pixels') {
+    const changes = countChangedPixels(imageData, pos, originalSnapshot);
     return changes > 0;
 }
 
-function countChangedPixels(imageData, pos) {
+function countChangedPixels(imageData, pos, originalSnapshot) {
     const { data, width: imgW } = imageData;
     let changed = 0;
     for (let r = 0; r < pos.height; r++) {
@@ -411,6 +414,14 @@ function countChangedPixels(imageData, pos) {
         for (let c = 0; c < pos.width; c++) {
             const cx = Math.floor(pos.x + c);
             if (cx < 0 || cx >= imgW) continue;
+            const idx = (cy * imgW + cx) << 2;
+            const origIdx = idx;
+            // Compare each RGB channel against the original snapshot
+            if (Math.abs(data[idx] - originalSnapshot[origIdx]) > 3 ||
+                Math.abs(data[idx + 1] - originalSnapshot[origIdx + 1]) > 3 ||
+                Math.abs(data[idx + 2] - originalSnapshot[origIdx + 2]) > 3) {
+                changed++;
+            }
         }
     }
     return changed;

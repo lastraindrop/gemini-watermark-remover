@@ -12,6 +12,7 @@
 import { getCatalogConfig, getAllCatalogConfigs } from './catalog.js';
 import { registry } from './templates/registry.js';
 import { regionStdDev } from './utils.js';
+import { DETECTION_THRESHOLDS } from './config.js';
 
 export class DetectorContext {
     constructor() {
@@ -45,21 +46,23 @@ export class DetectorContext {
 const _defaultContext = new DetectorContext();
 
 const SEARCH_CONFIG = {
-    RANGE_X: 0.75,
-    RANGE_Y: 0.75,
-    CANDIDATES_LIMIT_PER_SIZE: 5,
-    PROXIMITY_THRESHOLD: 8,
-    FINE_TUNE_RANGE: 4,
+    RANGE_X: DETECTION_THRESHOLDS.SEARCH_RANGE_X,
+    RANGE_Y: DETECTION_THRESHOLDS.SEARCH_RANGE_Y,
+    CANDIDATES_LIMIT_PER_SIZE: DETECTION_THRESHOLDS.CANDIDATES_LIMIT_PER_SIZE,
+    PROXIMITY_THRESHOLD: DETECTION_THRESHOLDS.PROXIMITY_THRESHOLD,
+    FINE_TUNE_RANGE: DETECTION_THRESHOLDS.FINE_TUNE_RANGE,
+    JITTER_RANGE: DETECTION_THRESHOLDS.JITTER_RANGE,
+    JITTER_OFFICIAL: DETECTION_THRESHOLDS.JITTER_OFFICIAL,
     THRESHOLDS: {
-        ANCHORED_OFFICIAL: 0.18,  // Balanced for real images
-        ANCHORED_OTHER: 0.22,
-        STRICT_EXIT: 0.6,
-        COARSE: 0.10,  // Balancedheuristic search
-        STAGE2_NR: 0.10,
-        STAGE2_CLEAN: 0.12,
-        FINAL_ANCHORED: 0.15,
-        FINAL_ALIGNED: 0.18,
-        FINAL_FREE: 0.22
+        ANCHORED_OFFICIAL: DETECTION_THRESHOLDS.ANCHORED_OFFICIAL,
+        ANCHORED_OTHER: DETECTION_THRESHOLDS.ANCHORED_OTHER,
+        STRICT_EXIT: DETECTION_THRESHOLDS.STRICT_EXIT,
+        COARSE: DETECTION_THRESHOLDS.COARSE,
+        STAGE2_NR: DETECTION_THRESHOLDS.STAGE2_NR,
+        STAGE2_CLEAN: DETECTION_THRESHOLDS.STAGE2_CLEAN,
+        FINAL_ANCHORED: DETECTION_THRESHOLDS.FINAL_ANCHORED,
+        FINAL_ALIGNED: DETECTION_THRESHOLDS.FINAL_ALIGNED,
+        FINAL_FREE: DETECTION_THRESHOLDS.FINAL_FREE
     }
 };
 
@@ -128,7 +131,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         
         // Jitter search if not already perfect (v1.9.0)
         if (bestConf > 0.12 && bestConf < 0.95) {
-            const jitter = cfg.isOfficial ? 4 : (config.jitterRange || 6);
+            const jitter = cfg.isOfficial ? config.JITTER_OFFICIAL : config.JITTER_RANGE;
             for (let dy = -jitter; dy <= jitter; dy++) {
                 for (let dx = -jitter; dx <= jitter; dx++) {
                     if (dx === 0 && dy === 0) continue;
@@ -192,7 +195,14 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     const sizes = Array.from(dynamicSizes.values());
 
     for (const { w: sizeW, h: sizeH } of sizes) {
-        let alphaMap = alphaMaps[`${sizeW}x${sizeH}`] || alphaMaps[sizeW] || alphaMaps[sizeH];
+        // v2.3: Safer alpha map lookup. Non-square watermarks (Doubao 401×173,
+        // DALL-E 120×40) must match the exact WxH key — single-dimension fallbacks
+        // (alphaMaps[401], alphaMaps[173]) would match unrelated square templates.
+        const isRect = sizeW !== sizeH;
+        let alphaMap = alphaMaps[`${sizeW}x${sizeH}`];
+        if (!alphaMap && !isRect) {
+            alphaMap = alphaMaps[sizeW] || alphaMaps[sizeH];
+        }
         if (!alphaMap) {
             alphaMap = alphaMaps[`${sizeW}`] || alphaMaps[`${sizeH}`];
         }
@@ -261,7 +271,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                         const varianceScore = calculateVarianceScore(searchData, fx, fy, sizeW, sizeH);
                         const spatial = Math.max(0, confidence);
                         const gradient = Math.max(0, gradientConf);
-                        const weighted = spatial * 0.5 + gradient * 0.3 + varianceScore * 0.2;
+                        const weighted = spatial * DETECTION_THRESHOLDS.SPATIAL_WEIGHT + gradient * DETECTION_THRESHOLDS.GRADIENT_WEIGHT + varianceScore * DETECTION_THRESHOLDS.VARIANCE_WEIGHT;
                         confidence = Math.max(spatial, weighted);
                     }
 
@@ -374,7 +384,13 @@ export function calculateCorrelation(imageData, x, y, logoW, logoH, alphaMap, fu
 
     const varI = count * sumI2 - sumI * sumI;
     const varA = count * sumA2 - sumA * sumA;
-    if (varI <= 0.0001 || varA <= 0.0001) return 0;
+    if (varA <= 0.0001) return 0;
+    // v2.4: Near-zero image variance (smooth/solid backgrounds like sky, walls) should
+    // not kill detection entirely. Return a minimal positive value so upstream logic
+    // (calculateProbeConfidence, calculateLocalContrastCorrelation) can still attempt
+    // alternative scoring paths. The alpha map has meaningful structure even when the
+    // background is uniform — the watermark overlay introduces a subtle but detectable pattern.
+    if (varI <= 0.0001) return 0.001;
 
     return (count * sumIA - sumI * sumA) / Math.sqrt(varI * varA);
 }
@@ -442,7 +458,9 @@ export function calculateLocalContrastCorrelation(imageData, x, y, logoW, logoH,
 
             const alphaResidual = alpha - alphaNeighborSum / offsets.length;
 
-            if (Math.abs(alphaResidual) < 0.015) continue;
+            // v2.3: Lowered from 0.015→0.008 to retain faint-watermark pixels
+            // that were previously filtered out, improving detection on low-opacity overlays.
+            if (Math.abs(alphaResidual) < 0.008) continue;
 
             sumI += imageResidual;
             sumI2 += imageResidual * imageResidual;
@@ -508,10 +526,17 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
     const baseNcc = confidence;
     const baseNccGate = isScaledMatch ? 0.14 : 0.10;
 
-    if (baseNcc < baseNccGate) return { confidence: baseNcc, x: pos.x, y: pos.y };
-
-    const localContrastConf = calculateLocalContrastCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
-    confidence = Math.max(confidence, localContrastConf);
+    // v2.4: Even when NCC is very low (smooth/uniform backgrounds), the watermark may
+    // still be detectable through local contrast patterns. Try localContrast before
+    // giving up — only bail if BOTH signals are weak.
+    if (baseNcc < baseNccGate) {
+        const localContrastConf = calculateLocalContrastCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
+        if (localContrastConf < baseNccGate) return { confidence: Math.max(baseNcc, localContrastConf), x: pos.x, y: pos.y };
+        confidence = localContrastConf;
+    } else {
+        const localContrastConf = calculateLocalContrastCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
+        confidence = Math.max(confidence, localContrastConf);
+    }
 
     // If deepScan enabled, also compute gradient correlation and use hybrid score
     if (deepScan) {
@@ -521,8 +546,18 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
         const gradientsA = new Float32Array(logoW * logoH);
         const gradientConf = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
 
-        if (gradientConf < 0.02) confidence = confidence * Math.min(gradientPenalty, 0.50);
-        else {
+        if (gradientConf < 0.02) {
+            // v2.5: Use weighted multi-dimensional blend instead of aggressive multiplicative
+            // penalty. Dark/moody images (e.g. anime scenes) naturally have low gradient
+            // in the watermark region but the watermark pattern is still detectable via NCC.
+            // The old formula (confidence *= gradientPenalty) could slash NCC from 0.50→0.15,
+            // causing false negatives on valid catalog-probe matches.
+            const varianceScore = calculateVarianceScore(imageData, pos.x, pos.y, logoW, logoH);
+            const spatial = Math.max(0, confidence);
+            const gradient = Math.max(0, gradientConf);
+            const weighted = spatial * DETECTION_THRESHOLDS.SPATIAL_WEIGHT + gradient * DETECTION_THRESHOLDS.GRADIENT_WEIGHT + varianceScore * DETECTION_THRESHOLDS.VARIANCE_WEIGHT;
+            confidence = Math.max(spatial, weighted);
+        } else {
             const gradGate = isScaledMatch ? 0.18 : 0.12;
             if (confidence >= gradGate) confidence = Math.max(confidence, gradientConf);
         }
@@ -579,22 +614,56 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
  *
  * @returns {number} Score [0, 1] where higher means more watermark-like
  */
+/**
+ * v2.3: Improved variance score with adaptive handling for smooth backgrounds.
+ *
+ * On smooth/solid backgrounds (e.g. sky, studio backdrop) the reference region
+ * has very low stdDev, making a simple ratio unreliable. Instead we use:
+ *   - Ratio-based scoring (as before) when reference is textured (refStd >= 5.0)
+ *   - Absolute-delta scoring when reference is smooth (refStd < 5.0):
+ *     even a tiny watermark overlay reduces variance measurably relative to
+ *     pure noise floor. We compare wmStd against a noise-floor estimate.
+ */
 function calculateVarianceScore(imageData, x, y, logoW, logoH) {
     const { data, width: imgWidth } = imageData;
-    const size = Math.min(logoW, logoH);
-    if (size < 8 || y < size * 2) return 0.5;
+    if (logoW < 8 || logoH < 8) return 0.5;
 
-    const wmStd = regionStdDev(data, imgWidth, x, y, size);
-    const refY = Math.max(0, y - Math.round(size * 1.2));
-    const refH = Math.min(size, y - refY);
-    if (refH < 8) return 0.5;
+    const wmStd = regionStdDev(data, imgWidth, x, y, logoW, logoH);
 
-    const refStd = regionStdDev(data, imgWidth, x, refY, refH);
+    // When watermark region is near the top edge, use a reference region below it
+    let refY, refH;
+    if (y < logoH * 2) {
+        refY = y + Math.round(logoH * 1.2);
+        refH = Math.min(logoH, imgWidth > 0 ? Math.min(logoH, Math.floor(data.length / (imgWidth * 4)) - refY) : 0);
+        if (refH < 8) return 0.5;
+    } else {
+        refY = Math.max(0, y - Math.round(logoH * 1.2));
+        refH = Math.min(logoH, y - refY);
+        if (refH < 8) return 0.5;
+    }
+
+    const refStd = regionStdDev(data, imgWidth, x, refY, logoW, refH);
+
+    // Reference has meaningful texture: use ratio-based scoring
+    if (refStd >= 5.0) {
+        const ratio = wmStd / Math.max(refStd, 1e-6);
+        return Math.max(0, Math.min(1, 1 - ratio));
+    }
+
+    // Smooth background: use absolute-delta scoring with noise-floor estimate.
     if (refStd < 1e-6) return 0.5;
-    if (refStd < 5.0) return 0.5;
 
-    const ratio = wmStd / refStd;
-    return Math.max(0, Math.min(1, 1 - ratio));
+    const absDelta = refStd - wmStd;
+    if (absDelta <= 0) return 0.5;
+
+    // Normalize: if delta > 0.3 * (refStd + 1), score = 1.0
+    const noiseFloor = 1.0;
+    const normalized = clamp01(absDelta / (0.3 * (refStd + noiseFloor)));
+    return normalized;
+}
+
+function clamp01(v) {
+    return Math.max(0, Math.min(1, v));
 }
 
 /**

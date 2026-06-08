@@ -80,6 +80,7 @@ export function showLoading(text, subText = '') {
     if (!el) return;
     
     el.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
     const mainTextEl = el.querySelector('#loadingMainText');
     const subTextEl = el.querySelector('#loadingSubText');
     const retryBtn = el.querySelector('#retryBtn');
@@ -96,6 +97,7 @@ export function showLoadingFail(text) {
     if (!el) return;
     
     el.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
     const mainTextEl = el.querySelector('#loadingMainText');
     const subTextEl = el.querySelector('#loadingSubText');
     const retryBtn = el.querySelector('#retryBtn');
@@ -114,5 +116,6 @@ export function hideLoading() {
     const el = getLoadingOverlayEl();
     if (!el) return;
     el.classList.add('hidden');
+    document.body.style.overflow = '';
     document.body.classList.remove('loading');
 }

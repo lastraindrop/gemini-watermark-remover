@@ -1,12 +1,12 @@
-import { calculateWatermarkPosition, getAllPotentialConfigs } from './config.js';
+import { calculateWatermarkPosition, getAllPotentialConfigs, DETECTION_THRESHOLDS } from './config.js';
 import { calculateProbeConfidence, calculateCorrelation, detectWatermark, DetectorContext } from './detector.js';
 import { detectAdaptiveWatermarkRegion } from './adaptiveDetector.js';
 import { PROFILES } from './profiles.js';
 import { decideDetectionTier } from './decisionPolicy.js';
 
-const DEFAULT_PROBE_THRESHOLD = 0.18;
-const DEFAULT_GLOBAL_FALLBACK_THRESHOLD = 0.25;
-const DEFAULT_AUTO_NON_CATALOG_THRESHOLD = 0.35;
+const DEFAULT_PROBE_THRESHOLD = DETECTION_THRESHOLDS.DEFAULT_PROBE_THRESHOLD;
+const DEFAULT_GLOBAL_FALLBACK_THRESHOLD = DETECTION_THRESHOLDS.GLOBAL_FALLBACK_MIN;
+const DEFAULT_AUTO_NON_CATALOG_THRESHOLD = DETECTION_THRESHOLDS.AUTO_NON_CATALOG_MIN;
 
 export function getProfilesToTry(requestedProfileId = 'gemini') {
     if (requestedProfileId === 'auto') {
@@ -102,7 +102,7 @@ function isCatalogBacked(match) {
 }
 
 function validateManualConfig(imageData, manualConfig) {
-    const { x, y, width, height, assetKey } = manualConfig || {};
+    const { x, y, width, height, assetKey, forceProcess } = manualConfig || {};
     const values = { x, y, width, height };
     for (const [key, value] of Object.entries(values)) {
         if (!Number.isFinite(value)) {
@@ -115,7 +115,7 @@ function validateManualConfig(imageData, manualConfig) {
     if (x < 0 || y < 0 || x + width > imageData.width || y + height > imageData.height) {
         throw new RangeError('Invalid manualConfig: region must be inside the image bounds');
     }
-    return { x, y, width, height, assetKey };
+    return { x, y, width, height, assetKey, forceProcess };
 }
 
 function isNearExpectedAnchor(imageData, detection, profileId, options = {}) {
@@ -217,29 +217,31 @@ export async function detectProfileWatermarks({
 
     // v2.1: Manual Override Mode
     if (options.manualConfig) {
-        const { x, y, width, height, assetKey } = validateManualConfig(imageData, options.manualConfig);
+        const { x, y, width, height, assetKey, forceProcess } = validateManualConfig(imageData, options.manualConfig);
         const alphaMap = await tryGetAlphaMap(getAlphaMap, assetKey || profile.defaultAsset || '96', width, height);
         if (alphaMap) {
             const verification = calculateProbeConfidence(imageData, { x, y, width, height }, alphaMap.data, profile.id, detectionOptions, sharedContext);
+            // v2.6: forceProcess bypasses confidence gating for difficult images
+            const confidence = forceProcess ? Math.max(verification.confidence, 1.0) : verification.confidence;
             return {
                 profileId: profile.id,
                 matches: [{
-                    config: { isOfficial: false, manual: true, logoWidth: width, logoHeight: height },
+                    config: { isOfficial: false, manual: true, logoWidth: width, logoHeight: height, forceProcess: !!forceProcess },
                     pos: { x, y, width, height, anchor: 'manual' },
                     alphaMap: alphaMap.data,
-                    confidence: verification.confidence,
+                    confidence,
                     profileId: profile.id,
-                    source: 'manual-input'
+                    source: forceProcess ? 'manual-forced' : 'manual-input'
                 }],
                 winner: {
-                    config: { isOfficial: false, manual: true, logoWidth: width, logoHeight: height },
+                    config: { isOfficial: false, manual: true, logoWidth: width, logoHeight: height, forceProcess: !!forceProcess },
                     pos: { x, y, width, height, anchor: 'manual' },
                     alphaMap: alphaMap.data,
-                    confidence: verification.confidence,
+                    confidence,
                     profileId: profile.id,
-                    source: 'manual-input'
+                    source: forceProcess ? 'manual-forced' : 'manual-input'
                 },
-                confidence: verification.confidence
+                confidence
             };
         }
     }
@@ -251,9 +253,31 @@ export async function detectProfileWatermarks({
 
     // Phase 1.4: Resolve initial template config - compare 48px vs 96px NCC
     // to dynamically select the best template size before full probe
-    const potentialConfigsRaw = getAllPotentialConfigs(imageData.width, imageData.height, profile.id);
+    let potentialConfigsRaw = getAllPotentialConfigs(imageData.width, imageData.height, profile.id);
     let potentialConfigs = potentialConfigsRaw;
-    if (profileId === 'gemini' && potentialConfigsRaw.length >= 2) {
+    // v2.5: Gemini images can have either 48px or 96px watermarks regardless
+    // of resolution, placed at various standard margin boundaries (32, 64, 96).
+    // Always supplement the probe pool with both 48px and 96px templates at
+    // all standard margins, so Phase 1.4 can compare and select the true geometric
+    // winner. This prevents a larger template (e.g. 96px) from producing a moderate
+    // false-positive correlation by partially overlapping/enclosing a smaller 
+    // nested watermark (e.g. 48px).
+    if (profileId === 'gemini') {
+        const supplemented = [...potentialConfigsRaw];
+        for (const size of [48, 96]) {
+            for (const margin of [32, 64, 96]) {
+                const alreadyHas = supplemented.some(c => 
+                    (c.logoSize === size || c.logoWidth === size) && 
+                    c.marginRight === margin && 
+                    c.marginBottom === margin
+                );
+                if (!alreadyHas) {
+                    supplemented.push({ logoSize: size, marginRight: margin, marginBottom: margin, isOfficial: false });
+                }
+            }
+        }
+        potentialConfigs = await resolveBestTemplateOrder(imageData, supplemented, getAlphaMap);
+    } else if (potentialConfigsRaw.length >= 2) {
         potentialConfigs = await resolveBestTemplateOrder(imageData, potentialConfigsRaw, getAlphaMap);
     }
     for (const config of potentialConfigs) {
@@ -273,8 +297,10 @@ export async function detectProfileWatermarks({
             { ...detectionOptions, isScaledMatch: !!config.scaledFrom },
             sharedContext
         );
+        // v2.3: Lowered scaled-from threshold from 0.35→0.25 to reduce missed
+        // detections on cropped/resized images that still contain valid watermarks.
         const effectiveThreshold = config.scaledFrom
-            ? Math.max(probeThreshold, 0.35)
+            ? Math.max(probeThreshold, 0.25)
             : (config.isOfficial ? probeThreshold : Math.max(probeThreshold, 0.22));
         if (verification.confidence > effectiveThreshold) {
             upsertMatch(matches, {
@@ -290,7 +316,7 @@ export async function detectProfileWatermarks({
 
     matches.sort((a, b) => b.confidence - a.confidence);
 
-    const fallbackBelow = options.globalFallbackBelow ?? 0.30;
+    const fallbackBelow = options.globalFallbackBelow ?? DETECTION_THRESHOLDS.GLOBAL_FALLBACK_BELOW;
     const hasCatalogBackedMatch = matches.some(match => isCatalogBacked(match));
 
     // Phase 2.3: Adaptive multi-scale detection when catalog probes are weak
@@ -309,8 +335,9 @@ export async function detectProfileWatermarks({
             threshold: options.adaptiveMinConfidence ?? 0.22
         });
         if (adaptiveResult) {
-            const size = adaptiveResult.region.width;
-            const alphaMap = alphaMaps[String(size)] || alphaMaps[`${size}x${size}`];
+            const regionW = adaptiveResult.region.width;
+            const regionH = adaptiveResult.region.height;
+            const alphaMap = alphaMaps[`${regionW}x${regionH}`] || alphaMaps[String(regionW)] || alphaMaps[`${regionW}x${regionW}`];
             if (alphaMap) {
                 const config = createConfigFromDetection(imageData, {
                     x: adaptiveResult.region.x,
@@ -346,7 +373,7 @@ export async function detectProfileWatermarks({
     if (shouldRunGlobalFallback && Object.keys(alphaMaps).length > 0) {
         const detection = detectWatermark(imageData, alphaMaps, detectionOptions);
         const minGlobalConfidence = options.fallbackThreshold ?? DEFAULT_GLOBAL_FALLBACK_THRESHOLD;
-        const minFreeGlobalConfidence = options.globalFreeMinConfidence ?? 0.50;
+        const minFreeGlobalConfidence = options.globalFreeMinConfidence ?? DETECTION_THRESHOLDS.GLOBAL_FREE_MIN;
         const acceptsGlobalDetection = detection &&
             detection.confidence >= minGlobalConfidence &&
             (isNearExpectedAnchor(imageData, detection, profile.id, options) || detection.confidence >= minFreeGlobalConfidence);
