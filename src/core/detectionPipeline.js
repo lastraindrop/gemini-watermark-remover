@@ -221,7 +221,7 @@ export async function detectProfileWatermarks({
         const alphaMap = await tryGetAlphaMap(getAlphaMap, assetKey || profile.defaultAsset || '96', width, height);
         if (alphaMap) {
             const verification = calculateProbeConfidence(imageData, { x, y, width, height }, alphaMap.data, profile.id, detectionOptions, sharedContext);
-            // v2.6: forceProcess bypasses confidence gating for difficult images
+            // v2.5: forceProcess bypasses confidence gating for difficult images
             const confidence = forceProcess ? Math.max(verification.confidence, 1.0) : verification.confidence;
             return {
                 profileId: profile.id,

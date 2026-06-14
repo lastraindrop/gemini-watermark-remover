@@ -1,4 +1,4 @@
-# GWR Developer Guide (v2.5.0)
+# GWR Developer Guide (v2.5.1)
 
 本指南说明当前分支的工程结构、参数一致化规则、检测管线（五层）、前端构建架构、测试策略，以及新增模板或修改检测策略时必须遵守的流程。
 
@@ -138,7 +138,10 @@ else conf = combined
 3. UI 不得自己猜测检测坐标，必须使用引擎返回的 `pos` 与 `confidence`。
 4. 批处理成功与失败都要推进状态，不能让进度条停住。
 5. 任何批量文件名渲染都必须使用 DOM API 和 `textContent`，不能回退到 `innerHTML` 拼接。
-6. 梯度滤波的三个应用点必须保持公式一致，任何调整必须同步三处。
+6. **梯度滤波公式统一**（v2.5.1 强化）：三处梯度滤波点（`detectWatermark` Phase 2、`calculateProbeConfidence` 主探针、抖动搜索）必须调用同一个 `blendMultiDimensionalScore()` 函数。新增第四处时必须调用此函数，严禁内联公式。`gradient_formula_consistency.test.js` 自动验证此规则。
+7. **阈值单一真相源**（v2.5.1）：所有检测调优常量必须在 `config.js` 的 `DETECTION_THRESHOLDS` 中定义。`detector.js` 中出现的任何数值字面量都应有对应的 `DETECTION_THRESHOLDS.*` 引用。`threshold_sot_integrity.test.js` 自动扫描源代码验证此规则。
+8. **预设阈值不可被用户滑块覆盖**（v2.5.1）：`PERFORMANCE_PRESETS` 的 `overrides.THRESHOLDS` 是预设精调值，`getEngineOptions()` 不得用用户滑块的派生值覆盖它们。
+9. **ObjectURL 生命周期**：使用 `objectUrlManager` observer 模式（`onChange` 回调），不得 monkey-patch 其方法。
 
 ## 6. 调试重点
 
@@ -166,11 +169,28 @@ else conf = combined
 
 ```bash
 pnpm lint         # ESLint (0 errors, 0 warnings on source)
-pnpm test         # 主测试集 (44 文件, 107+ tests)
+pnpm test         # 主测试集 (49 文件, 353 tests — 快速子集，排除 3 个已知慢速文件)
+pnpm test:all     # 全量测试 (52 文件，包含慢速全局搜索文件)
 pnpm build        # 生产构建
 ```
 
-测试套件已优化：5 文件合并（bt709_color + ncc_scoring + local_contrast + gradient_penalty → detector_scoring; edge_alpha_maps → edge_cases），新增 19 项 v2.3 覆盖测试（PERFORMANCE_PRESETS、DETECTION_THRESHOLDS、矩形水印、平滑背景方差、缩放配置阈值、非正方形 alphaMap 防护）。所有修改模块（core/app/cli/python/i18n/tests）均已通过对应测试验证。
+### v2.5.1 新增测试文件 (5 文件, 36 tests)
+
+| 测试文件 | 覆盖 |
+|---------|------|
+| `gradient_formula_consistency.test.js` | 梯度公式三处一致性 + 权重和=1.0 验证（源码扫描） |
+| `threshold_sot_integrity.test.js` | 阈值单一真相源完整性 + 26 必需键验证（源码扫描） |
+| `worker_timeout_recovery.test.js` | Worker 超时 terminate+replace + 状态追踪 |
+| `apply_removal_strategy.test.js` | Gemini/非Gemini/forceProcess/多匹配/空匹配分支覆盖 |
+| `performance_preset_override.test.js` | 预设结构完整性 + 阈值不被覆盖 + 范围验证 |
+
+### 已知慢速测试（v2.5.1 记录）
+
+3 个测试文件（`detection_fallback_chain`, `adaptive_detector`, `diagnostic_baseline`）在 >1MP 图像上触发 Phase 2 全局 NCC 扫描（`deepScan: true`, `RANGE_X=0.90`），导致 ~27 亿次像素操作/测试。**非 hang，只是极慢**。`pnpm test` 默认排除这些文件；`pnpm test:all` 包含它们。
+
+### 已知预先存在的失败测试（6 个，非本次修改引入）
+
+`e2e_integration`, `engine_lifecycle`, `parameter_matrix`, `product_audit`, `sdk_api`, `worker_resilience` — 在原始代码上同样失败，已通过 `git stash` 基线对比确认。
 
 ## 8. 文档维护规则
 

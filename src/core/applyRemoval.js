@@ -64,7 +64,7 @@ export function applyRemovalStrategy(imageData, matches) {
                 ? Float32Array.from(match.alphaMap, v => v * alphaGain)
                 : match.alphaMap;
 
-            // v2.6: forceProcess skips multi-pass safety gates — use single-pass
+            // v2.5: forceProcess skips multi-pass safety gates — use single-pass
             // for difficult images where near-black/over-correction checks abort.
             if (match.config?.forceProcess) {
                 removeWatermark(imageData, scaledAlpha, match.pos);

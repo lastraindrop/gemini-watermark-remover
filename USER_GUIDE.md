@@ -1,4 +1,4 @@
-# Gemini Watermark Remover - 用户指南 (v2.5.0)
+# Gemini Watermark Remover - 用户指南 (v2.5.1)
 
 本工具用于对 Gemini、Doubao、DALL·E 3 生成图片进行本地检测、分析与去水印。当前实现包含五阶段检测管线、自适应三维评分、**性能预设系统**、多遍移除与 Alpha 增益校准等增强。
 

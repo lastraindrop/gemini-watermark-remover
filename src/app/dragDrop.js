@@ -85,6 +85,12 @@ export function handleFiles(files, elements, onBatchItemSuccess, onBatchItemErro
     if (validFiles.length === 0) return;
 
     // Inline cleanup to avoid circular import from app.js
+    // BUG-H1 fix: Remove DOM references BEFORE revoking ObjectURLs.
+    // Previously objectUrlManager.clear() ran while <img> elements still
+    // referenced the blob URLs, creating a window where images could fail
+    // to decode. Clearing innerHTML first drops all references so the
+    // subsequent revoke is safe.
+    elements.imageList.innerHTML = '';
     objectUrlManager.clear();
     elements.singlePreview.style.display = 'none';
     elements.multiPreview.style.display = 'none';
@@ -100,14 +106,13 @@ export function handleFiles(files, elements, onBatchItemSuccess, onBatchItemErro
     state.processedCount = 0;
     resetGlobalProgress();
 
-    // v2.6: Unified card-based layout for all images (single + batch).
+    // v2.5: Unified card-based layout for all images (single + batch).
     // Removes the legacy comparison-slider single-image view in favour of
     // the same card grid used for batch mode. This simplifies the code,
     // reduces per-frame layout thrashing, and makes the UX consistent.
     state.activeSingleItem = null;
     elements.singlePreview.style.display = 'none';
     elements.multiPreview.style.display = 'block';
-    elements.imageList.innerHTML = '';
     state.imageQueue.forEach(item => createImageCard(item, elements));
 
     processQueue(getEngineOptions(elements, { ignoreManual: true }), {

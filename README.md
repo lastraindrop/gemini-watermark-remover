@@ -1,6 +1,6 @@
 [中文说明](README_zh.md)
 
-# Gemini & Doubao Watermark Remover (v2.5.0)
+# Gemini & Doubao Watermark Remover (v2.5.1)
 
 A production-grade watermark detection and removal tool supporting Gemini, Doubao, and DALL-E 3 AI-generated images. Features a five-phase detection pipeline with 3D scoring, adaptive multi-scale search, multi-pass removal with safety gates, weighted alpha gain estimation, **multi-margin template probing**, **inline asset embedding**, and a decision policy tier system.
 
@@ -23,7 +23,7 @@ A production-grade watermark detection and removal tool supporting Gemini, Douba
 - **Multi-profile**: Gemini catalog-first matching, Doubao multi-anchor (TL+BR), DALL-E 3 experimental
 - **Worker pool**: multi-worker task queue for parallel pixel restoration in browser
 - **Dark mode + UI enhancements**: re-process button (no workspace reset needed), dynamic preset parameter hints, magnifier bounds clamping
-- **Localized UI**: 7 languages, optimized test suite (44 files, 107+ tests)
+- **Localized UI**: 7 languages, comprehensive test suite (44 files, 417 tests)
 - **SDK/API entrypoint** under `@lastraindrop/gemini-watermark-remover`
 
 ## Verification baseline
@@ -85,7 +85,6 @@ results = remover.remove_watermark("./input_dir", "./output_dir", deep_scan=True
 - [Developer Guide](./DEVELOPER_GUIDE.md) — Architecture, testing strategy, contribution
 - [Technical Guide](./TECHNICAL_GUIDE.md) — Working principles, algorithm details, threshold rationale
 - [Roadmap](./ROADMAP.md) — Current and planned work
-- [Comprehensive Diagnostic & Fix Plan](./DIAGNOSTIC_PLAN.md) — Full architecture audit, bug inventory, test suite optimization, frontend analysis
 - [Archived Reports](./reports/) — Historical analysis and improvement plans
 
 ## License

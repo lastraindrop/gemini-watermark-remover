@@ -8,7 +8,6 @@ import sharp from 'sharp';
 sharp.concurrency(1);
 
 import { calculateAlphaMap } from '../core/alphaMap.js';
-import { removeWatermark } from '../core/blendModes.js';
 import { detectWatermarks } from '../core/detectionPipeline.js';
 import { PROFILES } from '../core/profiles.js';
 import { applyRemovalStrategy } from '../core/applyRemoval.js';

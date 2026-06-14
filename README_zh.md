@@ -1,6 +1,6 @@
 [English](README.md)
 
-# Gemini & Doubao 无损去水印工具 (v2.5.0)
+# Gemini & Doubao 无损去水印工具 (v2.5.1)
 
 用于检测、分析并去除 Gemini、Doubao 图片中可见 AI 水印的独立 fork 生产级客户端工具。v2.3.0 包含五阶段检测管线、三维评分、**性能预设系统**、自适应多尺度搜索、多遍安全移除、Alpha 增益校准与决策分阶系统。前端已实现零外部CDN依赖的完全本地化部署，支持暗色模式与性能模式选择。
 
@@ -62,7 +62,7 @@ pnpm build       # clean (静态 Tailwind CSS，无 CDN 依赖)
 - [开发者指南](./DEVELOPER_GUIDE.md)
 - [技术指南](./TECHNICAL_GUIDE.md)
 - [路线图](./ROADMAP.md)
-- [综合诊断与修复计划](./DIAGNOSTIC_PLAN.md)
+- [历史报告归档](./reports/)
 - [归档报告](./reports/)
 
 ## 许可证

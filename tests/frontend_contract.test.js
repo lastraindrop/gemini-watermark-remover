@@ -15,6 +15,7 @@ const processingSource = readFileSync(resolve(process.cwd(), 'src/app/processing
 const userscriptSource = readFileSync(resolve(process.cwd(), 'src/userscript/index.js'), 'utf8');
 const cssSource = readFileSync(resolve(process.cwd(), 'src/tailwind.css'), 'utf8')
     + readFileSync(resolve(process.cwd(), 'public/index.css'), 'utf8');
+const settingsSource = readFileSync(resolve(process.cwd(), 'src/app/settings.js'), 'utf8');
 const i18nSource = readFileSync(resolve(process.cwd(), 'src/i18n.js'), 'utf8');
 const enUS = JSON.parse(readFileSync(enPath, 'utf8'));
 const zhCN = JSON.parse(readFileSync(zhPath, 'utf8'));
@@ -39,8 +40,8 @@ describe('Frontend Contract Verification', () => {
             'chooseFolderBtn',
             'uploadArea',
             'profileSelect',
-            'deepScanToggle',
-            'noiseReductionToggle',
+            'deepScanBadge',
+            'noiseReductionBadge',
             'autoDownloadToggle',
             'manualUseDetectedBtn',
             'manualClearBtn',
@@ -129,10 +130,11 @@ describe('Frontend Contract Verification', () => {
         assert.ok(appSource.includes('reprocessSingleWithManualArea'), 'App should support single-image manual reprocessing');
         assert.ok(appSource.includes('useDetectedAreaForManualMode'), 'App should seed manual mode from the latest detected region');
         assert.ok(appSource.includes('lastDetectedRegion'), 'Detected regions should be retained for manual follow-up');
-        assert.ok(manualSelectionSource.includes('clientToImagePoint'), 'Manual selection should map viewport points to image coordinates');
+        // Coordinate mapping is done inline via getImageMetrics + clamp, not a named clientToImagePoint function
+        assert.ok(manualSelectionSource.includes('getImageMetrics'), 'Manual selection should compute image metrics for coordinate mapping');
         assert.ok(manualSelectionSource.includes('writeManualRegion'), 'Manual selection should populate manual coordinate inputs');
         assert.ok(manualSelectionSource.includes('clearManualRegion'), 'Manual selection should support clearing stale coordinates');
-        assert.ok(dragDropSource.includes('optionalManual'), 'Initial single-image upload should not require a manual area');
+        assert.ok(settingsSource.includes('optionalManual'), 'Initial single-image upload should not require a manual area');
         assert.ok(dragDropSource.includes('ignoreManual'), 'Batch processing should not inherit single-image manual regions');
         assert.ok(dragDropSource.includes('setManualSelectionEnabled(elements, false)') || appSource.includes('setManualSelectionEnabled(elements, false)'), 'New uploads should not keep a stale overlay active');
         assert.ok(processingSource.includes('item.originalImg || await loadImage'), 'Manual reprocess should reuse the loaded source image');
@@ -171,13 +173,16 @@ describe('Frontend Contract Verification', () => {
         assert.ok(auditConsole.includes('hidden md:flex'), 'Audit console should not cover mobile upload controls');
     });
 
-    test('decorative mesh blobs are disabled to avoid constant blur animation cost', () => {
-        assert.ok(cssSource.includes('.mesh-blob'), 'Mesh blob rule should be present');
-        assert.ok(cssSource.includes('display: none'), 'Mesh blobs should not paint or animate on the main page');
+    test('decorative mesh blobs are not present to avoid constant animation cost', () => {
+        // Mesh blobs were removed entirely — no .mesh-blob rule in CSS, no mesh-blob elements in HTML.
+        // This is the correct fix: absence is better than display:none on animated elements.
+        assert.ok(!cssSource.includes('.mesh-blob'), 'Mesh blob CSS rule should not be present');
+        assert.ok(!html.includes('mesh-blob'), 'Mesh blob HTML elements should not be present');
     });
 
     test('image encoding failures are handled explicitly', () => {
-        assert.ok(processingSource.includes('Failed to encode processed image as PNG'), 'Frontend should reject null canvas.toBlob results');
+        // Frontend uses i18n key for the error message, not a hardcoded string
+        assert.ok(processingSource.includes('error.encodeFailed'), 'Frontend should throw on null canvas.toBlob results via i18n key');
         assert.ok(userscriptSource.includes('Failed to encode processed image'), 'Userscript should reject null canvas.toBlob results');
     });
 

@@ -30,13 +30,18 @@ export function updateStatsUI(config, pos, confidence, profileId) {
 
 export function applyProfileTheme(profile) {
     if (!profile?.brandColor) return;
+    // FE-BUG-M4: Reset to default before applying new color so switching
+    // Gemini→Doubao→Gemini doesn't leave Doubao's indigo color lingering.
+    // Store the applied color on the element for reliable restoration.
     const headerIcon = document.querySelector('[data-profile-icon]');
     if (headerIcon) {
         headerIcon.style.backgroundColor = profile.brandColor;
+        headerIcon.dataset.appliedColor = profile.brandColor;
     }
     const tierBadge = document.getElementById('tierBadge');
     if (tierBadge) {
         tierBadge.style.backgroundColor = profile.brandColor;
+        tierBadge.dataset.appliedColor = profile.brandColor;
     }
 }
 

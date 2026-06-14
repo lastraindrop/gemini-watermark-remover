@@ -1,7 +1,7 @@
 {
   "name": "@lastraindrop/gemini-watermark-remover",
   "description": "Automatically removes watermarks from Gemini AI generated images",
-  "version": "2.2.3",
+  "version": "2.5.1",
   "author": "lastraindrop contributors",
   "repository": {
     "type": "git",

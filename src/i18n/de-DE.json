@@ -134,5 +134,8 @@
   "drag.dropHint": "Bilder hier ablegen",
   "error.fileTooLarge": "{{name}} überschreitet die maximale Dateigröße",
   "error.imageTooLarge": "Bild zu groß: {{width}}x{{height}} überschreitet das {{limit}}MP-Limit.",
-  "error.encodeFailed": "Verarbeitetes Bild konnte nicht als PNG kodiert werden"
+  "error.encodeFailed": "Verarbeitetes Bild konnte nicht als PNG kodiert werden",
+  "manual.templateSize": "Wasserzeichen-Vorlagengröße",
+  "manual.forceProcess": "Erzwungene Verarbeitung (Konfidenzprüfungen für schwierige Bilder überspringen)",
+  "manual.dragHint": "Ziehen, um den Wasserzeichenbereich auszuwählen"
 }

@@ -18,12 +18,12 @@ Reviewed areas:
 - `tests/i18n.test.js`
 - `tests/build_pipeline.test.js`
 
-Current verification status (v2.1.0):
+Current verification status (v2.5.1):
 
 - `tests/frontend_contract.test.js`: passing
 - `tests/build_pipeline.test.js`: passing
-- `tests/i18n.test.js`: passing
-- full suite: 369/369 passing
+- `tests/i18n_completeness.test.js`: passing
+- full suite: 44 files, 417 test cases
 
 ## 2. Frontend Architecture
 

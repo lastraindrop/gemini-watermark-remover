@@ -21,33 +21,48 @@ export class WorkerPool {
         }
 
         for (let i = 0; i < this._poolSize; i++) {
-            try {
-                const worker = new Worker(this._workerUrl);
-                worker.onmessage = (e) => {
-                    const { taskId, imageData, error } = e.data;
-                    const task = this._activeTasks.get(taskId);
-                    if (task) {
-                        this._activeTasks.delete(taskId);
-                        clearTimeout(task.timer);
-                        task.workerInUse = false;
-                        if (error) {
-                            task.reject(new Error(error));
-                        } else {
-                            task.resolve(imageData);
-                        }
+            if (!this._spawnReplacementWorker()) break;
+        }
+    }
+
+    /**
+     * Create and register a single new worker with the standard message/error
+     * handlers. Returns true on success, false on failure (sets _failed).
+     * Used both for initial pool creation and for replacing timed-out workers.
+     */
+    _spawnReplacementWorker() {
+        if (this._failed || this._terminated) return false;
+        if (typeof window === 'undefined' || !window.Worker || window.GM_info) {
+            this._failed = true;
+            return false;
+        }
+        try {
+            const worker = new Worker(this._workerUrl);
+            worker.onmessage = (e) => {
+                const { taskId, imageData, error } = e.data;
+                const task = this._activeTasks.get(taskId);
+                if (task) {
+                    this._activeTasks.delete(taskId);
+                    clearTimeout(task.timer);
+                    task.workerInUse = false;
+                    if (error) {
+                        task.reject(new Error(error));
+                    } else {
+                        task.resolve(imageData);
                     }
-                    this._processQueue();
-                };
-                worker.onerror = (e) => {
-                    console.warn('Worker pool error:', e);
-                    this._failAll();
-                };
-                worker._inUse = false;
-                this._workers.push(worker);
-            } catch {
-                this._failed = true;
-                break;
-            }
+                }
+                this._processQueue();
+            };
+            worker.onerror = (e) => {
+                console.warn('Worker pool error:', e);
+                this._failAll();
+            };
+            worker._inUse = false;
+            this._workers.push(worker);
+            return true;
+        } catch {
+            this._failed = true;
+            return false;
         }
     }
 
@@ -74,8 +89,17 @@ export class WorkerPool {
 
         const timeout = Math.max(5000, (task.imageData.width * task.imageData.height) / 500000);
         const timer = setTimeout(() => {
+            // BUG-H2 fix: terminate the zombie worker instead of just marking it
+            // free. A timed-out worker may still be running heavy computation in
+            // the background, and reusing it risks delivering stale results from
+            // the previous task to a new caller. Replace it with a fresh worker.
             this._activeTasks.delete(taskId);
-            worker._inUse = false;
+            const workerIndex = this._workers.indexOf(worker);
+            try { worker.terminate(); } catch {}
+            if (workerIndex !== -1) {
+                this._workers.splice(workerIndex, 1);
+                this._spawnReplacementWorker();
+            }
             task.reject(new Error('Worker removal timed out'));
             this._processQueue();
         }, timeout);

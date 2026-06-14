@@ -171,6 +171,6 @@ function updateManualSelectBox(image) {
 }
 
 // Backward-compat: legacy callers still use updateManualSelectionOverlay
-export function updateManualSelectionOverlay(elements) {
+export function updateManualSelectionOverlay(_elements) {
     updateManualSelectBox(document.getElementById('manualSelectImage'));
 }

@@ -1,9 +1,12 @@
 export function setupMagnifier(elements) {
     const slider = elements.comparisonSlider;
     const lens = elements.magnifierLens;
-    const processedImg = document.getElementById('sliderProcessed');
 
     if (!slider || !lens) return;
+
+    const LENS_SIZE = 150;        // total lens dimension in px
+    const LENS_OFFSET = LENS_SIZE / 2;  // FE-BUG-L3: derive instead of hardcoding 75
+    const ZOOM = 3;
 
     const moveLens = (e) => {
         if (elements.comparisonSlider.classList.contains('hidden')) return;
@@ -22,16 +25,17 @@ export function setupMagnifier(elements) {
 
         lens.classList.remove('hidden');
 
-        const LENS_SIZE = 150; // 75px offset in each direction, 150px total
-        const clampedLeft = Math.max(0, Math.min(rect.width - LENS_SIZE, x - 75));
-        const clampedTop = Math.max(0, Math.min(rect.height - LENS_SIZE, y - 75));
+        const clampedLeft = Math.max(0, Math.min(rect.width - LENS_SIZE, x - LENS_OFFSET));
+        const clampedTop = Math.max(0, Math.min(rect.height - LENS_SIZE, y - LENS_OFFSET));
         lens.style.left = `${clampedLeft}px`;
         lens.style.top = `${clampedTop}px`;
 
-        const zoom = 3;
+        // FE-BUG-H3: fetch processedImg dynamically inside moveLens instead of
+        // capturing once at module load (which could be null if DOM not ready).
+        const processedImg = document.getElementById('sliderProcessed');
         lens.style.backgroundImage = `url(${processedImg?.src || ''})`;
-        lens.style.backgroundSize = `${rect.width * zoom}px ${rect.height * zoom}px`;
-        lens.style.backgroundPosition = `-${x * zoom - 75}px -${y * zoom - 75}px`;
+        lens.style.backgroundSize = `${rect.width * ZOOM}px ${rect.height * ZOOM}px`;
+        lens.style.backgroundPosition = `-${x * ZOOM - LENS_OFFSET}px -${y * ZOOM - LENS_OFFSET}px`;
     };
 
     slider.addEventListener('mousemove', moveLens);

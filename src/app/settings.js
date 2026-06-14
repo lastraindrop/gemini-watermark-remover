@@ -5,22 +5,6 @@ import { applyProfileTheme } from './viewModes.js';
 import { PERFORMANCE_PRESETS, DEFAULT_PERFORMANCE_PRESET, DETECTION_THRESHOLDS } from '../core/config.js';
 import { readManualTemplateSize, readManualForceProcess } from './manualSelection.js';
 
-/**
- * Merge two objects deeply — used to layer preset overrides on top of user
- * threshold/penalty settings without losing either.
- */
-function deepMerge(base, overrides) {
-    const result = { ...base };
-    for (const [key, val] of Object.entries(overrides || {})) {
-        if (val && typeof val === 'object' && !Array.isArray(val) && base[key] && typeof base[key] === 'object' && !Array.isArray(base[key])) {
-            result[key] = deepMerge(base[key], val);
-        } else {
-            result[key] = val;
-        }
-    }
-    return result;
-}
-
 export function saveSettings(elements) {
     const settings = {
         profileId: elements.profileSelect?.value,
@@ -28,6 +12,8 @@ export function saveSettings(elements) {
         performancePreset: elements.performanceSelect?.value || DEFAULT_PERFORMANCE_PRESET,
         threshold: elements.thresholdSlider?.value,
         penalty: elements.penaltySlider?.value,
+        // FE-BUG-M1: persist autoDownload so user choice survives reloads
+        autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false,
         darkMode: typeof localStorage !== 'undefined' ? localStorage.getItem('gwr_dark_mode') : null
     };
     localStorage.setItem('gwr_pro_settings', JSON.stringify(settings));
@@ -69,6 +55,11 @@ export function loadSettings(elements) {
                 if (elements.penaltyVal) elements.penaltyVal.textContent = val.toFixed(2);
             }
         }
+        // FE-BUG-M1: restore autoDownload toggle
+        if (settings.autoDownload != null) {
+            const toggle = document.getElementById('autoDownloadToggle');
+            if (toggle) toggle.checked = !!settings.autoDownload;
+        }
     } catch (error) {
         AuditLog.log(`Settings ignored: ${error.message}`, 'err');
     }
@@ -102,27 +93,19 @@ export function setupLanguageSelector(elements) {
 
 export function getEngineOptions(elements, behavior = {}) {
     const thresholdVal = parseFloat(elements.thresholdSlider?.value ?? String(DETECTION_THRESHOLDS.DEFAULT_PROBE_THRESHOLD));
-    const penaltyVal = parseFloat(elements.penaltySlider?.value ?? '0.30');
+    const penaltyVal = parseFloat(elements.penaltySlider?.value ?? String(DETECTION_THRESHOLDS.GRADIENT_PENALTY_DEFAULT));
     const presetKey = elements.performanceSelect?.value || DEFAULT_PERFORMANCE_PRESET;
     const preset = PERFORMANCE_PRESETS[presetKey] || PERFORMANCE_PRESETS[DEFAULT_PERFORMANCE_PRESET];
 
-    // Start with default overrides (user threshold/penalty sliders)
-    const baseOverrides = {
-        jitterRange: Math.round(thresholdVal * 30),
-        THRESHOLDS: {
-            ANCHORED_OFFICIAL: thresholdVal,
-            ANCHORED_OTHER: thresholdVal + 0.04,
-            COARSE: thresholdVal * 0.55,
-            FINAL_ANCHORED: Math.max(0.10, thresholdVal - 0.03),
-            FINAL_ALIGNED: thresholdVal,
-            FINAL_FREE: thresholdVal + 0.04
-        }
-    };
-
-    // Layer the performance preset on top (preset wins on structural keys like
-    // RANGE_X, CANDIDATES_LIMIT, etc.; user threshold slider still controls
-    // confidence thresholds via THRESHOLDS merge).
-    const mergedOverrides = deepMerge(baseOverrides, preset.overrides);
+    // FE-BUG-H1 fix: The preset's THRESHOLDS are carefully tuned per-mode and
+    // must NOT be overwritten by the user's threshold slider. Previously,
+    // baseOverrides supplied derived THRESHOLDS (thresholdVal+0.04, *0.55, etc.)
+    // which deepMerge would spread ON TOP of the preset, clobbering the preset's
+    // values. Now the preset is the base; the user slider only controls the
+    // top-level probeThreshold/fallbackThreshold passed via opts (not THRESHOLDS).
+    // The preset's structural overrides (RANGE_X, JITTER, CANDIDATES, etc.) are
+    // preserved exactly as designed.
+    const mergedOverrides = { ...preset.overrides };
 
     const opts = {
         profileId: elements.profileSelect?.value || DEFAULT_PROFILE.id,
@@ -159,6 +142,9 @@ export function getEngineOptions(elements, behavior = {}) {
         for (const [key, value] of Object.entries(manualConfig)) {
             if (!Number.isFinite(value)) throw new Error(`Invalid manual ${key}: expected a number`);
         }
+        // FE-BUG-H4 fix: validate upper bounds too, not just lower bounds.
+        // The engine's validateManualConfig will reject out-of-bounds regions,
+        // but surfacing the error here gives a clearer message to the user.
         if (manualConfig.x < 0 || manualConfig.y < 0 || manualConfig.width <= 0 || manualConfig.height <= 0) {
             throw new Error(i18n.t('toast.manualAreaRequired'));
         }
@@ -167,7 +153,7 @@ export function getEngineOptions(elements, behavior = {}) {
             y: Math.trunc(manualConfig.y),
             width: Math.trunc(manualConfig.width),
             height: Math.trunc(manualConfig.height),
-            // v2.6: Template size for alpha map selection & force flag
+            // v2.5: Template size for alpha map selection & force flag
             assetKey: String(readManualTemplateSize()),
             forceProcess: readManualForceProcess()
         };
@@ -177,24 +163,34 @@ export function getEngineOptions(elements, behavior = {}) {
 }
 
 /**
- * v2.3: Synchronize the Deep Scan and Noise Reduction toggle switches
+ * v2.3: Synchronize the Deep Scan and Noise Reduction display badges
  * to reflect the current performance preset. Also updates the preset
  * info hint to show which parameters are affected.
+ *
+ * FE-BUG-C2: These were previously interactive checkboxes that had no
+ * effect (getEngineOptions ignores them, reading only preset values).
+ * Now they are honest read-only status indicators — visually showing
+ * the user what the preset controls, without pretending to be toggles.
  */
 export function syncTogglesToPreset(elements) {
     const presetKey = elements?.performanceSelect?.value || DEFAULT_PERFORMANCE_PRESET;
     const preset = PERFORMANCE_PRESETS[presetKey] || PERFORMANCE_PRESETS[DEFAULT_PERFORMANCE_PRESET];
 
-    const toggleIds = [
-        { id: 'deepScanToggle', value: preset.deepScan, label: 'deepScanLabel' },
-        { id: 'noiseReductionToggle', value: preset.noiseReduction, label: 'noiseReductionLabel' }
+    const badges = [
+        { id: 'deepScanBadge', active: preset.deepScan },
+        { id: 'noiseReductionBadge', active: preset.noiseReduction }
     ];
 
-    for (const { id, value } of toggleIds) {
-        const toggle = document.getElementById(id);
-        if (toggle) {
-            toggle.checked = value;
-            toggle.classList.toggle('preset-controlled', true);
+    for (const { id, active } of badges) {
+        const badge = document.getElementById(id);
+        if (!badge) continue;
+        const dot = badge.querySelector('span:first-child');
+        if (active) {
+            badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 transition-colors';
+            if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+        } else {
+            badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-100 dark:bg-slate-800 text-slate-400 transition-colors';
+            if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-400';
         }
     }
 

@@ -134,5 +134,8 @@
   "drag.dropHint": "画像をここにドロップ",
   "error.fileTooLarge": "{{name}} はサイズ上限を超えています",
   "error.imageTooLarge": "画像が大きすぎます：{{width}}x{{height}} は {{limit}}MP の制限を超えています。",
-  "error.encodeFailed": "処理結果をPNGとしてエンコードできませんでした"
+  "error.encodeFailed": "処理結果をPNGとしてエンコードできませんでした",
+  "manual.templateSize": "透かしテンプレートサイズ",
+  "manual.forceProcess": "強制処理（難易度の高い画像の信頼度チェックをスキップ）",
+  "manual.dragHint": "ドラッグして透かし領域を選択"
 }

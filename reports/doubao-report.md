@@ -19,7 +19,7 @@ Supported catalog entries include the main square and portrait/landscape resolut
 
 - The current support path is shared by Web, CLI, and Python bridge.
 - Detection and removal use the same candidate policy as Gemini.
-- Current local verification baseline is `369/369` passing (v2.1.0). Updated baseline: `452/452` (v2.2.0).
+- Current local verification baseline is `417` test cases passing (v2.5.1).
 
 ## 4. Key Notes
 

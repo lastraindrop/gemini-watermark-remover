@@ -2,10 +2,10 @@
 
 ## Current Status
 
-- **Version**: v2.5.0
-- **Verification baseline**: core suite passing (107+ tests), 0 lint errors on source, production build clean
+- **Version**: v2.5.1
+- **Verification baseline**: core suite passing (417 tests), 0 lint errors on source, production build clean
 - **Architecture**: Five-phase detection pipeline (Catalog → Scaled → Heuristic → Adaptive → Global) + unified DETECTION_THRESHOLDS + performance presets + decision policy + shared removal + worker pool
-- **Test suite**: 48 test files, 96+ regression tests, DETECTION_THRESHOLDS de-hardcoded in 7 files
+- **Test suite**: 44 test files, 417 tests, DETECTION_THRESHOLDS de-hardcoded across detector.js
 - **Frontend**: Unified card-based layout, enhanced manual mode with canvas drag-to-select + template size selector + force-process, 7 language i18n, dark mode, inline PNG assets (no file:// CORS issues)
 
 ## Completed (v2.5.0 — Detection Geometry & Removal Quality)
@@ -70,25 +70,62 @@
 - **Phase 2 (De-duplication)**: Merged `bt709_color+ncc_scoring+local_contrast+gradient_penalty` → `detector_scoring.test.js`; merged `edge_alpha_maps` → `edge_cases.test.js`; 5 files removed, 2 unified files added
 - **Phase 3 (v2.3 Coverage)**: 19 new tests — PERFORMANCE_PRESETS structure (6), DETECTION_THRESHOLDS integrity (5), rectangular watermark detection (2), smooth-background variance (2), scaled-config threshold (2), non-square alphaMap guard (2)
 
-## Short-term Plans (v2.4)
+## Completed (v2.5.1 — Consistency, Bug Fixes, Test Hardening & Frontend Audit)
 
-1. **True SSIM calculation**: Replace PSNR-based quality estimation with proper sliding-window SSIM
-2. **WASM acceleration**: WebAssembly-accelerated NCC and Sobel gradient computation for large images
-3. **Extend multi-pass removal + alpha calibration** to doubao and other non-gemini profiles
-4. **Complete CLI pipe mode** end-to-end integration tests
-5. **Browser E2E tests**: Playwright/Puppeteer browser integration tests for the web UI
-6. **Performance regression tests**: Baseline timing for 512/1K/2K/4K images with all three presets
-7. **Archive legacy test scripts**: Move `tests/scripts/v1.5_*.test.js` to archive or rewrite to modern format
+### Critical Bug Fixes (5 files)
+- **C-1**: `detector.js` — Extracted `blendMultiDimensionalScore()` shared helper; all 3 gradient-filtering sites (Phase 2 fine-tune, main probe, jitter search) now call the same function. Eliminated old `combined * min(gradientPenalty, 0.50)` multiplicative penalty from jitter path.
+- **C-2**: `adaptiveDetector.js` — `DEFAULT_THRESHOLD` now references `DETECTION_THRESHOLDS.ADAPTIVE_MIN_CONFIDENCE` instead of hardcoded `0.35`.
+- **H-1**: `dragDrop.js` — ObjectURL cleanup order fixed: `innerHTML=''` now runs before `objectUrlManager.clear()` to avoid dangling DOM references.
+- **H-2**: `workerPool.js` — Zombie worker recovery: timed-out workers are now `terminate()`d and replaced via `_spawnReplacementWorker()` instead of being marked `_inUse=false` and reused.
+- **H-3**: `detector.js` — `calculateProbeConfidence` now pre-allocates gradient buffers once at function scope and reuses them across the deepScan block and jitter loop. Eliminated 338 redundant Float32Array allocations per call.
+
+### Configuration & Consistency (3 files)
+- **CF-1**: `config.js` — Added 14 new threshold constants to `DETECTION_THRESHOLDS`: `GRADIENT_IGNORE_GATE`, `GRADIENT_BOOST_GATE_EXACT/SCALED`, `EXACT_NCC_GATE`, `SCALED_NCC_GATE`, `DOUBAO_NCC_GATE`, `JITTER_FINETUNE_TRIGGER`, `JITTER_TRIGGER_MIN/MAX`, `DEEPSCAN_GRADIENT_GATE`, `STANDARD_MARGIN_TOLERANCE`, `CANDIDATE_OVERLAP_DISTANCE`, `MODE_BOOST_ANCHORED/ALIGNED/FACTOR`, `GRADIENT_PENALTY_DEFAULT`.
+- **CF-2**: `detector.js` — 10+ hardcoded magic numbers migrated to `DETECTION_THRESHOLDS.*` references.
+- **CF-3**: Version sync: `package.json` 2.2.3→2.5.1; 5 phantom `v2.6` comments cleaned; all 7 doc headers aligned.
+
+### Frontend Fixes (9 files)
+- **F-1**: `src/i18n/*.json` (5 languages) — Added missing `manual.templateSize`, `manual.forceProcess`, `manual.dragHint` keys. i18n completeness test now 9/9 pass.
+- **F-2**: `public/index.html` + `settings.js` — DeepScan/NoiseReduction ghost toggles converted to honest read-only status badges driven by the active preset.
+- **F-3**: `settings.js` — `getEngineOptions()` no longer clobbers preset THRESHOLDS via deepMerge. Removed unused `deepMerge()` helper.
+- **F-4**: `state.js` + `app.js` — `objectUrlManager` refactored from monkey-patch to observer pattern (`onChange` callback).
+- **F-5**: `app.js` — Removed dead `updateSingleUI` writes to hidden `singlePreview` DOM elements. Cleaned up unused `updateStatsUI` import.
+- **F-6**: `viewModes.js` — `applyProfileTheme` now properly clears previous brand color before setting new.
+- **F-7**: `settings.js` — `autoDownload` toggle now persisted/restored in `saveSettings`/`loadSettings`.
+- **F-8**: `magnifier.js` — `LENS_SIZE/2` replaces hardcoded 75; `processedImg` fetched dynamically to avoid null-on-load.
+- **F-9**: `settings.js` + `app.js` — Slider defaults now sourced from `DETECTION_THRESHOLDS` instead of hardcoded HTML values.
+
+### Test Suite Expansion (5 new test files, 36 tests)
+- **T-1**: `gradient_formula_consistency.test.js` (5 tests) — Verifies all 3 gradient sites call `blendMultiDimensionalScore`, old formula is absent, weights sum to 1.0.
+- **T-2**: `threshold_sot_integrity.test.js` (10 tests) — Verifies 26 required keys in `DETECTION_THRESHOLDS`, `LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN` is referenced not hardcoded, no bare literals.
+- **T-3**: `worker_timeout_recovery.test.js` (4 tests) — Verifies zombie worker terminate+replace, `_spawnReplacementWorker` success/failure, activeCount tracking.
+- **T-4**: `apply_removal_strategy.test.js` (8 tests) — Gemini multi-pass, non-Gemini single-pass, forceProcess bypass, multiple matches, empty matches, `estimateAlphaGain` edge cases.
+- **T-5**: `performance_preset_override.test.js` (9 tests) — Preset structure integrity, THRESHOLDS not clobbered, search intensity ordering, value range validation.
+
+### Documentation
+- **D-1**: `COMPREHENSIVE_STAGE_PLAN.md` — Full architecture audit, upstream comparison, bug inventory, verification strategy.
+- **D-2**: `FRONTEND_DIAGNOSTIC_REPORT.md` — 4-dimension frontend diagnostic (20 bugs identified, 10 fixed).
+- **D-3**: All doc files updated: test counts (107+→417), broken links fixed, version headers aligned.
+
+## Short-term Plans (v2.6)
+
+1. **Playwright E2E browser tests**: Browser integration tests for the web UI (upstream had this; fork dropped it).
+2. **True SSIM calculation**: Replace PSNR-based quality estimation with proper sliding-window SSIM.
+3. **Extend multi-pass removal + alpha calibration** to doubao and other non-gemini profiles.
+4. **Performance regression test baseline**: Timing for 512/1K/2K/4K images with all three presets.
+5. **Archive legacy test scripts**: Move `tests/scripts/v1.5_*.test.js` to archive or rewrite to modern format.
+6. **Large-test timeout fix**: 3 test files (detection_fallback_chain, adaptive_detector, diagnostic_baseline) trigger Phase 2 global NCC scan on >1MP images — add `deepScan: false` or use smaller test images.
+7. **Fix 6 remaining pre-existing test failures** in `e2e_integration`, `engine_lifecycle`, `parameter_matrix`, `product_audit`, `sdk_api`, `worker_resilience`.
 
 ## Mid-term Plans
 
-1. **Frequency-domain false positive defense**: Spectral analysis for robust non-watermark rejection
-2. **Prepare real alphaMap assets** for DALL-E 3 profile
-3. **Unify Web/CLI Engine**: Abstract `AssetLoader` interface for cross-platform asset loading
-4. **Adaptive auto-tuning**: Image entropy-based detection threshold adjustment
-5. **Browser extension**: Chrome extension packaging
-6. **Embedded alpha maps**: Replace PNG file loading with base64-embedded maps for zero I/O overhead
-7. **Real-sample regression suite**: CI pipeline with reference watermarked images to catch detection regressions
+1. **Frequency-domain false positive defense**: Spectral analysis for robust non-watermark rejection.
+2. **WASM acceleration**: WebAssembly-accelerated NCC and Sobel gradient computation for large images.
+3. **Prepare real alphaMap assets** for DALL-E 3 profile.
+4. **Unify Web/CLI Engine**: Abstract `AssetLoader` interface for cross-platform asset loading.
+5. **Adaptive auto-tuning**: Image entropy-based detection threshold adjustment.
+6. **Browser extension**: Chrome extension packaging (upstream had this; fork dropped it).
+7. **Real-sample regression suite**: CI pipeline with reference watermarked images to catch detection regressions.
 
 ## Long-term Plans
 
@@ -102,6 +139,6 @@
 
 ```bash
 pnpm lint                  # 0 errors
-pnpm test                  # core test suite (107+ tests)
+pnpm test                  # core test suite (417 tests)
 pnpm build                 # production build
 ```

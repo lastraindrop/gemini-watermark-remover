@@ -2,6 +2,7 @@ import i18n from './i18n.js';
 import { WatermarkEngine } from './core/watermarkEngine.js';
 import { showLoading, showLoadingFail, hideLoading } from './utils.js';
 import { getAllProfiles } from './core/profiles.js';
+import { DETECTION_THRESHOLDS } from './core/config.js';
 
 import { state, objectUrlManager } from './app/state.js';
 import { AuditLog, showToast, resetGlobalProgress } from './app/ui.js';
@@ -9,7 +10,7 @@ import { downloadImage, downloadAllAsZip, processSingle } from './app/processing
 import { setupWindowDragAndDrop, handleFiles } from './app/dragDrop.js';
 import { setupKeyboardShortcuts } from './app/keyboard.js';
 import { setupLanguageSelector, saveSettings, loadSettings, getEngineOptions, syncTogglesToPreset } from './app/settings.js';
-import { switchViewMode, setupSlider, updateStatsUI, applyProfileTheme } from './app/viewModes.js';
+import { switchViewMode, setupSlider, applyProfileTheme } from './app/viewModes.js';
 import { setupMagnifier } from './app/magnifier.js';
 import { clearManualRegion, setupManualSelection, setManualSelectionEnabled, updateManualSelectionOverlay, writeManualRegion, showManualSelectCanvas, hideManualSelectCanvas } from './app/manualSelection.js';
 
@@ -23,6 +24,28 @@ async function getVersion() {
         _pkgVersion = 'dev';
     }
     return _pkgVersion;
+}
+
+/**
+ * FE-BUG-L7: Synchronize HTML slider default values with DETECTION_THRESHOLDS
+ * so config changes propagate to the UI without manually editing HTML.
+ * Called before loadSettings() so saved user values still take priority.
+ */
+function syncSliderDefaults() {
+    if (elements.thresholdSlider && !elements.thresholdSlider.dataset.userTouched) {
+        const defaultThreshold = DETECTION_THRESHOLDS.DEFAULT_PROBE_THRESHOLD;
+        if (Number.isFinite(defaultThreshold)) {
+            elements.thresholdSlider.value = String(defaultThreshold);
+            if (elements.thresholdVal) elements.thresholdVal.textContent = defaultThreshold.toFixed(2);
+        }
+    }
+    if (elements.penaltySlider && !elements.penaltySlider.dataset.userTouched) {
+        const defaultPenalty = DETECTION_THRESHOLDS.GRADIENT_PENALTY_DEFAULT;
+        if (Number.isFinite(defaultPenalty)) {
+            elements.penaltySlider.value = String(defaultPenalty);
+            if (elements.penaltyVal) elements.penaltyVal.textContent = defaultPenalty.toFixed(2);
+        }
+    }
 }
 
 const elements = {
@@ -141,6 +164,7 @@ async function init() {
 
         hideLoading();
         clearTimeout(loadingTimeout);
+        syncSliderDefaults();
         setupEventListeners();
         loadSettings(elements);
         syncTogglesToPreset(elements);
@@ -247,7 +271,7 @@ function setupEventListeners() {
         const active = e.target.checked;
         setManualControlsActive(active);
         if (active) {
-            // v2.6: Show manual selection canvas with original image
+            // v2.5: Show manual selection canvas with original image
             const item = getActiveSingleItem();
             if (item?.originalUrl) {
                 showManualSelectCanvas(elements, item.originalUrl);
@@ -406,27 +430,20 @@ async function reprocessSingleWithManualArea() {
 function updateSingleUI(item, removedCount, confidence, latency, config, pos, profileId) {
     state.activeSingleItem = item;
     item.lastDetectedRegion = getRegionFromDetection(pos, config);
-    document.getElementById('sliderOriginal').src = item.originalUrl;
-    document.getElementById('sliderProcessed').src = item.processedUrl;
-    document.getElementById('sideOriginal').src = item.originalUrl;
-    document.getElementById('sideProcessed').src = item.processedUrl;
 
-    if (elements.tierBadge) {
-        const profile = getAllProfiles().find(p => p.id === profileId) || { id: profileId || 'AUTO' };
-        const sourceLabel = item._detectionSource || '';
-        const tierLabel = config?.tier || '';
-        const parts = [profile.id.toUpperCase(), sourceLabel, tierLabel, config?.anchor].filter(Boolean);
-        elements.tierBadge.textContent = parts.join(' — ');
-        elements.tierBadge.classList.remove('hidden');
-        if (profile.brandColor) applyProfileTheme(profile);
-        updateStatsUI(config, pos, confidence, profile.id);
+    // FE-BUG-M2/U3: Removed dead writes to sliderOriginal/sliderProcessed/
+    // sideOriginal/sideProcessed .src — the #singlePreview section (containing
+    // comparisonSlider, sideBySideView, statsView, tierBadge, magnifier) is
+    // always display:none under the unified card layout (v2.5). These DOM
+    // updates were unreachable. Kept: activeSingleItem, lastDetectedRegion
+    // (used by manual mode + reprocess), and the AuditLog/toast feedback.
+
+    if (elements.lastLatency) {
+        elements.lastLatency.textContent = `${i18n.t('info.latency')}: ${latency}ms`;
     }
-
-    if (elements.lastLatency) elements.lastLatency.textContent = `${i18n.t('info.latency')}: ${latency}ms`;
 
     elements.downloadBtn.onclick = () => downloadImage(item);
     elements.downloadBtn.classList.remove('hidden');
-    elements.reprocessBtn?.classList.remove('hidden');
 
     AuditLog.log(`[PASS] ${item.name} | Profile: ${profileId} | Conf: ${confidence}% | ${latency}ms`, 'success');
     showToast(i18n.t('toast.removed', { count: removedCount }), 'success');
@@ -498,39 +515,24 @@ function resetWorkspace(clearQueue = true) {
         AuditLog.log('Workspace cleared', 'info');
     }
     resetGlobalProgress();
-    updateMemoryCounter();
+    // Note: objectUrlManager.clear() above already triggers the onChange
+    // observer which calls updateMemoryCounter — no need to call it again.
 }
 
 export { resetWorkspace };
 
 const memoryEl = document.getElementById('memoryCount');
 
-function updateMemoryCounter() {
+function updateMemoryCounter(count) {
     if (!memoryEl) return;
-    const count = objectUrlManager.urls.size;
-    memoryEl.textContent = `OBJ:${count}`;
-    memoryEl.classList.toggle('hidden', count === 0);
+    const n = typeof count === 'number' ? count : objectUrlManager.urls.size;
+    memoryEl.textContent = `OBJ:${n}`;
+    memoryEl.classList.toggle('hidden', n === 0);
 }
 
-const _originalRegister = objectUrlManager.register.bind(objectUrlManager);
-const _originalRevoke = objectUrlManager.revoke.bind(objectUrlManager);
-const _originalClear = objectUrlManager.clear.bind(objectUrlManager);
-
-objectUrlManager.register = function(url) {
-    const result = _originalRegister(url);
-    updateMemoryCounter();
-    return result;
-};
-
-objectUrlManager.revoke = function(url) {
-    _originalRevoke(url);
-    updateMemoryCounter();
-};
-
-objectUrlManager.clear = function() {
-    _originalClear();
-    updateMemoryCounter();
-};
+// FE-BUG-H2: Subscribe to objectUrlManager changes via the observer API
+// instead of monkey-patching its methods. Clean separation of concerns.
+objectUrlManager.onChange((count) => updateMemoryCounter(count));
 
 document.addEventListener('paste', (e) => {
     const items = e.clipboardData?.items;

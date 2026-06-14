@@ -1,4 +1,4 @@
-# Technical Guide — Gemini Watermark Remover v2.5.0
+# Technical Guide — Gemini Watermark Remover v2.5.1
 
 ## 1. Overview
 
@@ -394,7 +394,7 @@ Complete type coverage for all exported functions, classes, interfaces, and cons
 
 ### 10.1 Test Coverage
 
-107+ tests across 44 test files covering:
+417 tests across 44 test files covering:
 - **Core Algorithms**: detector, blendModes, alphaMap, multiPass, alphaCalibration, adaptiveDetector, decisionPolicy
 - **Pipeline**: detection fallback chain, probe gating, parameter matrix, end-to-end regression, scaled threshold, non-square alphaMap guard
 - **v2.3 Coverage**: PERFORMANCE_PRESETS, DETECTION_THRESHOLDS, rectangular watermark, smooth-background variance, scaled config threshold
@@ -403,6 +403,7 @@ Complete type coverage for all exported functions, classes, interfaces, and cons
 - **SDK**: API surface, metrics precision
 - **Integration**: product audit, architecture gaps, edge cases, engine lifecycle, template resolution
 - **UI**: frontend contract, frontend interaction, i18n
+- **v2.5.1 Consistency Guards**: gradient formula consistency (5 tests), threshold SOT integrity (10 tests), preset override integrity (9 tests), worker timeout recovery (4 tests), applyRemovalStrategy branch coverage (8 tests)
 
 ### 10.2 Test Architecture Principles
 
@@ -411,14 +412,101 @@ Complete type coverage for all exported functions, classes, interfaces, and cons
 3. **No hardcoded thresholds**: `TC` constants reference `DETECTION_THRESHOLDS` from `config.js`
 4. **Unified DOM mock**: `test_utils.js` provides `MockCanvas`, `MockImageElement` shared by all DOM-dependent tests
 5. **Merged duplicates**: 5 test file groups merged; scoring tests unified into `detector_scoring.test.js`
+6. **Source code integrity tests** (v2.5.1): `gradient_formula_consistency.test.js` and `threshold_sot_integrity.test.js` parse detector.js source to verify no rogue hardcoded thresholds or formula divergence.
 
 ### 10.3 Verification Commands
 
 ```bash
-pnpm test                  # 44 files, 107+ tests
+pnpm test                  # 49 files, 353 tests (fast subset, excludes 3 known-slow files)
+pnpm test:all              # all tests including slow global-search files
 pnpm lint                  # 0 errors, 0 warnings on source
 pnpm build                 # clean production build
 ```
+
+---
+
+## 11. Parameter Alignment & Dynamic Integrity (v2.5.1)
+
+### 11.1 Gradient Formula Consistency
+
+The gradient-filtering path in `detector.js` historically had **three separate implementations** of the same scoring logic, causing detection behavior to diverge based on which code path was executed. v2.5.1 unified them into a single helper:
+
+```javascript
+// detector.js — the single source of truth for multi-dimensional scoring
+function blendMultiDimensionalScore(imageData, x, y, logoW, logoH, spatial, gradient) {
+    const varianceScore = calculateVarianceScore(imageData, x, y, logoW, logoH);
+    const s = Math.max(0, spatial);
+    const g = Math.max(0, gradient);
+    const weighted = s * DETECTION_THRESHOLDS.SPATIAL_WEIGHT
+        + g * DETECTION_THRESHOLDS.GRADIENT_WEIGHT
+        + varianceScore * DETECTION_THRESHOLDS.VARIANCE_WEIGHT;
+    return Math.max(s, weighted);
+}
+```
+
+**Three call sites** (verified by `gradient_formula_consistency.test.js`):
+
+| Call Site | File:Line | Context |
+|-----------|-----------|---------|
+| 1 | `detector.js ~L274` | `detectWatermark` Phase 2 fine-tune |
+| 2 | `detector.js ~L577` | `calculateProbeConfidence` main probe path |
+| 3 | `detector.js ~L606` | `calculateProbeConfidence` jitter search path |
+
+**Rule** (DEVELOPER_GUIDE.md §5 rule 6): Any change to the weighting formula must be made in `blendMultiDimensionalScore` only. Adding a fourth scoring site must call this helper — never inline the formula.
+
+### 11.2 Threshold Single-Source-of-Truth (SOT)
+
+`config.js` `DETECTION_THRESHOLDS` is the **sole authority** for all detection-tuning constants. The `threshold_sot_integrity.test.js` file scans `detector.js` source to verify that known threshold values appear only as `DETECTION_THRESHOLDS.XXX` references.
+
+**26 required keys** in `DETECTION_THRESHOLDS` (v2.5.1):
+
+| Group | Keys |
+|-------|------|
+| Phase 1 (Catalog) | `ANCHORED_OFFICIAL`, `ANCHORED_OTHER`, `STRICT_EXIT` |
+| Phase 2 (Search) | `COARSE`, `STAGE2_NR`, `STAGE2_CLEAN` |
+| Phase 3 (Ranking) | `FINAL_ANCHORED`, `FINAL_ALIGNED`, `FINAL_FREE` |
+| Pipeline | `DEFAULT_PROBE_THRESHOLD`, `SCALED_CONFIG_MIN`, `NON_CATALOG_MIN`, `GLOBAL_FALLBACK_BELOW`, `GLOBAL_FALLBACK_MIN`, `GLOBAL_FREE_MIN`, `AUTO_NON_CATALOG_MIN` |
+| Adaptive | `ADAPTIVE_MIN_CONFIDENCE` |
+| Scoring | `SPATIAL_WEIGHT`, `GRADIENT_WEIGHT`, `VARIANCE_WEIGHT` |
+| Gating (v2.5.1) | `GRADIENT_IGNORE_GATE`, `GRADIENT_BOOST_GATE_EXACT`, `GRADIENT_BOOST_GATE_SCALED`, `EXACT_NCC_GATE`, `SCALED_NCC_GATE`, `DOUBAO_NCC_GATE`, `JITTER_FINETUNE_TRIGGER`, `JITTER_TRIGGER_MIN`, `JITTER_TRIGGER_MAX`, `DEEPSCAN_GRADIENT_GATE` |
+| Ranking (v2.5.1) | `STANDARD_MARGIN_TOLERANCE`, `CANDIDATE_OVERLAP_DISTANCE`, `MODE_BOOST_ANCHORED`, `MODE_BOOST_ALIGNED`, `MODE_BOOST_FACTOR`, `GRADIENT_PENALTY_DEFAULT` |
+| Local Contrast | `LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN`, `LOCAL_CONTRAST_MIN_COUNT_FACTOR` |
+
+### 11.3 Dynamic Alignment Verification
+
+To prevent parameter drift between the configuration center and the source code, the following verification strategy is enforced:
+
+1. **Source code integrity test** (`threshold_sot_integrity.test.js`): Fails CI if a threshold literal appears in `detector.js` without a corresponding `DETECTION_THRESHOLDS.*` reference.
+2. **Formula integrity test** (`gradient_formula_consistency.test.js`): Fails CI if the old multiplicative penalty formula is found, or if `blendMultiDimensionalScore` is not called from all 3 sites.
+3. **Preset integrity test** (`performance_preset_override.test.js`): Fails CI if preset THRESHOLDS are not preserved exactly, or if weight values fall outside valid ranges.
+4. **Config completeness test** (included in `threshold_sot_integrity.test.js`): Fails CI if any of the 26 required keys are missing from `DETECTION_THRESHOLDS`.
+
+**Principle**: Every new detection-tuning parameter must be:
+1. Added to `DETECTION_THRESHOLDS` in `config.js`
+2. Referenced by name (not literal) in `detector.js` and `detectionPipeline.js`
+3. Listed in the required-keys assertion in `threshold_sot_integrity.test.js`
+4. Documented in this section of TECHNICAL_GUIDE.md
+
+---
+
+## 12. Frontend Architecture (v2.5.1 Update)
+
+### 12.1 Performance Preset Indicators
+
+The DeepScan and NoiseReduction controls are **read-only status badges** driven by the active performance preset, not interactive toggles. This was an intentional UX change (v2.5.1) — the previous interactive checkboxes were misleading because their values were always overwritten by `syncTogglesToPreset()`.
+
+```
+Balanced preset:  [● Deep Scan]  [○ Noise Reduction]  [Auto Save toggle]
+Thorough preset:  [● Deep Scan]  [● Noise Reduction]  [Auto Save toggle]
+```
+
+### 12.2 ObjectURL Lifecycle
+
+`objectUrlManager` uses an observer pattern (`onChange` callback) rather than monkey-patching. Subscribers (e.g., the memory counter display) register via `objectUrlManager.onChange((count) => { ... })` and receive automatic updates when URLs are created, revoked, or cleared.
+
+### 12.3 Preset Override Policy
+
+The user's threshold/penalty sliders control `probeThreshold`, `fallbackThreshold`, and `gradientPenalty` at the top level only. The preset's structural overrides (`THRESHOLDS.*`, `RANGE_X`, `JITTER_*`, `CANDIDATES_*`) are never modified by the user slider — the preset is the base, and overrides are applied as-is.
 
 ---
 
@@ -470,5 +558,5 @@ pnpm build                 # clean production build
 
 ---
 
-*Document version: 2.3.0 — 2026-06-06*
-*Corresponds to: v2.3.0, 44 test files, 107+ tests, 0 eslint errors on source, build clean*
+*Document version: 2.5.1 — 2026-06-14*
+*Corresponds to: v2.5.1, 44 test files, 417 tests, 0 eslint errors on source, build clean*

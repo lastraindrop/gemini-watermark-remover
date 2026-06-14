@@ -105,21 +105,23 @@
 
         <!-- Toggles -->
         <div class="w-full md:w-auto grid grid-cols-1 min-[520px]:grid-cols-3 md:flex items-center justify-center gap-3 md:gap-6">
-          <label class="flex items-center justify-center gap-3 min-w-0 cursor-pointer group">
-            <div class="relative w-10 h-6 bg-slate-200 dark:bg-slate-800 rounded-full transition-colors has-[:checked]:bg-emerald-500">
-              <input type="checkbox" id="deepScanToggle" class="sr-only peer" checked>
-              <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
-            </div>
-            <span class="text-xs font-bold text-slate-600 dark:text-slate-300 group-hover:text-emerald-500 transition-colors" data-i18n="settings.deepScan">Deep Scan</span>
-          </label>
+          <!-- FE-BUG-C2: DeepScan/NoiseReduction converted from misleading interactive toggles
+               to read-only status indicators driven by the active performance preset.
+               These values are fully controlled by the preset (syncTogglesToPreset);
+               the old checkboxes gave users the illusion of control but had no effect. -->
+          <div class="flex items-center justify-center gap-2.5 min-w-0">
+            <span id="deepScanBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 transition-colors">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span data-i18n="settings.deepScan">Deep Scan</span>
+            </span>
+          </div>
 
-          <label class="flex items-center justify-center gap-3 min-w-0 cursor-pointer group">
-            <div class="relative w-10 h-6 bg-slate-200 dark:bg-slate-800 rounded-full transition-colors has-[:checked]:bg-emerald-500">
-              <input type="checkbox" id="noiseReductionToggle" class="sr-only peer">
-              <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
-            </div>
-            <span class="text-xs font-bold text-slate-600 dark:text-slate-300 group-hover:text-emerald-500 transition-colors" data-i18n="settings.noiseReduction">Noise Reduction</span>
-          </label>
+          <div class="flex items-center justify-center gap-2.5 min-w-0">
+            <span id="noiseReductionBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-100 dark:bg-slate-800 text-slate-400 transition-colors">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              <span data-i18n="settings.noiseReduction">Noise Reduction</span>
+            </span>
+          </div>
 
           <label class="flex items-center justify-center gap-3 min-w-0 cursor-pointer group">
             <div class="relative w-10 h-6 bg-slate-200 dark:bg-slate-800 rounded-full transition-colors has-[:checked]:bg-emerald-500">

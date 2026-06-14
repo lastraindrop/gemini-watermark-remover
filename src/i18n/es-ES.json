@@ -134,5 +134,8 @@
   "drag.dropHint": "Suelta las imágenes aquí",
   "error.fileTooLarge": "{{name}} excede el tamaño máximo",
   "error.imageTooLarge": "Imagen demasiado grande: {{width}}x{{height}} excede el límite de {{limit}}MP.",
-  "error.encodeFailed": "No se pudo codificar la imagen procesada como PNG"
+  "error.encodeFailed": "No se pudo codificar la imagen procesada como PNG",
+  "manual.templateSize": "Tamaño de plantilla de marca de agua",
+  "manual.forceProcess": "Procesamiento forzado (omitir verificaciones de confianza para imágenes difíciles)",
+  "manual.dragHint": "Arrastra para seleccionar el área de la marca de agua"
 }

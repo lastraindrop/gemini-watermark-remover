@@ -57,6 +57,26 @@ export const DETECTION_THRESHOLDS = {
     // Local contrast
     LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN: 0.008,  // v2.3: lowered from 0.015
     LOCAL_CONTRAST_MIN_COUNT_FACTOR: 20,        // denominator for min count = (w*h) / factor / step^2
+
+    // Scoring & gating constants (v2.5.1: migrated from detector.js hardcoded values)
+    GRADIENT_PENALTY_DEFAULT: 0.30,             // default gradient penalty multiplier
+    EXACT_NCC_GATE: 0.10,                        // base NCC gate for exact matches
+    SCALED_NCC_GATE: 0.14,                       // base NCC gate for scaled matches
+    DOUBAO_NCC_GATE: 0.14,                       // NCC gate for Doubao profile
+    GRADIENT_IGNORE_GATE: 0.02,                  // below this, gradient correlation treated as noise
+    GRADIENT_BOOST_GATE_EXACT: 0.12,             // above this, gradient can boost exact match confidence
+    GRADIENT_BOOST_GATE_SCALED: 0.18,            // above this, gradient can boost scaled match confidence
+    JITTER_FINETUNE_TRIGGER: 0.50,               // confidence below this triggers jitter fine-tuning
+    JITTER_TRIGGER_MIN: 0.12,                    // confidence above this triggers jitter search in Phase 1
+    JITTER_TRIGGER_MAX: 0.95,                    // confidence near-perfect skips jitter
+    DEEPSCAN_GRADIENT_GATE: 0.04,                // confidence above this in deepScan triggers gradient computation
+
+    // Candidate ranking
+    STANDARD_MARGIN_TOLERANCE: 4,                // px tolerance for standard margin alignment
+    CANDIDATE_OVERLAP_DISTANCE: 32,              // min center-distance between non-overlapping candidates
+    MODE_BOOST_ANCHORED: 0.30,                   // score boost for anchored mode
+    MODE_BOOST_ALIGNED: 0.10,                    // score boost for aligned mode
+    MODE_BOOST_FACTOR: 0.20,                     // multiplier for mode priority in candidate sorting
 };
 
 /**

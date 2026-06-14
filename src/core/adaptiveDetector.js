@@ -12,7 +12,7 @@ import { removeWatermark } from './blendModes.js';
 import { regionStdDev } from './utils.js';
 import { DETECTION_THRESHOLDS } from './config.js';
 
-const DEFAULT_THRESHOLD = 0.35;
+const DEFAULT_THRESHOLD = DETECTION_THRESHOLDS.ADAPTIVE_MIN_CONFIDENCE;
 const EPSILON = 1e-8;
 
 // ============================================================
@@ -161,7 +161,6 @@ function scoreCandidate(imageData, alphaMap, alphaGrad, { x, y, size, width: w, 
     ));
 
     let varianceScore = 0;
-    const minDim = Math.min(candW, candH);
     if (y > candH) {
         // Reference region ABOVE the candidate (preferred — independent of watermark content)
         const refY = Math.max(0, y - Math.round(candH * 1.2));

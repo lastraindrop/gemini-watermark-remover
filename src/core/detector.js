@@ -130,7 +130,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         bestConf = calculateCorrelation(searchData, x, y, logoW, logoH, alphaMap, true);
         
         // Jitter search if not already perfect (v1.9.0)
-        if (bestConf > 0.12 && bestConf < 0.95) {
+        if (bestConf > DETECTION_THRESHOLDS.JITTER_TRIGGER_MIN && bestConf < DETECTION_THRESHOLDS.JITTER_TRIGGER_MAX) {
             const jitter = cfg.isOfficial ? config.JITTER_OFFICIAL : config.JITTER_RANGE;
             for (let dy = -jitter; dy <= jitter; dy++) {
                 for (let dx = -jitter; dx <= jitter; dx++) {
@@ -259,7 +259,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                 for (let fx = Math.max(startX, candidate.x - fineRange); fx <= Math.min(width - sizeW / 2, candidate.x + fineRange); fx++) {
                     let confidence = calculateCorrelation(searchData, fx, fy, sizeW, sizeH, alphaMap, true);
                     
-                    if (deepScan && confidence > 0.04) {
+                    if (deepScan && confidence > DETECTION_THRESHOLDS.DEEPSCAN_GRADIENT_GATE) {
                         const bufferSizeNeeded = sizeW * sizeH;
                         const { gradientsI, gradientsA } = context.getGradientBuffers(bufferSizeNeeded);
                         const gradientConf = calculateGradientCorrelation(
@@ -267,12 +267,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                             gradientsI, 
                             gradientsA
                         );
-                        // Phase 2.1: Multi-dimensional scoring (spatial + gradient + variance)
-                        const varianceScore = calculateVarianceScore(searchData, fx, fy, sizeW, sizeH);
-                        const spatial = Math.max(0, confidence);
-                        const gradient = Math.max(0, gradientConf);
-                        const weighted = spatial * DETECTION_THRESHOLDS.SPATIAL_WEIGHT + gradient * DETECTION_THRESHOLDS.GRADIENT_WEIGHT + varianceScore * DETECTION_THRESHOLDS.VARIANCE_WEIGHT;
-                        confidence = Math.max(spatial, weighted);
+                        // Phase 2.1: Multi-dimensional scoring — use shared helper
+                        // to ensure formula consistency across all 3 gradient sites.
+                        confidence = blendMultiDimensionalScore(searchData, fx, fy, sizeW, sizeH, confidence, gradientConf);
                     }
 
                     const stage2Threshold = noiseReduction ? config.THRESHOLDS.STAGE2_NR : config.THRESHOLDS.STAGE2_CLEAN;
@@ -280,8 +277,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                         const marginX = width - fx - sizeW;
                         const marginY = height - fy - sizeH;
                         const standardMargins = [32, 64, 96];
-                        const rightAligned = standardMargins.some(m => Math.abs(marginX - m) <= 4);
-                        const bottomAligned = standardMargins.some(m => Math.abs(marginY - m) <= 4);
+                        const marginTol = DETECTION_THRESHOLDS.STANDARD_MARGIN_TOLERANCE;
+                        const rightAligned = standardMargins.some(m => Math.abs(marginX - m) <= marginTol);
+                        const bottomAligned = standardMargins.some(m => Math.abs(marginY - m) <= marginTol);
                         const isAligned = rightAligned && bottomAligned;
                         allCandidates.push({ x: fx, y: fy, width: sizeW, height: sizeH, confidence, mode: isAligned ? 'aligned' : 'free' });
                     }
@@ -297,8 +295,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
 
     allCandidates.sort((a, b) => {
         const modePriority = { 'anchored': 3, 'aligned': 2, 'free': 1 };
-        const scoreA = a.confidence + (modePriority[a.mode] || 0) * 0.2;
-        const scoreB = b.confidence + (modePriority[b.mode] || 0) * 0.2;
+        const boostFactor = DETECTION_THRESHOLDS.MODE_BOOST_FACTOR;
+        const scoreA = a.confidence + (modePriority[a.mode] || 0) * boostFactor;
+        const scoreB = b.confidence + (modePriority[b.mode] || 0) * boostFactor;
         return scoreB - scoreA;
     });
     const finalCandidates = [];
@@ -308,7 +307,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         for (const existing of finalCandidates) {
             const distX = Math.abs((cand.x + cand.width / 2) - (existing.x + existing.width / 2));
             const distY = Math.abs((cand.y + cand.height / 2) - (existing.y + existing.height / 2));
-            if (distX < 32 && distY < 32) {
+            if (distX < DETECTION_THRESHOLDS.CANDIDATE_OVERLAP_DISTANCE && distY < DETECTION_THRESHOLDS.CANDIDATE_OVERLAP_DISTANCE) {
                 isOverlapping = true;
                 break;
             }
@@ -321,8 +320,8 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         let score = confidence;
 
         // Scoring Bias: Aligned or Anchored get a significant boost (v1.9.0 hardened)
-        if (mode === 'anchored') score += 0.3;
-        else if (mode === 'aligned') score += 0.10;
+        if (mode === 'anchored') score += DETECTION_THRESHOLDS.MODE_BOOST_ANCHORED;
+        else if (mode === 'aligned') score += DETECTION_THRESHOLDS.MODE_BOOST_ALIGNED;
 
         if (score > maxScore) {
             maxScore = score;
@@ -460,7 +459,7 @@ export function calculateLocalContrastCorrelation(imageData, x, y, logoW, logoH,
 
             // v2.3: Lowered from 0.015→0.008 to retain faint-watermark pixels
             // that were previously filtered out, improving detection on low-opacity overlays.
-            if (Math.abs(alphaResidual) < 0.008) continue;
+            if (Math.abs(alphaResidual) < DETECTION_THRESHOLDS.LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN) continue;
 
             sumI += imageResidual;
             sumI2 += imageResidual * imageResidual;
@@ -483,28 +482,50 @@ export function calculateLocalContrastCorrelation(imageData, x, y, logoW, logoH,
 /**
  * Verify if a watermark is likely present at the given position
  */
+/**
+ * Compute the weighted multi-dimensional score from spatial, gradient, and
+ * variance components. This is the single source of truth for the
+ * spatial×0.5 + gradient×0.3 + variance×0.2 blend — all three gradient-filtering
+ * sites in detectWatermark/calculateProbeConfidence MUST call this helper to
+ * keep their formulas identical (DEVELOPER_GUIDE.md §5 rule 6).
+ *
+ * Returns max(spatial, weighted) to avoid NCC dilution on high-confidence matches.
+ */
+function blendMultiDimensionalScore(imageData, x, y, logoW, logoH, spatial, gradient) {
+    const varianceScore = calculateVarianceScore(imageData, x, y, logoW, logoH);
+    const s = Math.max(0, spatial);
+    const g = Math.max(0, gradient);
+    const weighted = s * DETECTION_THRESHOLDS.SPATIAL_WEIGHT
+        + g * DETECTION_THRESHOLDS.GRADIENT_WEIGHT
+        + varianceScore * DETECTION_THRESHOLDS.VARIANCE_WEIGHT;
+    return Math.max(s, weighted);
+}
+
 export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'gemini', options = {}, context = null) {
-    const { deepScan = false, gradientPenalty = 0.30, isScaledMatch = false } = options;
+    const { deepScan = false, isScaledMatch = false } = options;
+
+    // Pre-allocate gradient buffers once for the whole function (BUG-H3 fix).
+    // Previously each jitter iteration allocated 2 new Float32Arrays (338 allocs).
+    const bufferSize = pos.width * pos.height;
+    let gradientsI, gradientsA;
+    if (context && context.getGradientBuffers) {
+        const bufs = context.getGradientBuffers(bufferSize);
+        gradientsI = bufs.gradientsI;
+        gradientsA = bufs.gradientsA;
+    } else {
+        gradientsI = new Float32Array(bufferSize);
+        gradientsA = new Float32Array(bufferSize);
+    }
 
     if (profile === 'doubao') {
         const logoW = pos.width;
         const logoH = pos.height;
-        const bufferSizeNeeded = logoW * logoH;
-        let gradientsI, gradientsA;
-        if (context && context.getGradientBuffers) {
-            const bufs = context.getGradientBuffers(bufferSizeNeeded);
-            gradientsI = bufs.gradientsI;
-            gradientsA = bufs.gradientsA;
-        } else {
-            gradientsI = new Float32Array(bufferSizeNeeded);
-            gradientsA = new Float32Array(bufferSizeNeeded);
-        }
         let confidence = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
 
         const nccConf = calculateCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, true);
         confidence = Math.max(confidence, nccConf);
 
-        if (confidence < 0.14) {
+        if (confidence < DETECTION_THRESHOLDS.DOUBAO_NCC_GATE) {
              let bestConf = confidence;
              let bestX = pos.x;
              let bestY = pos.y;
@@ -524,7 +545,7 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
 
     let confidence = calculateCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
     const baseNcc = confidence;
-    const baseNccGate = isScaledMatch ? 0.14 : 0.10;
+    const baseNccGate = isScaledMatch ? DETECTION_THRESHOLDS.SCALED_NCC_GATE : DETECTION_THRESHOLDS.EXACT_NCC_GATE;
 
     // v2.4: Even when NCC is very low (smooth/uniform backgrounds), the watermark may
     // still be detectable through local contrast patterns. Try localContrast before
@@ -542,29 +563,23 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
     if (deepScan) {
         const logoW = pos.width;
         const logoH = pos.height;
-        const gradientsI = new Float32Array(logoW * logoH);
-        const gradientsA = new Float32Array(logoW * logoH);
         const gradientConf = calculateGradientCorrelation(imageData, pos.x, pos.y, logoW, logoH, alphaMap, gradientsI, gradientsA);
 
-        if (gradientConf < 0.02) {
+        if (gradientConf < DETECTION_THRESHOLDS.GRADIENT_IGNORE_GATE) {
             // v2.5: Use weighted multi-dimensional blend instead of aggressive multiplicative
             // penalty. Dark/moody images (e.g. anime scenes) naturally have low gradient
             // in the watermark region but the watermark pattern is still detectable via NCC.
             // The old formula (confidence *= gradientPenalty) could slash NCC from 0.50→0.15,
             // causing false negatives on valid catalog-probe matches.
-            const varianceScore = calculateVarianceScore(imageData, pos.x, pos.y, logoW, logoH);
-            const spatial = Math.max(0, confidence);
-            const gradient = Math.max(0, gradientConf);
-            const weighted = spatial * DETECTION_THRESHOLDS.SPATIAL_WEIGHT + gradient * DETECTION_THRESHOLDS.GRADIENT_WEIGHT + varianceScore * DETECTION_THRESHOLDS.VARIANCE_WEIGHT;
-            confidence = Math.max(spatial, weighted);
+            confidence = blendMultiDimensionalScore(imageData, pos.x, pos.y, logoW, logoH, confidence, gradientConf);
         } else {
-            const gradGate = isScaledMatch ? 0.18 : 0.12;
+            const gradGate = isScaledMatch ? DETECTION_THRESHOLDS.GRADIENT_BOOST_GATE_SCALED : DETECTION_THRESHOLDS.GRADIENT_BOOST_GATE_EXACT;
             if (confidence >= gradGate) confidence = Math.max(confidence, gradientConf);
         }
     }
 
     // Sliding window fine-tuning (exact/official matches only)
-    if (confidence < 0.50 && !isScaledMatch) {
+    if (confidence < DETECTION_THRESHOLDS.JITTER_FINETUNE_TRIGGER && !isScaledMatch) {
         let bestConf = confidence;
         let bestX = pos.x;
         let bestY = pos.y;
@@ -576,15 +591,22 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
 
                 let conf;
                 if (deepScan) {
-                    const gradientsI = new Float32Array(pos.width * pos.height);
-                    const gradientsA = new Float32Array(pos.width * pos.height);
+                    // v2.5.1 (BUG-C1): Use the SAME weighted blend as the main probe path
+                    // above and detectWatermark Phase 2. Previously this site used the old
+                    // `combined * min(gradientPenalty, 0.50)` multiplicative penalty formula,
+                    // violating DEVELOPER_GUIDE.md §5 rule 6 (three gradient sites must agree).
                     const nccConf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const gradientConf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, gradientsI, gradientsA);
                     const combined = Math.max(nccConf, localConf);
-                    conf = gradientConf < 0.02 ? combined * Math.min(gradientPenalty, 0.50)
-                        : nccConf >= 0.12 ? Math.max(combined, gradientConf)
-                        : combined;
+                    if (gradientConf < DETECTION_THRESHOLDS.GRADIENT_IGNORE_GATE) {
+                        conf = blendMultiDimensionalScore(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, combined, gradientConf);
+                    } else if (nccConf >= DETECTION_THRESHOLDS.EXACT_NCC_GATE + DETECTION_THRESHOLDS.GRADIENT_BOOST_GATE_EXACT - DETECTION_THRESHOLDS.EXACT_NCC_GATE) {
+                        // preserve original `nccConf >= 0.12` behavior via constant
+                        conf = Math.max(combined, gradientConf);
+                    } else {
+                        conf = combined;
+                    }
                 } else {
                     const nccConf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
                     const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
