@@ -20,6 +20,8 @@
   "panel.title": "コントロールパネル",
   "btn.download": "ダウンロード",
   "btn.reset": "リセット / 画像を変更",
+  "btn.darkMode": "ダークモード",
+  "btn.advanced": "詳細設定",
   "btn.toggleView": "比較表示を切替",
   "btn.copy": "クリップボードにコピー",
   "btn.downloadAll": "すべてダウンロード",
@@ -111,9 +113,8 @@
   "error.dropFailed": "ドロップファイルの処理に失敗",
   "shortcuts.title": "ショートカット",
   "shortcuts.esc": "Esc: リセット",
-  "shortcuts.view": "1/2/3: 表示切替",
+  "shortcuts.view": "1: 設定  2: プリセット  3: 手動",
   "shortcuts.download": "Ctrl+S: ダウンロード",
-  "shortcuts.compare": "<-/->: 比較",
   "settings.performancePreset": "パフォーマンスモード",
   "preset.fast": "高速",
   "preset.fastDesc": "高速スキャン",
@@ -137,5 +138,11 @@
   "error.encodeFailed": "処理結果をPNGとしてエンコードできませんでした",
   "manual.templateSize": "透かしテンプレートサイズ",
   "manual.forceProcess": "強制処理（難易度の高い画像の信頼度チェックをスキップ）",
-  "manual.dragHint": "ドラッグして透かし領域を選択"
+  "manual.dragHint": "ドラッグして透かし領域を選択",
+  "badge.compare": "比較",
+  "manual.advancedOverrides": "詳細オーバーライド",
+  "manual.alphaGain": "Alphaゲイン（除去強度）",
+  "manual.alphaGainHint": "高い=強い除去。通常は1.0、薄い場合は1.5-2.0。高すぎると暗いシミ。",
+  "manual.searchRange": "位置検索範囲（ピクセル）",
+  "manual.searchRangeHint": "選択した位置の周囲でどのくらい検索するか。ずれている場合は増やす。"
 }

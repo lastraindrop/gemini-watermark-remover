@@ -129,7 +129,12 @@ function isNearExpectedAnchor(imageData, detection, profileId, options = {}) {
     for (const config of potentialConfigs) {
         const pos = calculateWatermarkPosition(imageData.width, imageData.height, config);
         const sizeTolerance = Math.max(4, Math.min(pos.width, pos.height) * 0.15);
-        const positionTolerance = Math.max(4, Math.min(pos.width, pos.height) * (options.positionTolerance ?? 0.10));
+        // v2.6: Raised position tolerance from 10% to 20% — Gemini sometimes
+        // offsets the watermark 5-15px from the standard anchor. At 10%, an
+        // 11px offset on a 96px watermark (11.5%) would fail this check and
+        // be classified as 'free' mode, requiring much higher confidence
+        // (GLOBAL_FREE_MIN=0.35 vs FINAL_ANCHORED=0.15) and causing misses.
+        const positionTolerance = Math.max(4, Math.min(pos.width, pos.height) * (options.positionTolerance ?? 0.20));
         const sizeMatches = Math.abs(detection.width - pos.width) <= sizeTolerance &&
             Math.abs(detection.height - pos.height) <= sizeTolerance;
         const positionMatches = Math.abs(detection.x - pos.x) <= positionTolerance &&
@@ -218,24 +223,40 @@ export async function detectProfileWatermarks({
     // v2.1: Manual Override Mode
     if (options.manualConfig) {
         const { x, y, width, height, assetKey, forceProcess } = validateManualConfig(imageData, options.manualConfig);
+        // v2.6: Advanced overrides for difficult cases
+        const alphaGainOverride = options.manualConfig.alphaGainOverride;
+        const searchRangeOverride = options.manualConfig.searchRangeOverride;
+        // Apply search range override to jitter if specified
+        if (Number.isFinite(searchRangeOverride) && searchRangeOverride > 0) {
+            detectionOptions.overrides = {
+                ...detectionOptions.overrides,
+                JITTER_RANGE: searchRangeOverride,
+                JITTER_OFFICIAL: Math.max(2, Math.round(searchRangeOverride * 0.6))
+            };
+        }
         const alphaMap = await tryGetAlphaMap(getAlphaMap, assetKey || profile.defaultAsset || '96', width, height);
         if (alphaMap) {
             const verification = calculateProbeConfidence(imageData, { x, y, width, height }, alphaMap.data, profile.id, detectionOptions, sharedContext);
             // v2.5: forceProcess bypasses confidence gating for difficult images
             const confidence = forceProcess ? Math.max(verification.confidence, 1.0) : verification.confidence;
+            // v2.6: Pass overrides through match.config for applyRemovalStrategy
+            const matchConfig = { isOfficial: false, manual: true, logoWidth: width, logoHeight: height, forceProcess: !!forceProcess };
+            if (Number.isFinite(alphaGainOverride) && alphaGainOverride > 0) {
+                matchConfig.alphaGainOverride = alphaGainOverride;
+            }
             return {
                 profileId: profile.id,
                 matches: [{
-                    config: { isOfficial: false, manual: true, logoWidth: width, logoHeight: height, forceProcess: !!forceProcess },
-                    pos: { x, y, width, height, anchor: 'manual' },
+                    config: matchConfig,
+                    pos: { x: verification.x, y: verification.y, width, height, anchor: 'manual' },
                     alphaMap: alphaMap.data,
                     confidence,
                     profileId: profile.id,
                     source: forceProcess ? 'manual-forced' : 'manual-input'
                 }],
                 winner: {
-                    config: { isOfficial: false, manual: true, logoWidth: width, logoHeight: height, forceProcess: !!forceProcess },
-                    pos: { x, y, width, height, anchor: 'manual' },
+                    config: matchConfig,
+                    pos: { x: verification.x, y: verification.y, width, height, anchor: 'manual' },
                     alphaMap: alphaMap.data,
                     confidence,
                     profileId: profile.id,
@@ -265,7 +286,7 @@ export async function detectProfileWatermarks({
     if (profileId === 'gemini') {
         const supplemented = [...potentialConfigsRaw];
         for (const size of [48, 96]) {
-            for (const margin of [32, 64, 96]) {
+            for (const margin of [32, 64, 96, 192]) {
                 const alreadyHas = supplemented.some(c => 
                     (c.logoSize === size || c.logoWidth === size) && 
                     c.marginRight === margin && 
@@ -319,10 +340,15 @@ export async function detectProfileWatermarks({
     const fallbackBelow = options.globalFallbackBelow ?? DETECTION_THRESHOLDS.GLOBAL_FALLBACK_BELOW;
     const hasCatalogBackedMatch = matches.some(match => isCatalogBacked(match));
 
-    // Phase 2.3: Adaptive multi-scale detection when catalog probes are weak
+    // Phase 2.3: Adaptive multi-scale detection when catalog probes are weak.
+    // v2.6: Removed the hasCatalogBackedMatch exclusion. Previously, a weak
+    // catalog-backed match (confidence < fallbackBelow) would suppress adaptive
+    // search entirely, causing misses on images where the catalog anchor is
+    // correct but correlation is low (e.g. smooth/bright backgrounds, compression
+    // artifacts). Now adaptive always runs when the best match is below threshold.
     const shouldRunAdaptive = options.adaptiveMode !== false && options.adaptiveMode !== 'off' &&
         (profileId === 'gemini' || profileId === 'doubao') &&
-        (matches.length === 0 || (!hasCatalogBackedMatch && matches[0].confidence < fallbackBelow));
+        (matches.length === 0 || matches[0].confidence < fallbackBelow);
     if (shouldRunAdaptive) {
         await ensureFallbackAlphaMaps(profile.id, getAlphaMap, alphaMaps);
         const defaultConfig = profile.getHeuristicConfig

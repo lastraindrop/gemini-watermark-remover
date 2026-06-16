@@ -1,36 +1,35 @@
 [中文说明](README_zh.md)
 
-# Gemini & Doubao Watermark Remover (v2.5.1)
+# Gemini & Doubao Watermark Remover (v2.6.0)
 
-A production-grade watermark detection and removal tool supporting Gemini, Doubao, and DALL-E 3 AI-generated images. Features a five-phase detection pipeline with 3D scoring, adaptive multi-scale search, multi-pass removal with safety gates, weighted alpha gain estimation, **multi-margin template probing**, **inline asset embedding**, and a decision policy tier system.
+A production-grade watermark detection and removal tool supporting Gemini, Doubao, and DALL-E 3 AI-generated images. Features a five-phase detection pipeline with 3D scoring, adaptive multi-scale search, multi-pass removal with safety gates, **sub-pixel refinement**, **NMS false-positive suppression**, **halo detection**, **coarse relocation search**, and a decision policy tier system.
 
-## What this release covers
+## What this release covers (v2.6.0)
 
-- **Multi-margin template probing**: 48px/96px templates probed at all standard Gemini margins (32/64/96px) to prevent false-positive catalog matches from nested watermark geometries
-- **Weighted alpha gain estimation**: template-alpha-weighted luminance comparison eliminates 2x under-estimation on small watermarks, with pre-scaled alpha maps avoiding cumulative multi-pass over-correction
-- **Inline asset embedding**: all 10 watermark template PNGs compiled as base64 data URLs into the bundle — eliminates CORS/canvas-tainting issues when opened via `file://` protocol
-- **Unified card-based layout**: single-image and batch processing now share the same card grid UI, removing the legacy comparison-slider single-preview path
-- **Enhanced manual mode**: dedicated selection canvas with drag-to-select, 48px/96px template size selector, and force-process toggle for difficult images
-- **Performance presets**: fast/balanced/thorough modes with granular overrides for search range, jitter, fine-tune, and thresholds
-- **Gradient penalty → weighted blend**: replaced aggressive multiplicative penalty (70% reduction) with consistent spatial×0.5+gradient×0.3+variance×0.2 weighted scoring
-- **Unified detection thresholds**: single-source-of-truth `DETECTION_THRESHOLDS` in `config.js`
-- **Five-phase detection pipeline**: Catalog → Scaled → Heuristic → Adaptive → Global
-- **3D multidimensional scoring**: `max(spatialNCC, weighted)` strategy prevents NCC dilution
-- **Adaptive detector**: coarse-to-fine multi-scale search with rectangular dimension support (Doubao 401×173, DALL-E 120×40)
-- **Multi-pass removal**: iterative removal with near-black safety and texture protection
-- **Alpha gain calibration**: automatic search for optimal alpha multiplier
-- **Decision policy**: three-tier classification (direct-match / needs-validation / insufficient)
-- **Multi-profile**: Gemini catalog-first matching, Doubao multi-anchor (TL+BR), DALL-E 3 experimental
-- **Worker pool**: multi-worker task queue for parallel pixel restoration in browser
-- **Dark mode + UI enhancements**: re-process button (no workspace reset needed), dynamic preset parameter hints, magnifier bounds clamping
-- **Localized UI**: 7 languages, comprehensive test suite (44 files, 417 tests)
-- **SDK/API entrypoint** under `@lastraindrop/gemini-watermark-remover`
+### Detection & Removal Quality
+- **Non-Maximum Suppression (NMS)**: spatial overlap + confidence-floor filtering eliminates false-positive matches that previously caused triple-removal artifacts
+- **Sub-pixel refinement**: `refineSubpixelOutline` (±0.25px shift, ±1% scale, ±0.01 gain) now integrated into the removal pipeline — reduces 1-2px color/position deviation after removal
+- **Halo detection**: `assessAlphaBandHalo` safety gate in multi-pass removal detects and prevents dark/bright ring artifacts around watermark edges
+- **Coarse relocation search**: ±16px coarse scan (step 4) activates when anchor NCC is low, then fine-jitters around the best coarse position — handles Gemini's 5-20px placement variation
+- **Expanded position tolerance**: jitter ranges increased (10/6px balanced), `isNearExpectedAnchor` tolerance raised to 20%, `JITTER_TRIGGER_MIN` gate removed
+- **New catalog variants**: 192px margin probing, 2k-new-margin, v2-small (36px), large-margin variants
+- **Smooth background detection**: `varI` fallback raised from 0.001→0.10; `LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN` lowered from 0.008→0.004
+- **Adaptive trigger relaxed**: weak catalog-backed matches no longer suppress adaptive search
+- **Confidence-floor filtering**: matches below 50% of winner confidence are suppressed as false positives
+
+### Frontend
+- **Dead code removed**: ~140 lines of unreachable `#singlePreview` HTML/JS (comparison slider, side-by-side, stats, magnifier) deleted
+- **Before/after comparison**: click-to-toggle "Compare" badge on each processed card — switches between original and result with smooth fade
+- **Advanced manual overrides**: collapsible panel with alpha-gain slider (0.5-3.0) and position search-range slider (0-30px) for difficult cases
+- **Keyboard shortcuts repurposed**: 1=toggle settings, 2=cycle presets, 3=toggle manual mode
+- **Drag-and-drop fix**: crash from removed `singlePreview` reference resolved
+- **i18n & a11y**: all tool button titles now localized; `html lang` synced dynamically; upload area `aria-label` added
 
 ## Verification baseline
 
 ```bash
-pnpm test        # core suite passing
-pnpm lint        # clean
+pnpm test        # core suite passing (48 files, 480+ tests)
+pnpm lint        # clean (0 errors, 0 warnings)
 pnpm build       # clean (static Tailwind CSS, no CDN dependency)
 ```
 
@@ -38,9 +37,9 @@ pnpm build       # clean (static Tailwind CSS, no CDN dependency)
 
 | Layer | Modules | Responsibility |
 |-------|---------|---------------|
-| Foundation | `blendModes.js`, `alphaMap.js`, `utils.js`, `templates/registry.js` | Reverse alpha blending, alpha map calculation, shared helpers, profile/catalog registry |
-| Core | `catalog.js` (+ `catalogs.json`), `config.js`, `detector.js` (+ `DetectorContext`), `detectionPipeline.js`, `adaptiveDetector.js`, `multiPassRemoval.js`, `alphaCalibration.js`, `decisionPolicy.js`, `restorationMetrics.js`, `applyRemoval.js`, `worker.js`, `workerPool.js`, `watermarkEngine.js`, `profiles.js` | Detection, scoring, scaled gating, adaptive search, multi-pass removal, alpha calibration, decision tiering, shared removal logic, worker pool, pipeline orchestration |
-| Application | `app.js` → `app/state.js`, `app/ui.js`, `app/processing.js`, `app/dragDrop.js`, `app/keyboard.js`, `app/settings.js`, `app/viewModes.js`, `app/magnifier.js`, `app/manualSelection.js` | Frontend state, UI components, drag/drop, keyboard shortcuts, settings, view modes, magnifier, manual selection, dark mode |
+| Foundation | `blendModes.js`, `alphaMap.js`, `utils.js`, `templates/registry.js`, `restorationMetrics.js` | Reverse alpha blending, alpha map calculation, shared helpers, profile/catalog registry, halo/artifact detection |
+| Core | `catalog.js` (+ `catalogs.json`), `config.js`, `detector.js` (+ `DetectorContext`), `detectionPipeline.js`, `adaptiveDetector.js`, `multiPassRemoval.js`, `alphaCalibration.js`, `decisionPolicy.js`, `applyRemoval.js`, `worker.js`, `workerPool.js`, `watermarkEngine.js`, `profiles.js` | Detection, NMS filtering, subpixel refinement, scoring, scaled gating, adaptive search, multi-pass removal with halo safety, alpha calibration, decision tiering, worker pool, pipeline orchestration |
+| Application | `app.js` → `app/state.js`, `app/ui.js`, `app/processing.js`, `app/dragDrop.js`, `app/keyboard.js`, `app/settings.js`, `app/viewModes.js`, `app/manualSelection.js` | Frontend state, before/after comparison cards, drag/drop, keyboard shortcuts, settings, view modes, manual selection with advanced overrides, dark mode |
 | Entry | `cli.js` → `cli/gwrCli.js`, `cli/gwrRemoveCommand.js`, `bin/gwr.mjs`, `sdk/index.js` (+ `index.d.ts`), `userscript/index.js`, `python/remover.py`, `python/gui.py` | CLI, NPM binary, SDK exports + TypeScript definitions, browser userscript, Python bridge |
 
 ## Quick start

@@ -220,7 +220,7 @@ describe('v2.3 Detection Thresholds', () => {
         assert.ok(FINAL_ALIGNED < FINAL_FREE, 'Aligned should be more permissive than free');
     });
 
-    test('LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN is 0.008 (v2.3: lowered from 0.015)', () => {
-        assert.strictEqual(DETECTION_THRESHOLDS.LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN, 0.008);
+    test('LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN is 0.004 (v2.6: lowered from 0.008 for smooth-bg detection)', () => {
+        assert.strictEqual(DETECTION_THRESHOLDS.LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN, 0.004);
     });
 });

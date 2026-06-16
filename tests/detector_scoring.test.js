@@ -187,14 +187,14 @@ describe('Local-Contrast NCC (calculateLocalContrastCorrelation)', () => {
         assert.ok(typeof lc === 'number');
     });
 
-    test('v2.3: Faint-watermark alpha residual threshold 0.008 retains more pixels', () => {
+    test('v2.6: Faint-watermark alpha residual threshold 0.004 retains even more pixels', () => {
         // Create a weak watermark with alpha just above the new threshold
         const img = createMockImageData(200, 200, 'noise', 128);
         const weakAlpha = new Float32Array(48 * 48);
-        for (let i = 0; i < weakAlpha.length; i++) weakAlpha[i] = 0.01; // above 0.008
+        for (let i = 0; i < weakAlpha.length; i++) weakAlpha[i] = 0.005; // above 0.004
         applyWatermark(img, 50, 50, 48, 48, weakAlpha, 255);
         const conf = calculateLocalContrastCorrelation(img, 50, 50, 48, 48, weakAlpha, true);
-        // Should be non-zero (pixels above 0.008 residual are kept)
+        // Should be non-zero (pixels above 0.004 residual are kept)
         assert.ok(typeof conf === 'number' && conf >= 0,
             `Faint watermark should produce valid score, got ${conf}`);
     });

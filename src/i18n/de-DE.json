@@ -20,6 +20,8 @@
   "panel.title": "Systemsteuerung",
   "btn.download": "Herunterladen",
   "btn.reset": "Zurücksetzen / Bild ändern",
+  "btn.darkMode": "Dunkelmodus",
+  "btn.advanced": "Erweiterte Einstellungen",
   "btn.toggleView": "Vergleich umschalten",
   "btn.copy": "In Zwischenablage kopieren",
   "btn.downloadAll": "Alle herunterladen",
@@ -111,9 +113,8 @@
   "error.dropFailed": "Verarbeitung der abgelegten Datei fehlgeschlagen",
   "shortcuts.title": "Tastenkombinationen",
   "shortcuts.esc": "Esc: Arbeitsbereich zurücksetzen",
-  "shortcuts.view": "1/2/3: Ansichtsmodus wechseln",
+  "shortcuts.view": "1: Einstellungen  2: Presets  3: Manuell",
   "shortcuts.download": "Ctrl+S: Herunterladen",
-  "shortcuts.compare": "�?�? Vergleichen",
   "settings.performancePreset": "Performance Mode",
   "preset.fast": "Fast",
   "preset.fastDesc": "Quick scan",
@@ -137,5 +138,11 @@
   "error.encodeFailed": "Verarbeitetes Bild konnte nicht als PNG kodiert werden",
   "manual.templateSize": "Wasserzeichen-Vorlagengröße",
   "manual.forceProcess": "Erzwungene Verarbeitung (Konfidenzprüfungen für schwierige Bilder überspringen)",
-  "manual.dragHint": "Ziehen, um den Wasserzeichenbereich auszuwählen"
+  "manual.dragHint": "Ziehen, um den Wasserzeichenbereich auszuwählen",
+  "badge.compare": "Vergleichen",
+  "manual.advancedOverrides": "Erweiterte Überschreibungen",
+  "manual.alphaGain": "Alpha-Verstärkung (Entfernungsstärke)",
+  "manual.alphaGainHint": "Höher = stärkere Entfernung. 1.0 für normal, 1.5-2.0 für schwach. Zu hoch = dunkle Flecken.",
+  "manual.searchRange": "Positionssuchbereich (px)",
+  "manual.searchRangeHint": "Wie weit um die ausgewählte Position gesucht wird. Erhöhen bei verschobenem Wasserzeichen."
 }

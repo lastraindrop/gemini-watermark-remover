@@ -12,6 +12,7 @@
 import { removeWatermark } from './blendModes.js';
 import { calculateCorrelation, calculateGradientCorrelation } from './detector.js';
 import { cloneImageData, calculateNearBlackRatio } from './utils.js';
+import { assessAlphaBandHalo } from './restorationMetrics.js';
 
 const DEFAULT_MAX_PASSES = 4;
 const DEFAULT_RESIDUAL_THRESHOLD = 0.25;
@@ -132,6 +133,16 @@ export function removeRepeatedWatermarkLayers(imageDataOrOptions, alphaMapArg, p
             break;
         }
 
+        // v2.6: Detect alpha-band halo after each pass. A halo appears as a
+        // dark or bright ring around the watermark edge, caused by alpha-gain
+        // mismatch or sub-pixel position error. If detected, stop early;
+        // applyRemovalStrategy will retry with subpixel refinement instead.
+        const haloAssessment = assessAlphaBandHalo(candidate, alphaMap, position);
+        if (haloAssessment.hasHalo && haloAssessment.severity > 0.5) {
+            stopReason = 'safety-halo';
+            break;
+        }
+
         currentImageData = candidate;
         appliedPassCount = startingPassIndex + passIndex + 1;
         passes.push({
@@ -140,6 +151,8 @@ export function removeRepeatedWatermarkLayers(imageDataOrOptions, alphaMapArg, p
             afterSpatialScore: after.spatialScore,
             improvement,
             gradientDelta,
+            beforeGradientScore: beforeGradient,
+            afterGradientScore: afterGradient,
             nearBlackRatio
         });
 

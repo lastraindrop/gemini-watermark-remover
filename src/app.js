@@ -10,8 +10,7 @@ import { downloadImage, downloadAllAsZip, processSingle } from './app/processing
 import { setupWindowDragAndDrop, handleFiles } from './app/dragDrop.js';
 import { setupKeyboardShortcuts } from './app/keyboard.js';
 import { setupLanguageSelector, saveSettings, loadSettings, getEngineOptions, syncTogglesToPreset } from './app/settings.js';
-import { switchViewMode, setupSlider, applyProfileTheme } from './app/viewModes.js';
-import { setupMagnifier } from './app/magnifier.js';
+import { applyProfileTheme } from './app/viewModes.js';
 import { clearManualRegion, setupManualSelection, setManualSelectionEnabled, updateManualSelectionOverlay, writeManualRegion, showManualSelectCanvas, hideManualSelectCanvas } from './app/manualSelection.js';
 
 let _pkgVersion = null;
@@ -55,20 +54,9 @@ const elements = {
     chooseFileBtn: document.getElementById('chooseFileBtn'),
     chooseFolderBtn: document.getElementById('chooseFolderBtn'),
     profileSelect: document.getElementById('profileSelect'),
-    singlePreview: document.getElementById('singlePreview'),
     multiPreview: document.getElementById('multiPreview'),
     imageList: document.getElementById('imageList'),
-    downloadBtn: document.getElementById('downloadBtn'),
     downloadAllBtn: document.getElementById('downloadAllBtn'),
-    modeSliderBtn: document.getElementById('modeSliderBtn'),
-    modeSideBtn: document.getElementById('modeSideBtn'),
-    modeStatsBtn: document.getElementById('modeStatsBtn'),
-    comparisonSlider: document.getElementById('comparisonSlider'),
-    sideBySideView: document.getElementById('sideBySideView'),
-    statsView: document.getElementById('statsView'),
-    magnifierLens: document.getElementById('magnifierLens'),
-    tierBadge: document.getElementById('tierBadge'),
-    lastLatency: document.getElementById('lastLatency'),
     resetAreaBtn: document.getElementById('resetAreaBtn'),
     clearAllBtn: document.getElementById('clearAllBtn'),
     auditConsole: document.getElementById('auditConsole'),
@@ -157,6 +145,18 @@ async function init() {
 
         await i18n.init();
         setupLanguageSelector(elements);
+
+        // v2.6: Sync HTML lang attribute and tool button titles after i18n load
+        document.documentElement.lang = i18n.locale;
+        const darkBtn = document.getElementById('darkModeToggle');
+        if (darkBtn) { darkBtn.title = i18n.t('btn.darkMode') || 'Toggle dark mode'; darkBtn.setAttribute('aria-label', darkBtn.title); }
+        const advBtn = document.getElementById('toggleAdvancedBtn');
+        if (advBtn) { advBtn.title = i18n.t('btn.advanced') || 'Advanced Settings'; advBtn.setAttribute('aria-label', advBtn.title); }
+        const resetBtn = document.getElementById('resetAreaBtn');
+        if (resetBtn) { resetBtn.title = i18n.t('btn.reset') || 'Reset'; resetBtn.setAttribute('aria-label', resetBtn.title); }
+        const upload = document.getElementById('uploadArea');
+        if (upload) upload.setAttribute('aria-label', i18n.t('upload.text') || 'Upload Area');
+
         showLoading(i18n.t('status.loading'));
 
         state.engine = await WatermarkEngine.create();
@@ -258,6 +258,14 @@ function setupEventListeners() {
         if (elements.penaltyVal) elements.penaltyVal.textContent = e.target.value;
     });
 
+    // v2.6: Manual override sliders
+    const agSlider = document.getElementById('manualAlphaGain');
+    const agVal = document.getElementById('manualAlphaGainVal');
+    agSlider?.addEventListener('input', (e) => { if (agVal) agVal.textContent = parseFloat(e.target.value).toFixed(2); });
+    const srSlider = document.getElementById('manualSearchRange');
+    const srVal = document.getElementById('manualSearchRangeVal');
+    srSlider?.addEventListener('input', (e) => { if (srVal) srVal.textContent = e.target.value; });
+
     // v2.3: Performance preset radio buttons — persist choice + sync toggles
     document.querySelectorAll('input[name="performancePreset"]').forEach(radio => {
         radio.addEventListener('change', () => {
@@ -289,10 +297,6 @@ function setupEventListeners() {
     });
     elements.manualReprocessBtn?.addEventListener('click', () => reprocessSingleWithManualArea());
 
-    elements.modeSliderBtn?.addEventListener('click', () => switchViewMode('slider', elements));
-    elements.modeSideBtn?.addEventListener('click', () => switchViewMode('side', elements));
-    elements.modeStatsBtn?.addEventListener('click', () => switchViewMode('stats', elements));
-
     // v2.3: Reprocess current image with updated settings
     elements.reprocessBtn?.addEventListener('click', async () => {
         if (state.isProcessing) {
@@ -312,8 +316,8 @@ function setupEventListeners() {
         try {
             const opts = getEngineOptions(elements, { ignoreManual: true });
             await processSingle(item, opts, {
-                onSuccess: ({ item: pItem, removedCount, confidence, latency, config, pos, profileId }) => {
-                    updateSingleUI(pItem, removedCount, confidence, latency, config, pos, profileId);
+                onSuccess: ({ item: pItem, config, pos }) => {
+                    setActiveItem(pItem, config, pos);
                     updateManualSelectionOverlay(elements);
                     AuditLog.log(`Re-processed with ${elements.performanceSelect?.value || 'balanced'} preset`, 'success');
                 },
@@ -329,8 +333,6 @@ function setupEventListeners() {
         }
     });
 
-    setupSlider(elements);
-    setupMagnifier(elements);
     setupManualSelection(elements, {
         onSelection: () => {
             if (elements.manualModeToggle) elements.manualModeToggle.checked = true;
@@ -370,7 +372,6 @@ function useDetectedAreaForManualMode() {
 
     if (elements.manualModeToggle) elements.manualModeToggle.checked = true;
     setManualControlsActive(true);
-    switchViewMode('slider', elements);
     writeManualRegion(elements, region);
     updateManualSelectionOverlay(elements);
     AuditLog.log(`Manual region seeded from detection (${region.x}, ${region.y}, ${region.width}x${region.height})`, 'info');
@@ -410,8 +411,8 @@ async function reprocessSingleWithManualArea() {
 
     try {
         await processSingle(item, options, {
-            onSuccess: ({ item: processedItem, removedCount, confidence, latency, config, pos, profileId }) => {
-                updateSingleUI(processedItem, removedCount, confidence, latency, config, pos, profileId);
+            onSuccess: ({ item: processedItem, config, pos }) => {
+                setActiveItem(processedItem, config, pos);
                 updateManualSelectionOverlay(elements);
                 AuditLog.log(`Manual region processed (${options.manualConfig.x}, ${options.manualConfig.y}, ${options.manualConfig.width}x${options.manualConfig.height})`, 'success');
             },
@@ -427,32 +428,24 @@ async function reprocessSingleWithManualArea() {
     }
 }
 
-function updateSingleUI(item, removedCount, confidence, latency, config, pos, profileId) {
+/**
+ * v2.6: Minimal active-item tracker. Replaces updateSingleUI which wrote to
+ * the now-removed #singlePreview section (sliderOriginal, sideOriginal,
+ * comparisonSlider, statsView, tierBadge, magnifier, downloadBtn). Only
+ * activeSingleItem and lastDetectedRegion are needed by reprocess/manual mode.
+ */
+function setActiveItem(item, config, pos) {
     state.activeSingleItem = item;
     item.lastDetectedRegion = getRegionFromDetection(pos, config);
-
-    // FE-BUG-M2/U3: Removed dead writes to sliderOriginal/sliderProcessed/
-    // sideOriginal/sideProcessed .src — the #singlePreview section (containing
-    // comparisonSlider, sideBySideView, statsView, tierBadge, magnifier) is
-    // always display:none under the unified card layout (v2.5). These DOM
-    // updates were unreachable. Kept: activeSingleItem, lastDetectedRegion
-    // (used by manual mode + reprocess), and the AuditLog/toast feedback.
-
-    if (elements.lastLatency) {
-        elements.lastLatency.textContent = `${i18n.t('info.latency')}: ${latency}ms`;
-    }
-
-    elements.downloadBtn.onclick = () => downloadImage(item);
-    elements.downloadBtn.classList.remove('hidden');
-
-    AuditLog.log(`[PASS] ${item.name} | Profile: ${profileId} | Conf: ${confidence}% | ${latency}ms`, 'success');
-    showToast(i18n.t('toast.removed', { count: removedCount }), 'success');
+    AuditLog.log(`[PASS] ${item.name}`, 'success');
     setManualSelectionEnabled(elements, elements.manualModeToggle?.checked === true);
 }
 
 function updateCardUI(item, removedCount, confidence, latency) {
     const loader = document.getElementById(`loader-${item.id}`);
     const img = document.getElementById(`result-${item.id}`);
+    const originalImg = document.getElementById(`original-${item.id}`);
+    const compareBadge = document.getElementById(`compare-${item.id}`);
     const preview = img?.closest('.scanner-effect');
     const status = document.getElementById(`status-${item.id}`);
     const meta = document.getElementById(`meta-${item.id}`);
@@ -463,6 +456,15 @@ function updateCardUI(item, removedCount, confidence, latency) {
     if (img) {
         img.src = item.processedUrl;
         img.classList.remove('opacity-0');
+    }
+    // v2.6: Populate original image for before/after comparison
+    if (originalImg && item.originalUrl) {
+        originalImg.src = item.originalUrl;
+        originalImg.style.display = '';
+    }
+    // Show the compare toggle badge
+    if (compareBadge) {
+        compareBadge.style.opacity = '1';
     }
     if (status) status.textContent = confidence > 0 ? i18n.t('status.dewatermarked') : i18n.t('status.noWatermark');
     if (meta) meta.textContent = `${removedCount} / ${latency}ms`;
@@ -499,15 +501,9 @@ function onBatchComplete() {
 
 function resetWorkspace(clearQueue = true) {
     objectUrlManager.clear();
-    elements.singlePreview.style.display = 'none';
     elements.multiPreview.style.display = 'none';
     clearManualRegion(elements);
     setManualSelectionEnabled(elements, false);
-    // Clear stale download button handler to prevent downloading revoked URLs
-    if (elements.downloadBtn) {
-        elements.downloadBtn.onclick = null;
-        elements.downloadBtn.classList.add('hidden');
-    }
     if (clearQueue) {
         state.imageQueue = [];
         state.processedCount = 0;

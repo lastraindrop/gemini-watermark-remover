@@ -393,7 +393,7 @@ export function detectAdaptiveWatermarkRegion({
 
 const SUBPIXEL_REFINE_SHIFTS = [-0.25, 0, 0.25];
 const SUBPIXEL_REFINE_SCALES = [0.99, 1, 1.01];
-const OUTLINE_REFINEMENT_MIN_GAIN = 1.2;
+const OUTLINE_REFINEMENT_MIN_GAIN = 1.05;  // v2.6: lowered from 1.2 so normal-contrast watermarks also benefit
 
 /**
  * Refine watermark removal at sub-pixel level by testing small shifts
@@ -425,8 +425,9 @@ export function refineSubpixelOutline(params) {
         maxSpatialDrift = 0.08
     } = params;
 
-    const size = position.width;
-    if (!size || size <= 8) return null;
+    const sizeW = position.width;
+    const sizeH = position.height;
+    if (!sizeW || !sizeH || sizeW <= 8 || sizeH <= 8) return null;
     if (alphaGain < minGain) return null;
 
     const baseDx = baselineShift?.dx ?? 0;
@@ -439,8 +440,8 @@ export function refineSubpixelOutline(params) {
     if (lower !== alphaGain && lower > 1) gainCandidates.push(lower);
     if (upper !== alphaGain && upper < 3) gainCandidates.push(upper);
 
-    const gradientsI = new Float32Array(size * size);
-    const gradientsA = new Float32Array(size * size);
+    const gradientsI = new Float32Array(sizeW * sizeH);
+    const gradientsA = new Float32Array(sizeW * sizeH);
 
     let best = null;
 
@@ -450,14 +451,14 @@ export function refineSubpixelOutline(params) {
             const dy = baseDy + dyDelta;
             for (const dxDelta of shiftCandidates) {
                 const dx = baseDx + dxDelta;
-                const warped = warpAlphaMap(alphaMap, size, { dx, dy, scale });
+                const warped = warpAlphaMap(alphaMap, sizeW, { dx, dy, scale }, sizeH);
                 for (const gain of gainCandidates) {
                     const candidate = { ...sourceImageData, data: new Uint8ClampedArray(sourceImageData.data) };
-                    removeWatermark(candidate, warped, { ...position, width: size, height: size }, { alphaGain: gain });
+                    removeWatermark(candidate, warped, position, { alphaGain: gain });
 
-                    const spatialScore = calculateCorrelation(candidate, position.x, position.y, size, size, warped, true);
+                    const spatialScore = calculateCorrelation(candidate, position.x, position.y, sizeW, sizeH, warped, true);
                     const gradientScore = calculateGradientCorrelation(
-                        candidate, position.x, position.y, size, size, warped,
+                        candidate, position.x, position.y, sizeW, sizeH, warped,
                         gradientsI, gradientsA
                     );
 

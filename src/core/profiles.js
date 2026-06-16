@@ -13,6 +13,7 @@ export const PROFILES = {
             '0.5k': { logoSize: 48, marginRight: 32, marginBottom: 32 },
             '1k': { logoSize: 96, marginRight: 64, marginBottom: 64 },
             '2k': { logoSize: 96, marginRight: 64, marginBottom: 64 },
+            '2k-new': { logoSize: 96, marginRight: 192, marginBottom: 192 },
             '4k': { logoSize: 96, marginRight: 64, marginBottom: 64 }
         },
         getHeuristicConfig: (w, h) => {

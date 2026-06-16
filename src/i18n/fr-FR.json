@@ -20,6 +20,8 @@
   "panel.title": "Panneau de contrôle",
   "btn.download": "Télécharger",
   "btn.reset": "Réinitialiser / Changer de photo",
+  "btn.darkMode": "Mode sombre",
+  "btn.advanced": "Paramètres avancés",
   "btn.toggleView": "Basculer la comparaison",
   "btn.copy": "Copier dans le presse-papiers",
   "btn.downloadAll": "Tout télécharger",
@@ -111,9 +113,8 @@
   "error.dropFailed": "Échec du traitement du fichier déposé",
   "shortcuts.title": "Raccourcis clavier",
   "shortcuts.esc": "Esc: Réinitialiser l'espace de travail",
-  "shortcuts.view": "1/2/3: Changer les modes d'affichage",
+  "shortcuts.view": "1: Paramètres  2: Mode  3: Manuel",
   "shortcuts.download": "Ctrl+S: Télécharger",
-  "shortcuts.compare": "�?�? Comparer",
   "settings.performancePreset": "Performance Mode",
   "preset.fast": "Fast",
   "preset.fastDesc": "Quick scan",
@@ -137,5 +138,11 @@
   "error.encodeFailed": "Impossible d'encoder l'image traitée en PNG",
   "manual.templateSize": "Taille du modèle de filigrane",
   "manual.forceProcess": "Traitement forcé (ignorer les vérifications de confiance pour les images difficiles)",
-  "manual.dragHint": "Glisser pour sélectionner la zone du filigrane"
+  "manual.dragHint": "Glisser pour sélectionner la zone du filigrane",
+  "badge.compare": "Comparer",
+  "manual.advancedOverrides": "Remplacements avancés",
+  "manual.alphaGain": "Gain Alpha (force de suppression)",
+  "manual.alphaGainHint": "Plus élevé = suppression plus forte. 1.0 pour normal, 1.5-2.0 pour faint. Trop élevé = taches sombres.",
+  "manual.searchRange": "Plage de recherche de position (px)",
+  "manual.searchRangeHint": "Jusqu'où chercher autour de la position sélectionnée. Augmentez si le filigrane est décalé."
 }

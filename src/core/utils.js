@@ -58,7 +58,8 @@ export function calculateNearBlackRatio(imageData, position) {
 export function regionStdDev(data, imgWidth, x, y, regionW, regionH) {
     const rw = regionW;
     const rh = regionH !== undefined ? regionH : regionW;
-    if (x < 0 || y < 0 || x + rw > imgWidth || rw <= 0 || rh <= 0) return 0;
+    const maxImgY = Math.floor(data.length / (imgWidth * 4));
+    if (x < 0 || y < 0 || x + rw > imgWidth || y + rh > maxImgY || rw <= 0 || rh <= 0) return 0;
     let sum = 0, sq = 0, n = 0;
     const maxY = Math.min(y + rh, Math.floor(data.length / (imgWidth * 4)));
     for (let row = y; row < maxY; row++) {

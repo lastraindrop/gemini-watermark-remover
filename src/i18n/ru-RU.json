@@ -20,6 +20,8 @@
   "panel.title": "Панель управления",
   "btn.download": "Скачать",
   "btn.reset": "Сброс / Сменить фото",
+  "btn.darkMode": "Тёмная тема",
+  "btn.advanced": "Расширенные настройки",
   "btn.toggleView": "Переключить сравнение",
   "btn.copy": "Копировать в буфер",
   "btn.downloadAll": "Скачать все",
@@ -111,9 +113,8 @@
   "error.dropFailed": "Не удалось обработать сброшенный файл",
   "shortcuts.title": "Горячие клавиши",
   "shortcuts.esc": "Esc: Сбросить рабочую область",
-  "shortcuts.view": "1/2/3: Переключить режимы просмотра",
+  "shortcuts.view": "1: Настройки  2: Режим  3: Ручной",
   "shortcuts.download": "Ctrl+S: Скачать",
-  "shortcuts.compare": "�?�? Сравнить",
   "settings.performancePreset": "Performance Mode",
   "preset.fast": "Fast",
   "preset.fastDesc": "Quick scan",
@@ -137,5 +138,11 @@
   "error.encodeFailed": "Не удалось кодировать обработанное изображение в PNG",
   "manual.templateSize": "Размер шаблона водяного знака",
   "manual.forceProcess": "Принудительная обработка (пропустить проверку достоверности для сложных изображений)",
-  "manual.dragHint": "Перетащите, чтобы выделить область водяного знака"
+  "manual.dragHint": "Перетащите, чтобы выделить область водяного знака",
+  "badge.compare": "Сравнить",
+  "manual.advancedOverrides": "Расширенные переопределения",
+  "manual.alphaGain": "Alpha коэффициент (сила удаления)",
+  "manual.alphaGainHint": "Выше = сильнее удаление. 1.0 для нормальных, 1.5-2.0 для слабых. Слишком высоко = тёмные пятна.",
+  "manual.searchRange": "Диапазон поиска позиции (пикс)",
+  "manual.searchRangeHint": "Как далеко искать вокруг выбранной позиции. Увеличьте при смещении водяного знака."
 }

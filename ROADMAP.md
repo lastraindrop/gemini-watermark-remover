@@ -2,11 +2,11 @@
 
 ## Current Status
 
-- **Version**: v2.5.1
-- **Verification baseline**: core suite passing (417 tests), 0 lint errors on source, production build clean
-- **Architecture**: Five-phase detection pipeline (Catalog → Scaled → Heuristic → Adaptive → Global) + unified DETECTION_THRESHOLDS + performance presets + decision policy + shared removal + worker pool
-- **Test suite**: 44 test files, 417 tests, DETECTION_THRESHOLDS de-hardcoded across detector.js
-- **Frontend**: Unified card-based layout, enhanced manual mode with canvas drag-to-select + template size selector + force-process, 7 language i18n, dark mode, inline PNG assets (no file:// CORS issues)
+- **Version**: v2.6.0
+- **Verification baseline**: core suite passing (48 files, 480+ tests), 0 lint errors, production build clean
+- **Architecture**: Five-phase pipeline + NMS filtering + sub-pixel refinement + coarse relocation search + halo detection
+- **Test suite**: 48 test files (4 new), DETECTION_THRESHOLDS de-hardcoded
+- **Frontend**: Unified card grid with before/after comparison, advanced manual overrides, dead code removed, 7 language i18n
 
 ## Completed (v2.5.0 — Detection Geometry & Removal Quality)
 
@@ -107,6 +107,19 @@
 - **D-2**: `FRONTEND_DIAGNOSTIC_REPORT.md` — 4-dimension frontend diagnostic (20 bugs identified, 10 fixed).
 - **D-3**: All doc files updated: test counts (107+→417), broken links fixed, version headers aligned.
 
+## Completed (v2.6.0 — Diagnostic Closure & Precision Upgrade)
+
+- **Sub-pixel refinement integrated**: dead code `refineSubpixelOutline` activated in `applyRemovalStrategy`
+- **NMS false-positive suppression**: spatial overlap + 50% confidence-floor filtering
+- **Halo detection**: `assessAlphaBandHalo` safety gate in multi-pass removal
+- **Coarse relocation search**: ±16px scan when anchor NCC < 0.30, + expanded jitter ranges
+- **Position tolerance overhaul**: jitter 6→10 (balanced), JITTER_TRIGGER_MIN removed, isNearExpectedAnchor 10%→20%
+- **New catalog variants**: 192px margin, 2k-new-margin, v2-small, large-margin
+- **Smooth background**: varI 0.001→0.10, LC_ALPHA_RESIDUAL_MIN 0.008→0.004, adaptive trigger relaxed
+- **Frontend**: ~140 lines dead code removed, before/after comparison on cards, advanced manual overrides
+- **Tests**: 4 new files (31 tests) — subpixel integration, rectangular, alpha gain, position offset tolerance
+
+## Short-term Plans (v2.7)
 ## Short-term Plans (v2.6)
 
 1. **Playwright E2E browser tests**: Browser integration tests for the web UI (upstream had this; fork dropped it).

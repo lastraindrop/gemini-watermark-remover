@@ -20,6 +20,8 @@
   "panel.title": "Panel de control",
   "btn.download": "Descargar",
   "btn.reset": "Restablecer / Cambiar imagen",
+  "btn.darkMode": "Modo oscuro",
+  "btn.advanced": "Configuración avanzada",
   "btn.toggleView": "Alternar comparación",
   "btn.copy": "Copiar al portapapeles",
   "btn.downloadAll": "Descargar todo",
@@ -111,9 +113,8 @@
   "error.dropFailed": "Error al procesar el archivo soltado",
   "shortcuts.title": "Atajos de teclado",
   "shortcuts.esc": "Esc: Restablecer espacio de trabajo",
-  "shortcuts.view": "1/2/3: Cambiar modos de vista",
+  "shortcuts.view": "1: Ajustes  2: Modo  3: Manual",
   "shortcuts.download": "Ctrl+S: Descargar",
-  "shortcuts.compare": "�?�? Comparar",
   "settings.performancePreset": "Performance Mode",
   "preset.fast": "Fast",
   "preset.fastDesc": "Quick scan",
@@ -137,5 +138,11 @@
   "error.encodeFailed": "No se pudo codificar la imagen procesada como PNG",
   "manual.templateSize": "Tamaño de plantilla de marca de agua",
   "manual.forceProcess": "Procesamiento forzado (omitir verificaciones de confianza para imágenes difíciles)",
-  "manual.dragHint": "Arrastra para seleccionar el área de la marca de agua"
+  "manual.dragHint": "Arrastra para seleccionar el área de la marca de agua",
+  "badge.compare": "Comparar",
+  "manual.advancedOverrides": "Anulaciones avanzadas",
+  "manual.alphaGain": "Ganancia Alpha (fuerza de eliminación)",
+  "manual.alphaGainHint": "Mayor = eliminación más fuerte. 1.0 para normal, 1.5-2.0 para tenue. Demasiado alto = manchas oscuras.",
+  "manual.searchRange": "Rango de búsqueda de posición (px)",
+  "manual.searchRangeHint": "Hasta dónde buscar alrededor de la posición seleccionada. Aumente si la marca está ligeramente desplazada."
 }

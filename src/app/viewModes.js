@@ -1,88 +1,15 @@
-export function switchViewMode(mode, elements) {
-    const btns = [elements.modeSliderBtn, elements.modeSideBtn, elements.modeStatsBtn];
-    const views = [elements.comparisonSlider, elements.sideBySideView, elements.statsView];
-
-    btns.forEach(b => b?.classList.remove('bg-white', 'dark:bg-slate-800', 'text-emerald-500', 'shadow-sm'));
-    views.forEach(v => v?.classList.add('hidden'));
-
-    if (mode === 'slider') {
-        elements.modeSliderBtn?.classList.add('bg-white', 'dark:bg-slate-800', 'text-emerald-500', 'shadow-sm');
-        elements.comparisonSlider?.classList.remove('hidden');
-    } else if (mode === 'side') {
-        elements.modeSideBtn?.classList.add('bg-white', 'dark:bg-slate-800', 'text-emerald-500', 'shadow-sm');
-        elements.sideBySideView?.classList.remove('hidden');
-    } else {
-        elements.modeStatsBtn?.classList.add('bg-white', 'dark:bg-slate-800', 'text-emerald-500', 'shadow-sm');
-        elements.statsView?.classList.remove('hidden');
-    }
-}
-
-export function updateStatsUI(config, pos, confidence, profileId) {
-    const statAnchor = document.getElementById('statAnchor');
-    const statCoord = document.getElementById('statCoord');
-    const statConfidence = document.getElementById('statConfidence');
-    const statAlgo = document.getElementById('statAlgo');
-    if (statAnchor) statAnchor.textContent = (pos?.anchor || config?.anchor || 'AUTO').toUpperCase();
-    if (statCoord) statCoord.textContent = pos ? `${Math.round(pos.x)}, ${Math.round(pos.y)}` : 'AUTO';
-    if (statConfidence) statConfidence.textContent = `${confidence}%`;
-    if (statAlgo) statAlgo.textContent = (profileId || 'AUTO').toUpperCase();
-}
-
+/**
+ * v2.6: View mode helpers.
+ * switchViewMode, setupSlider, updateStatsUI removed — #singlePreview section
+ * (comparisonSlider, sideBySideView, statsView, tierBadge, magnifier) is
+ * deleted in favour of the unified card grid layout.
+ * Only applyProfileTheme is retained — it colors the header icon per-profile.
+ */
 export function applyProfileTheme(profile) {
     if (!profile?.brandColor) return;
-    // FE-BUG-M4: Reset to default before applying new color so switching
-    // Gemini→Doubao→Gemini doesn't leave Doubao's indigo color lingering.
-    // Store the applied color on the element for reliable restoration.
     const headerIcon = document.querySelector('[data-profile-icon]');
     if (headerIcon) {
         headerIcon.style.backgroundColor = profile.brandColor;
         headerIcon.dataset.appliedColor = profile.brandColor;
     }
-    const tierBadge = document.getElementById('tierBadge');
-    if (tierBadge) {
-        tierBadge.style.backgroundColor = profile.brandColor;
-        tierBadge.dataset.appliedColor = profile.brandColor;
-    }
-}
-
-export function setupSlider(elements) {
-    const slider = elements.comparisonSlider;
-    if (!slider) return;
-
-    const resize = slider.querySelector('.resize');
-    const handle = slider.querySelector('.handle');
-
-    let dragging = false;
-
-    const updateSlider = (clientX) => {
-        const rect = slider.getBoundingClientRect();
-        const x = clientX - rect.left;
-        const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
-        if (resize) resize.style.width = `${percent}%`;
-        if (handle) handle.style.left = `${percent}%`;
-    };
-
-    const onPointerMove = (e) => {
-        if (!dragging) return;
-        e.preventDefault();
-        updateSlider(e.clientX);
-    };
-
-    const onPointerUp = () => {
-        dragging = false;
-        document.removeEventListener('pointermove', onPointerMove);
-        document.removeEventListener('pointerup', onPointerUp);
-        document.removeEventListener('pointercancel', onPointerUp);
-    };
-
-    slider.addEventListener('pointerdown', (e) => {
-        if (e.target.closest('.resize') || e.target.closest('.handle') || e.target === slider) {
-            dragging = true;
-            e.preventDefault();
-            slider.setPointerCapture(e.pointerId);
-            document.addEventListener('pointermove', onPointerMove);
-            document.addEventListener('pointerup', onPointerUp);
-            document.addEventListener('pointercancel', onPointerUp);
-        }
-    });
 }

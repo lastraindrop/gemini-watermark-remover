@@ -46,8 +46,8 @@ export const DETECTION_THRESHOLDS = {
     CANDIDATES_LIMIT_PER_SIZE: 5,
     PROXIMITY_THRESHOLD: 8,
     FINE_TUNE_RANGE: 4,
-    JITTER_RANGE: 6,
-    JITTER_OFFICIAL: 4,
+    JITTER_RANGE: 10,       // v2.6: expanded from 6 to handle Gemini position drift
+    JITTER_OFFICIAL: 6,     // v2.6: expanded from 4 to handle Gemini position drift
 
     // Scoring weights
     SPATIAL_WEIGHT: 0.5,
@@ -55,7 +55,7 @@ export const DETECTION_THRESHOLDS = {
     VARIANCE_WEIGHT: 0.2,
 
     // Local contrast
-    LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN: 0.008,  // v2.3: lowered from 0.015
+    LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN: 0.004,  // v2.6: lowered from 0.008 for smooth-bg detection
     LOCAL_CONTRAST_MIN_COUNT_FACTOR: 20,        // denominator for min count = (w*h) / factor / step^2
 
     // Scoring & gating constants (v2.5.1: migrated from detector.js hardcoded values)
@@ -105,8 +105,8 @@ export const PERFORMANCE_PRESETS = {
             CANDIDATES_LIMIT_PER_SIZE: 3,
             PROXIMITY_THRESHOLD: 12,
             FINE_TUNE_RANGE: 2,
-            JITTER_RANGE: 3,
-            JITTER_OFFICIAL: 2,
+            JITTER_RANGE: 5,        // v2.6: expanded from 3
+            JITTER_OFFICIAL: 3,     // v2.6: expanded from 2
             THRESHOLDS: {
                 COARSE: 0.12,
                 FINAL_ANCHORED: 0.18,
@@ -127,8 +127,8 @@ export const PERFORMANCE_PRESETS = {
             CANDIDATES_LIMIT_PER_SIZE: 5,
             PROXIMITY_THRESHOLD: 8,
             FINE_TUNE_RANGE: 4,
-            JITTER_RANGE: 6,
-            JITTER_OFFICIAL: 4,
+            JITTER_RANGE: 10,       // v2.6: expanded from 6 to handle Gemini position drift
+            JITTER_OFFICIAL: 6,     // v2.6: expanded from 4
             THRESHOLDS: {
                 COARSE: 0.10,
                 FINAL_ANCHORED: 0.15,
@@ -149,8 +149,8 @@ export const PERFORMANCE_PRESETS = {
             CANDIDATES_LIMIT_PER_SIZE: 8,
             PROXIMITY_THRESHOLD: 6,
             FINE_TUNE_RANGE: 8,
-            JITTER_RANGE: 8,
-            JITTER_OFFICIAL: 6,
+            JITTER_RANGE: 14,       // v2.6: expanded from 8 for maximum offset tolerance
+            JITTER_OFFICIAL: 8,     // v2.6: expanded from 6
             THRESHOLDS: {
                 COARSE: 0.08,
                 FINAL_ANCHORED: 0.12,

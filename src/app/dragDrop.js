@@ -24,18 +24,51 @@ function createImageCard(item, elements) {
     const preview = document.createElement('div');
     preview.className = 'relative aspect-square rounded-2xl bg-slate-900/5 dark:bg-slate-900/50 flex items-center justify-center overflow-hidden mb-4 scanner-effect is-processing';
 
+    // v2.6: Before/after comparison — original image behind the result.
+    // Toggle button switches which image is visible.
+    const originalImg = document.createElement('img');
+    originalImg.id = `original-${item.id}`;
+    originalImg.className = 'absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-300 pointer-events-none';
+    originalImg.alt = item.name + ' (original)';
+    originalImg.style.display = 'none';
+
     const img = document.createElement('img');
     img.id = `result-${item.id}`;
-    img.className = 'max-w-full max-h-full object-contain transition-opacity duration-500 opacity-0';
+    img.className = 'max-w-full max-h-full object-contain transition-opacity duration-500 opacity-0 relative z-10';
     img.alt = item.name;
 
     const loader = document.createElement('div');
     loader.id = `loader-${item.id}`;
-    loader.className = 'absolute inset-0 flex items-center justify-center';
+    loader.className = 'absolute inset-0 flex items-center justify-center z-20';
     const spinner = document.createElement('div');
     spinner.className = 'w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin';
     loader.appendChild(spinner);
-    preview.append(img, loader);
+
+    // v2.6: Before/After toggle badge (shown after processing)
+    const compareBadge = document.createElement('button');
+    compareBadge.id = `compare-${item.id}`;
+    compareBadge.className = 'absolute top-2 right-2 z-30 px-2 py-1 rounded-full text-[9px] font-black bg-black/60 text-white opacity-0 transition-opacity duration-300 hover:bg-black/80 cursor-pointer';
+    compareBadge.textContent = i18n.t('badge.compare') || 'Compare';
+    compareBadge.dataset.state = 'result';  // 'result' or 'original'
+    compareBadge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isResult = compareBadge.dataset.state === 'result';
+        if (isResult) {
+            // Show original
+            originalImg.style.opacity = '1';
+            img.style.opacity = '0';
+            compareBadge.textContent = i18n.t('badge.result') || 'Result';
+            compareBadge.dataset.state = 'original';
+        } else {
+            // Show result
+            originalImg.style.opacity = '0';
+            img.style.opacity = '1';
+            compareBadge.textContent = i18n.t('badge.compare') || 'Compare';
+            compareBadge.dataset.state = 'result';
+        }
+    });
+
+    preview.append(originalImg, img, loader, compareBadge);
 
     const content = document.createElement('div');
     content.className = 'space-y-1 px-1';
@@ -92,7 +125,6 @@ export function handleFiles(files, elements, onBatchItemSuccess, onBatchItemErro
     // subsequent revoke is safe.
     elements.imageList.innerHTML = '';
     objectUrlManager.clear();
-    elements.singlePreview.style.display = 'none';
     elements.multiPreview.style.display = 'none';
     clearManualRegion(elements);
     setManualSelectionEnabled(elements, false);
@@ -111,7 +143,6 @@ export function handleFiles(files, elements, onBatchItemSuccess, onBatchItemErro
     // the same card grid used for batch mode. This simplifies the code,
     // reduces per-frame layout thrashing, and makes the UX consistent.
     state.activeSingleItem = null;
-    elements.singlePreview.style.display = 'none';
     elements.multiPreview.style.display = 'block';
     state.imageQueue.forEach(item => createImageCard(item, elements));
 

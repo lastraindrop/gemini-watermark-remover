@@ -15,6 +15,21 @@
       "marginRight": 64,
       "marginBottom": 64
     },
+    "2k-new-margin": {
+      "logoSize": 96,
+      "marginRight": 192,
+      "marginBottom": 192
+    },
+    "v2-small": {
+      "logoSize": 36,
+      "marginRight": 32,
+      "marginBottom": 32
+    },
+    "large-margin": {
+      "logoSize": 48,
+      "marginRight": 96,
+      "marginBottom": 96
+    },
     "4k": {
       "logoSize": 96,
       "marginRight": 64,

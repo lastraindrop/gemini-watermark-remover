@@ -1,6 +1,7 @@
 import { removeWatermark } from './blendModes.js';
 import { removeRepeatedWatermarkLayers } from './multiPassRemoval.js';
 import { shouldRecalibrateAlphaStrength, recalibrateAlphaStrength } from './alphaCalibration.js';
+import { refineSubpixelOutline } from './adaptiveDetector.js';
 
 /**
  * Estimate optimal alphaGain by comparing watermark-center luminance against
@@ -49,11 +50,87 @@ export function estimateAlphaGain(imageData, alphaMap, position) {
     return Math.max(0.01, Math.min(2.0, estAlpha / templateAlpha));
 }
 
+/**
+ * v2.6: Non-Maximum Suppression for watermark matches.
+ *
+ * When the detection pipeline finds multiple candidates near the same region
+ * (e.g. a 48px match at margin 32 AND a 96px match at margin 64 that spatially
+ * overlap), applying removal to ALL of them corrupts the image — each pass
+ * re-processes already-cleaned pixels, producing dark blotches and artifacts.
+ *
+ * This function keeps only the highest-confidence match per spatial cluster,
+ * suppressing lower-confidence overlaps.
+ *
+ * @param {Array} matches - Detection matches (will be sorted by confidence desc)
+ * @returns {Array} Filtered matches with no significant spatial overlap
+ */
+function suppressOverlappingMatches(matches) {
+    if (matches.length <= 1) return matches;
+
+    // Sort by confidence descending
+    const sorted = [...matches].sort((a, b) => b.confidence - a.confidence);
+    const accepted = [];
+
+    // v2.6: Confidence ratio filter — only keep matches whose confidence is
+    // within 50% of the strongest match. If the winner has conf=0.97, any match
+    // below 0.49 is almost certainly a false positive (different watermark
+    // geometry, margin, or template creating spurious correlation). This is
+    // especially important after adding 192px margin probing, which increases
+    // the candidate pool and false-positive surface.
+    const topConfidence = sorted[0].confidence;
+    const confidenceFloor = topConfidence * 0.5;
+
+    for (const candidate of sorted) {
+        // Skip weak matches far below the winner
+        if (candidate.confidence < confidenceFloor && accepted.length > 0) continue;
+
+        let overlapsExisting = false;
+        for (const existing of accepted) {
+            // Check actual pixel-level bounding box intersection
+            const ax1 = candidate.pos.x, ay1 = candidate.pos.y;
+            const ax2 = candidate.pos.x + candidate.pos.width;
+            const ay2 = candidate.pos.y + candidate.pos.height;
+            const bx1 = existing.pos.x, by1 = existing.pos.y;
+            const bx2 = existing.pos.x + existing.pos.width;
+            const by2 = existing.pos.y + existing.pos.height;
+
+            const overlapX = Math.max(0, Math.min(ax2, bx2) - Math.max(ax1, bx1));
+            const overlapY = Math.max(0, Math.min(ay2, by2) - Math.max(ay1, by1));
+            const overlapArea = overlapX * overlapY;
+
+            const candidateArea = candidate.pos.width * candidate.pos.height;
+            const existingArea = existing.pos.width * existing.pos.height;
+            const minArea = Math.min(candidateArea, existingArea);
+
+            // Suppress if overlap area exceeds 25% of the smaller match's area
+            if (overlapArea > minArea * 0.25) {
+                overlapsExisting = true;
+                break;
+            }
+        }
+        if (!overlapsExisting) {
+            accepted.push(candidate);
+        }
+    }
+
+    return accepted;
+}
+
 export function applyRemovalStrategy(imageData, matches) {
-    for (const match of matches) {
+    // v2.6: Non-Maximum Suppression — filter overlapping matches before removal.
+    // Without this, a single real watermark at 48px can produce 2-3 overlapping
+    // false-positive matches at different sizes/margins, and applying removal to
+    // all of them corrupts the image.
+    const filteredMatches = suppressOverlappingMatches(matches);
+
+    for (const match of filteredMatches) {
         const useMultiPass = match.profileId === 'gemini';
         if (useMultiPass) {
-            const alphaGain = estimateAlphaGain(imageData, match.alphaMap, match.pos);
+            // v2.6: Check for manual alphaGain override (difficult cases)
+            const estimatedGain = estimateAlphaGain(imageData, match.alphaMap, match.pos);
+            const alphaGain = (match.config?.alphaGainOverride && match.config.alphaGainOverride > 0)
+                ? match.config.alphaGainOverride
+                : estimatedGain;
             // v2.5: Pre-scale the alpha map once before multi-pass removal.
             // Passing alphaGain to each pass causes cumulative over-correction:
             // after pass 1 removes the watermark, pass 2 applies the SAME gain
@@ -82,6 +159,27 @@ export function applyRemovalStrategy(imageData, matches) {
             const lastPass = multiPassResult.passes.length > 0
                 ? multiPassResult.passes[multiPassResult.passes.length - 1]
                 : null;
+
+            // v2.6: Try sub-pixel refinement when multi-pass did not fully
+            // converge. refineSubpixelOutline tests small alpha-map shifts
+            // (±0.25px) and scales (±1%) against the ORIGINAL image to find
+            // better alignment, reducing "micro-deviation" (1–2 px color/position
+            // shift after removal). Only invoked when residual remains above
+            // threshold, to avoid wasting compute on already-clean results.
+            if (lastPass && multiPassResult.stopReason !== 'residual-low') {
+                const refined = refineSubpixelOutline({
+                    sourceImageData: imageData,
+                    alphaMap: match.alphaMap,  // unscaled — fn applies own gain
+                    position: match.pos,
+                    alphaGain,
+                    baselineSpatialScore: Math.abs(lastPass.afterSpatialScore),
+                    baselineGradientScore: lastPass.afterGradientScore || 0
+                });
+                if (refined) {
+                    imageData.data.set(refined.imageData.data);
+                    continue;
+                }
+            }
 
             if (multiPassResult.stopReason !== 'residual-low' && lastPass) {
                 const originalSpatialScore = match.confidence;

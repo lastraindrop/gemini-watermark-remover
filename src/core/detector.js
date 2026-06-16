@@ -129,19 +129,49 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         // Initial check
         bestConf = calculateCorrelation(searchData, x, y, logoW, logoH, alphaMap, true);
         
+        // v2.6: Coarse relocation scan. When the watermark is offset 5-20px
+        // from the expected anchor (common with Gemini's slight placement
+        // variation), the initial NCC is very low because the alpha map is
+        // completely misaligned. Before entering fine jitter, do a coarse
+        // ±16px scan at step 4 to find the approximate offset. This is much
+        // cheaper than a full ±16px fine scan (81 vs 1089 evaluations) yet
+        // reliably finds watermarks that fine jitter alone would miss.
+        const coarseRelocateRange = 16;
+        const coarseStep = 4;
+        const coarseTrigger = 0.30;  // only relocate if initial conf is weak
+        if (bestConf < coarseTrigger) {
+            for (let dy = -coarseRelocateRange; dy <= coarseRelocateRange; dy += coarseStep) {
+                for (let dx = -coarseRelocateRange; dx <= coarseRelocateRange; dx += coarseStep) {
+                    if (dx === 0 && dy === 0) continue;
+                    const c = calculateCorrelation(searchData, x + dx, y + dy, logoW, logoH, alphaMap, false);
+                    if (c > bestConf) {
+                        bestConf = c;
+                        bestX = x + dx;
+                        bestY = y + dy;
+                    }
+                }
+            }
+        }
+
         // Jitter search if not already perfect (v1.9.0)
-        if (bestConf > DETECTION_THRESHOLDS.JITTER_TRIGGER_MIN && bestConf < DETECTION_THRESHOLDS.JITTER_TRIGGER_MAX) {
+        // v2.6: Removed JITTER_TRIGGER_MIN gate. Previously, low initial
+        // confidence (common when watermark is offset 5-15px from the anchor)
+        // would SKIP the jitter search entirely — exactly when jitter is most
+        // needed. Now jitter runs whenever confidence is below near-perfect,
+        // so offset watermarks get a chance to be found. The coarse scan above
+        // may have already moved bestX/bestY closer to the true position.
+        if (bestConf < DETECTION_THRESHOLDS.JITTER_TRIGGER_MAX) {
             const jitter = cfg.isOfficial ? config.JITTER_OFFICIAL : config.JITTER_RANGE;
             for (let dy = -jitter; dy <= jitter; dy++) {
                 for (let dx = -jitter; dx <= jitter; dx++) {
                     if (dx === 0 && dy === 0) continue;
-                    const c = calculateCorrelation(searchData, x + dx, y + dy, logoW, logoH, alphaMap, true);
-                    // Distance penalty to avoid drift
+                    const c = calculateCorrelation(searchData, bestX + dx, bestY + dy, logoW, logoH, alphaMap, true);
+                    // Distance penalty to avoid drift from the coarse-relocated center
                     const penalty = (Math.abs(dx) + Math.abs(dy)) * 0.01;
                     if (c - penalty > bestConf) {
                         bestConf = c;
-                        bestX = x + dx;
-                        bestY = y + dy;
+                        bestX = bestX + dx;
+                        bestY = bestY + dy;
                     }
                 }
             }
@@ -276,7 +306,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                     if (confidence > stage2Threshold) {
                         const marginX = width - fx - sizeW;
                         const marginY = height - fy - sizeH;
-                        const standardMargins = [32, 64, 96];
+                        const standardMargins = [32, 64, 96, 192];
                         const marginTol = DETECTION_THRESHOLDS.STANDARD_MARGIN_TOLERANCE;
                         const rightAligned = standardMargins.some(m => Math.abs(marginX - m) <= marginTol);
                         const bottomAligned = standardMargins.some(m => Math.abs(marginY - m) <= marginTol);
@@ -384,12 +414,13 @@ export function calculateCorrelation(imageData, x, y, logoW, logoH, alphaMap, fu
     const varI = count * sumI2 - sumI * sumI;
     const varA = count * sumA2 - sumA * sumA;
     if (varA <= 0.0001) return 0;
-    // v2.4: Near-zero image variance (smooth/solid backgrounds like sky, walls) should
-    // not kill detection entirely. Return a minimal positive value so upstream logic
-    // (calculateProbeConfidence, calculateLocalContrastCorrelation) can still attempt
-    // alternative scoring paths. The alpha map has meaningful structure even when the
-    // background is uniform — the watermark overlay introduces a subtle but detectable pattern.
-    if (varI <= 0.0001) return 0.001;
+    // v2.6: Near-zero image variance (smooth/solid backgrounds like sky, walls)
+    // should not kill detection entirely. Return a value that passes the COARSE
+    // gate (0.10) so that calculateProbeConfidence's localContrast path gets a
+    // meaningful base NCC to compare against. Previously 0.001 was too low to
+    // contribute — Math.max(0.001, 0.12) = 0.12 was indistinguishable from
+    // localContrast alone, making the NCC path useless for smooth backgrounds.
+    if (varI <= 0.0001) return 0.10;
 
     return (count * sumIA - sumI * sumA) / Math.sqrt(varI * varA);
 }
@@ -529,7 +560,8 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
              let bestConf = confidence;
              let bestX = pos.x;
              let bestY = pos.y;
-             const jitter = 6;
+        // v2.6: Use configurable JITTER_RANGE instead of hardcoded 6
+        const jitter = DETECTION_THRESHOLDS.JITTER_RANGE;
              for(let dy=-jitter; dy<=jitter; dy++) {
                  for(let dx=-jitter; dx<=jitter; dx++) {
                      const conf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, logoW, logoH, alphaMap, gradientsI, gradientsA);
@@ -601,8 +633,8 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
                     const combined = Math.max(nccConf, localConf);
                     if (gradientConf < DETECTION_THRESHOLDS.GRADIENT_IGNORE_GATE) {
                         conf = blendMultiDimensionalScore(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, combined, gradientConf);
-                    } else if (nccConf >= DETECTION_THRESHOLDS.EXACT_NCC_GATE + DETECTION_THRESHOLDS.GRADIENT_BOOST_GATE_EXACT - DETECTION_THRESHOLDS.EXACT_NCC_GATE) {
-                        // preserve original `nccConf >= 0.12` behavior via constant
+                    } else if (nccConf >= DETECTION_THRESHOLDS.GRADIENT_BOOST_GATE_EXACT) {
+                        // Gradient boost gate for exact matches (0.12)
                         conf = Math.max(combined, gradientConf);
                     } else {
                         conf = combined;

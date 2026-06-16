@@ -155,7 +155,10 @@ export function getEngineOptions(elements, behavior = {}) {
             height: Math.trunc(manualConfig.height),
             // v2.5: Template size for alpha map selection & force flag
             assetKey: String(readManualTemplateSize()),
-            forceProcess: readManualForceProcess()
+            forceProcess: readManualForceProcess(),
+            // v2.6: Advanced overrides for difficult cases
+            alphaGainOverride: parseFloat(document.getElementById('manualAlphaGain')?.value || '1.0') || 1.0,
+            searchRangeOverride: parseInt(document.getElementById('manualSearchRange')?.value || '10', 10) || 10
         };
     }
 

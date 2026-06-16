@@ -1,4 +1,4 @@
-# Technical Guide — Gemini Watermark Remover v2.5.1
+# Technical Guide — Gemini Watermark Remover v2.6.0
 
 ## 1. Overview
 
@@ -523,13 +523,46 @@ The user's threshold/penalty sliders control `probeThreshold`, `fallbackThreshol
 | `noiseReduction` | false (fast/balanced) | Yes — preset-controlled |
 | `adaptiveMode` | 'auto' or 'off' | Yes — preset-controlled |
 | `globalFallbackBelow` (GLOBAL_FALLBACK_BELOW) | 0.30 | Yes |
-| `autoNonCatalogMinConfidence` (AUTO_NON_CATALOG_MIN) | 0.35 | Yes |
+| `autoNonCatalogMinConfidence` (AUTO_NON_CATALOG_MIN) | 0.28 | Yes |
 | `adaptiveMinConfidence` (ADAPTIVE_MIN_CONFIDENCE) | 0.22 | Yes |
-| `SCALED_CONFIG_MIN` | **0.25** (v2.3: lowered from 0.35) | Yes |
-| `SEARCH_RANGE_X / Y` | **0.90** (v2.3: expanded from 0.75) | No — preset-controlled |
-| `LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN` | **0.008** (v2.3: lowered from 0.015) | No |
+| `SCALED_CONFIG_MIN` | 0.25 | Yes |
+| `SEARCH_RANGE_X / Y` | 0.90 | No — preset-controlled |
+| `LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN` | **0.004** (v2.6: lowered from 0.008) | No |
+| `JITTER_RANGE` | **10** (v2.6: expanded from 6) | Yes — preset-controlled |
+| `JITTER_OFFICIAL` | **6** (v2.6: expanded from 4) | Yes — preset-controlled |
+| `JITTER_FINETUNE_TRIGGER` | 0.50 | No |
+| `JITTER_TRIGGER_MAX` | 0.95 | No |
+| `COARSE_RELOCATE_RANGE` | 16 | No — detector.js |
+| `COARSE_RELOCATE_STEP` | 4 | No — detector.js |
+| `COARSE_RELOCATE_TRIGGER` | 0.30 | No — detector.js |
 
-### 11.2 Catalog Matching
+### 11.2 v2.6 New Features: NMS, Sub-pixel, Halo, Position Tolerance
+
+#### NMS (Non-Maximum Suppression)
+- **Location**: `applyRemoval.js:53-86` (`suppressOverlappingMatches`)
+- **Spatial overlap filter**: pixel bounding-box intersection > 25% of smaller area → suppress lower
+- **Confidence floor**: match confidence < top × 0.5 → suppress (pre-vents 192px margin false positives)
+- **Effect**: prevents "triple removal" on images where 48px real + 96px false + 48px-m192 false all get processed
+
+#### Sub-pixel Refinement
+- **Location**: `adaptiveDetector.js:412-488` (`refineSubpixelOutline`)
+- **Integration**: `applyRemoval.js:93-106` — called when multi-pass stopReason ≠ 'residual-low'
+- **Parameters**: ±0.25px shift, ±1% scale, ±0.01 alphaGain (81 combinations)
+- **Fixed**: v2.6 supports rectangular watermarks (was square-only)
+- **Min gain**: lowered from 1.2 to 1.05
+
+#### Halo Detection
+- **Location**: `restorationMetrics.js` (`assessAlphaBandHalo`, `assessRemovalDiffArtifacts`)
+- **Safety gate**: `multiPassRemoval.js` — stops at 'safety-halo' when severity > 0.5
+- **Method**: perimeter scan comparing inner/edge/outer luminance bands
+
+#### Position Tolerance (Coarse Relocation)
+- **Location**: `detector.js:132-153`
+- **Trigger**: anchor NCC < 0.30
+- **Range**: ±16px, step 4px (81 evaluations)
+- **After relocation**: jitter fine-tune around relocated center
+
+### 11.3 Catalog Matching
 
 | Parameter | Value | Location |
 |-----------|-------|----------|
@@ -558,5 +591,5 @@ The user's threshold/penalty sliders control `probeThreshold`, `fallbackThreshol
 
 ---
 
-*Document version: 2.5.1 — 2026-06-14*
-*Corresponds to: v2.5.1, 44 test files, 417 tests, 0 eslint errors on source, build clean*
+*Document version: 2.6.0 — 2026-06-17*
+*Corresponds to: v2.6.0, 48 test files, 480+ tests, 0 eslint errors, build clean*
