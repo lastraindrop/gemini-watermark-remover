@@ -147,6 +147,8 @@ export function calculateAlphaMap(imageData: GwrImageData): Float32Array;
 
 export function removeWatermark(imageData: GwrImageData, alphaMap: Float32Array, pos: WatermarkPosition, options?: { alphaGain?: number }): void;
 
+export function applyEdgeCleanup(imageData: GwrImageData, alphaMap: Float32Array, pos: WatermarkPosition): void;
+
 export function calculateWatermarkPosition(imageWidth: number, imageHeight: number, config: Record<string, number | string>): WatermarkPosition;
 
 export function detectWatermarkConfig(imageWidth: number, imageHeight: number, profileId?: string): Record<string, unknown>;
