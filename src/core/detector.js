@@ -177,6 +177,25 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
             }
         }
 
+        // v2.7 Fix-1: Sub-pixel parabolic interpolation for anchored search.
+        // Same technique as calculateProbeConfidence — sample ±1px and fit
+        // parabola to refine position after jitter. Reduces 0.5-1px position
+        // error that compounds into removal misalignment.
+        if (bestConf > 0.10 && bestConf < DETECTION_THRESHOLDS.JITTER_TRIGGER_MAX) {
+            const nccL = calculateCorrelation(searchData, bestX - 1, bestY, logoW, logoH, alphaMap, true);
+            const nccR = calculateCorrelation(searchData, bestX + 1, bestY, logoW, logoH, alphaMap, true);
+            const nccU = calculateCorrelation(searchData, bestX, bestY - 1, logoW, logoH, alphaMap, true);
+            const nccD = calculateCorrelation(searchData, bestX, bestY + 1, logoW, logoH, alphaMap, true);
+            const denomX = nccL - 2 * bestConf + nccR;
+            const denomY = nccU - 2 * bestConf + nccD;
+            if (Math.abs(denomX) > 1e-6) {
+                bestX += Math.max(-0.5, Math.min(0.5, 0.5 * (nccL - nccR) / denomX));
+            }
+            if (Math.abs(denomY) > 1e-6) {
+                bestY += Math.max(-0.5, Math.min(0.5, 0.5 * (nccU - nccD) / denomY));
+            }
+        }
+
         const threshold = cfg.isOfficial ? config.THRESHOLDS.ANCHORED_OFFICIAL : config.THRESHOLDS.ANCHORED_OTHER; 
         if (bestConf >= threshold) {
             allCandidates.push({ x: bestX, y: bestY, width: logoW, height: logoH, confidence: bestConf, mode: 'anchored' });
@@ -261,8 +280,20 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                     const candidate = { x, y, width: sizeW, height: sizeH, confidence, mode: 'heuristic' };
                     let tooClose = false;
                     for (let i = 0; i < sizeCandidates.length; i++) {
-                        const dist = Math.abs(sizeCandidates[i].x - x) + Math.abs(sizeCandidates[i].y - y);
-                        if (dist < config.PROXIMITY_THRESHOLD) {
+                        // v2.7 Fix-5: Use bbox overlap ratio instead of Manhattan distance.
+                        // Manhattan distance < 8px would merge a 96px false positive that
+                        // nests a 48px true positive at the same top-left corner. Bbox
+                        // overlap ratio correctly identifies them as overlapping only if
+                        // the smaller match's area is significantly covered.
+                        const ax2 = candidate.x + candidate.width;
+                        const ay2 = candidate.y + candidate.height;
+                        const bx2 = sizeCandidates[i].x + sizeCandidates[i].width;
+                        const by2 = sizeCandidates[i].y + sizeCandidates[i].height;
+                        const overlapX = Math.max(0, Math.min(ax2, bx2) - Math.max(candidate.x, sizeCandidates[i].x));
+                        const overlapY = Math.max(0, Math.min(ay2, by2) - Math.max(candidate.y, sizeCandidates[i].y));
+                        const overlapArea = overlapX * overlapY;
+                        const minArea = Math.min(candidate.width * candidate.height, sizeCandidates[i].width * sizeCandidates[i].height);
+                        if (minArea > 0 && overlapArea / minArea > 0.25) {
                             tooClose = true;
                             if (confidence > sizeCandidates[i].confidence) sizeCandidates[i] = candidate;
                             break;
@@ -335,9 +366,18 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     for (const cand of allCandidates) {
         let isOverlapping = false;
         for (const existing of finalCandidates) {
-            const distX = Math.abs((cand.x + cand.width / 2) - (existing.x + existing.width / 2));
-            const distY = Math.abs((cand.y + cand.height / 2) - (existing.y + existing.height / 2));
-            if (distX < DETECTION_THRESHOLDS.CANDIDATE_OVERLAP_DISTANCE && distY < DETECTION_THRESHOLDS.CANDIDATE_OVERLAP_DISTANCE) {
+            // v2.7 Fix-5: Use bbox overlap ratio instead of center distance.
+            // Center distance < 32px would still let a 96px candidate and a
+            // nested 48px candidate coexist if their centers are >32px apart,
+            // or merge distinct watermarks if centers are <32px apart.
+            // Bbox overlap ratio is geometrically correct.
+            const ax2 = cand.x + cand.width, ay2 = cand.y + cand.height;
+            const bx2 = existing.x + existing.width, by2 = existing.y + existing.height;
+            const overlapX = Math.max(0, Math.min(ax2, bx2) - Math.max(cand.x, existing.x));
+            const overlapY = Math.max(0, Math.min(ay2, by2) - Math.max(cand.y, existing.y));
+            const overlapArea = overlapX * overlapY;
+            const minArea = Math.min(cand.width * cand.height, existing.width * existing.height);
+            if (minArea > 0 && overlapArea / minArea > 0.25) {
                 isOverlapping = true;
                 break;
             }
@@ -653,6 +693,30 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
                 }
             }
         }
+
+        // v2.7 Fix-1: Sub-pixel parabolic interpolation. After jitter search
+        // finds the best integer position, sample NCC at ±1px offsets and fit
+        // a parabola to estimate the true sub-pixel peak. This reduces position
+        // error by 0.5-1px on average, which compounds into better removal
+        // alignment. Cost: 4 extra NCC evaluations (negligible vs jitter's 289+).
+        if (bestConf > 0.10 && bestConf < DETECTION_THRESHOLDS.JITTER_TRIGGER_MAX) {
+            const nccL = calculateCorrelation(imageData, bestX - 1, bestY, pos.width, pos.height, alphaMap, true);
+            const nccR = calculateCorrelation(imageData, bestX + 1, bestY, pos.width, pos.height, alphaMap, true);
+            const nccU = calculateCorrelation(imageData, bestX, bestY - 1, pos.width, pos.height, alphaMap, true);
+            const nccD = calculateCorrelation(imageData, bestX, bestY + 1, pos.width, pos.height, alphaMap, true);
+            // Parabolic peak: offset = 0.5*(left-right)/(left-2*center+right)
+            const denomX = nccL - 2 * bestConf + nccR;
+            const denomY = nccU - 2 * bestConf + nccD;
+            if (Math.abs(denomX) > 1e-6) {
+                const offsetX = 0.5 * (nccL - nccR) / denomX;
+                bestX += Math.max(-0.5, Math.min(0.5, offsetX)); // clamp to ±0.5px
+            }
+            if (Math.abs(denomY) > 1e-6) {
+                const offsetY = 0.5 * (nccU - nccD) / denomY;
+                bestY += Math.max(-0.5, Math.min(0.5, offsetY)); // clamp to ±0.5px
+            }
+        }
+
         return { confidence: bestConf, x: bestX, y: bestY };
     }
 

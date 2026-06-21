@@ -242,7 +242,14 @@ export function detectAdaptiveWatermarkRegion({
 
     // Look up alpha map using the primary dimension key
     const dimKey = isRectangular ? `${baseW}x${baseH}` : String(baseW);
-    let alphaBase = alphaMaps[dimKey] || alphaMaps[baseW] || alphaMaps['96'] || alphaMaps['48'];
+    let alphaBase = alphaMaps[dimKey] || alphaMaps[baseW];
+    // v2.7 C-4: Only fall back to generic 96/48 for square Gemini profiles.
+    // For rectangular profiles (Doubao 401×173, DALL-E 120×40), these
+    // square fallbacks would attempt to detect the watermark using a
+    // completely wrong alpha map shape — producing garbage correlations.
+    if (!alphaBase && !isRectangular) {
+        alphaBase = alphaMaps['96'] || alphaMaps['48'];
+    }
     if (!alphaBase) return null;
 
     const buffers = {
@@ -329,7 +336,7 @@ export function detectAdaptiveWatermarkRegion({
                 if (!score) continue;
 
                 const adjustedScore = score.confidence * Math.min(1, Math.sqrt(ref / 96));
-                if (adjustedScore < 0.06) continue;
+                if (adjustedScore < DETECTION_THRESHOLDS.ADAPTIVE_MIN_ADJUSTED_SCORE) continue;
 
                 pushTopK({ x, y, w: cw, h: ch, ...score }, adjustedScore);
             }

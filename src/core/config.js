@@ -39,6 +39,7 @@ export const DETECTION_THRESHOLDS = {
 
     // Adaptive detector
     ADAPTIVE_MIN_CONFIDENCE: 0.22,
+    ADAPTIVE_MIN_ADJUSTED_SCORE: 0.06,  // v2.7 C-5: coarse-search adjusted-score filter threshold
 
     // Search geometry
     SEARCH_RANGE_X: 0.90,      // v2.3: expanded from 0.75
@@ -57,6 +58,14 @@ export const DETECTION_THRESHOLDS = {
     // Local contrast
     LOCAL_CONTRAST_ALPHA_RESIDUAL_MIN: 0.004,  // v2.6: lowered from 0.008 for smooth-bg detection
     LOCAL_CONTRAST_MIN_COUNT_FACTOR: 20,        // denominator for min count = (w*h) / factor / step^2
+
+    // Removal
+    ALPHA_NOISE_FLOOR: 3 / 255,  // v2.7 A-7: default alpha noise floor for removeWatermark (overridable via options)
+
+    // v2.7 C-1: Weak-alpha chain (ported from upstream v1.0.17)
+    WEAK_ALPHA_GAIN: 0.6,                          // 60% gain for weak-alpha large-margin watermarks
+    WEAK_ALPHA_RESIDUAL_CLEAN_THRESHOLD: 0.22,     // spatial NCC below this means clean removal
+    WEAK_ALPHA_MAX_PASSES: 2,                       // fewer passes for faint watermarks
 
     // Scoring & gating constants (v2.5.1: migrated from detector.js hardcoded values)
     GRADIENT_PENALTY_DEFAULT: 0.30,             // default gradient penalty multiplier

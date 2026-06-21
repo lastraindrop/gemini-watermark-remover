@@ -12,7 +12,10 @@ import { removeWatermark } from './blendModes.js';
 import { calculateCorrelation } from './detector.js';
 import { cloneImageData, calculateNearBlackRatio } from './utils.js';
 
-const ALPHA_GAIN_CANDIDATES = [1.05, 1.12, 1.2, 1.28, 1.36, 1.45, 1.52, 1.6, 1.7, 1.85, 2.0, 2.2, 2.4, 2.6];
+// v2.7 C-1: Weak-alpha gains prepended (0.55, 0.6, 0.7, 0.85) so the
+// recalibration path can search downward when over-correction occurs.
+// Ported from upstream GargantuaX watermarkProcessor.js ALPHA_PARAMETER_GROUPS.
+const ALPHA_GAIN_CANDIDATES = [0.55, 0.6, 0.7, 0.85, 1.05, 1.12, 1.2, 1.28, 1.36, 1.45, 1.52, 1.6, 1.7, 1.85, 2.0, 2.2, 2.4, 2.6];
 const MAX_NEAR_BLACK_RATIO_INCREASE = 0.05;
 
 const RESIDUAL_RECALIBRATION_THRESHOLD = 0.5;
