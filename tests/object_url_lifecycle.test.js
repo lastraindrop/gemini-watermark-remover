@@ -1,6 +1,6 @@
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert';
-import { loadImage } from '../src/utils.js';
+import { loadImage } from '../src/dom-utils.js';
 import { objectUrlManager } from '../src/app/state.js';
 import { MockImageElement, setupMemoryMocks } from './test_utils.js';
 

@@ -1,7 +1,7 @@
 import i18n from '../i18n.js';
 import { state, objectUrlManager } from './state.js';
 import { AuditLog, updateProgress } from './ui.js';
-import { loadImage, checkOriginal } from '../utils.js';
+import { loadImage, checkOriginal } from '../dom-utils.js';
 import { ENGINE_LIMITS } from '../core/config.js';
 import JSZip from 'jszip';
 

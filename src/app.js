@@ -1,6 +1,6 @@
 import i18n from './i18n.js';
 import { WatermarkEngine } from './core/watermarkEngine.js';
-import { showLoading, showLoadingFail, hideLoading } from './utils.js';
+import { showLoading, showLoadingFail, hideLoading } from './dom-utils.js';
 import { getAllProfiles } from './core/profiles.js';
 import { DETECTION_THRESHOLDS } from './core/config.js';
 
@@ -75,10 +75,10 @@ const elements = {
     manualH: document.getElementById('manualH'),
     manualUseDetectedBtn: document.getElementById('manualUseDetectedBtn'),
     manualClearBtn: document.getElementById('manualClearBtn'),
-    manualReprocessBtn: document.getElementById('manualReprocessBtn'),
-    manualSelectionLayer: document.getElementById('manualSelectionLayer'),
-    manualSelectionBox: document.getElementById('manualSelectionBox'),
-    reprocessBtn: document.getElementById('reprocessBtn')
+    manualReprocessBtn: document.getElementById('manualReprocessBtn')
+    // v2.7 FE-BUG-C1/L3: removed reprocessBtn, manualSelectionLayer,
+    // manualSelectionBox — these DOM elements were deleted in v2.6 but
+    // references lingered as dead code.
 };
 
 // v2.3: Performance preset — radiogroup, provide getter/setter to read and restore current value
@@ -297,41 +297,13 @@ function setupEventListeners() {
     });
     elements.manualReprocessBtn?.addEventListener('click', () => reprocessSingleWithManualArea());
 
-    // v2.3: Reprocess current image with updated settings
-    elements.reprocessBtn?.addEventListener('click', async () => {
-        if (state.isProcessing) {
-            showToast(i18n.t('toast.processingBusy'), 'info');
-            return;
-        }
-        const item = getActiveSingleItem();
-        if (!item?.originalImg) {
-            showToast(i18n.t('status.error'), 'err');
-            return;
-        }
-        state.isProcessing = true;
-        elements.reprocessBtn.setAttribute('disabled', 'true');
-        elements.reprocessBtn.classList.add('opacity-60', 'cursor-wait');
-        document.getElementById('resultContainer')?.classList.add('scan-active');
-
-        try {
-            const opts = getEngineOptions(elements, { ignoreManual: true });
-            await processSingle(item, opts, {
-                onSuccess: ({ item: pItem, config, pos }) => {
-                    setActiveItem(pItem, config, pos);
-                    updateManualSelectionOverlay(elements);
-                    AuditLog.log(`Re-processed with ${elements.performanceSelect?.value || 'balanced'} preset`, 'success');
-                },
-                onError: (error) => {
-                    showToast(error?.message || i18n.t('status.error'), 'err');
-                }
-            });
-        } finally {
-            document.getElementById('resultContainer')?.classList.remove('scan-active');
-            elements.reprocessBtn?.removeAttribute('disabled');
-            elements.reprocessBtn?.classList.remove('opacity-60', 'cursor-wait');
-            state.isProcessing = false;
-        }
-    });
+    // v2.7 FE-BUG-C1/C2: Removed the reprocessBtn click handler (lines 300-334).
+    // #reprocessBtn and #resultContainer DOM elements were deleted in v2.6
+    // when #singlePreview was removed. This handler was dead code — it could
+    // never fire because the button didn't exist, and line 312 would have
+    // thrown TypeError (elements.reprocessBtn.setAttribute on null without
+    // optional chaining). The manualReprocessBtn above serves the same
+    // "re-process with current settings" purpose for manual mode.
 
     setupManualSelection(elements, {
         onSelection: () => {
@@ -407,7 +379,10 @@ async function reprocessSingleWithManualArea() {
     state.isProcessing = true;
     elements.manualReprocessBtn?.setAttribute('disabled', 'true');
     elements.manualReprocessBtn?.classList.add('opacity-60', 'cursor-wait');
-    document.getElementById('resultContainer')?.classList.add('scan-active');
+    // v2.7 FE-BUG-C2: resultContainer DOM element was deleted in v2.6.
+    // The scan-active class is now applied to the image card instead.
+    const activeCard = document.getElementById(`card-${item.id}`);
+    activeCard?.querySelector('.scanner-effect')?.classList.add('scan-active');
 
     try {
         await processSingle(item, options, {
@@ -421,7 +396,7 @@ async function reprocessSingleWithManualArea() {
             }
         });
     } finally {
-        document.getElementById('resultContainer')?.classList.remove('scan-active');
+        activeCard?.querySelector('.scanner-effect')?.classList.remove('scan-active');
         elements.manualReprocessBtn?.removeAttribute('disabled');
         elements.manualReprocessBtn?.classList.remove('opacity-60', 'cursor-wait');
         state.isProcessing = false;

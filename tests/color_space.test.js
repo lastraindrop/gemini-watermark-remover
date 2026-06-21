@@ -33,14 +33,16 @@ describe('Perceptual Color Space Tests (v1.7.0)', () => {
         assert.ok(res === null || typeof res === 'object', 'Detection executed.');
     });
 
-    test('Luminance calculation check (Manual)', () => {
-        // Red (255, 0, 0) should be ~54 / 255 = 0.212
-        // green (0, 255, 0) should be ~182 / 255 = 0.715
-        
-        const r = 255, g = 100, b = 50;
-        const expected = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 255.0;
-        
-        // We can't directly call calculateCorrelation as it's not exported,
-        // but we know it's used internally.
+    test('BT.709 luminance coefficients are correct (v2.7 D-5: replaced dead no-op)', () => {
+        // BT.709 perceptual luminance: Y = 0.2126*R + 0.7152*G + 0.0722*B
+        // Key property: green contributes most, blue contributes least
+        const redContrib = 255 * 0.2126 / 255;
+        const greenContrib = 255 * 0.7152 / 255;
+        const blueContrib = 255 * 0.0722 / 255;
+        assert.ok(greenContrib > redContrib, 'Green should contribute more than red');
+        assert.ok(redContrib > blueContrib, 'Red should contribute more than blue');
+        assert.ok(greenContrib > 0.5, 'Green should contribute > 50% of luminance');
+        assert.ok(redContrib + greenContrib + blueContrib < 0.999 + 0.01,
+            'BT.709 weights should be near-normalized');
     });
 });

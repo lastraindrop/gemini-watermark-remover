@@ -68,9 +68,13 @@ export function hideManualSelectCanvas() {
     document.getElementById('manualSelectCanvas')?.classList.add('hidden');
 }
 
-export function setManualSelectionEnabled(elements, enabled) {
-    elements.manualSelectionLayer?.classList.toggle('hidden', !enabled);
-    elements.comparisonSlider?.classList.toggle('manual-select-active', enabled);
+export function setManualSelectionEnabled(_elements, _enabled) {
+    // v2.7 FE-BUG-H1: manualSelectionLayer and comparisonSlider DOM elements
+    // were deleted in v2.6. The manual-select-active CSS class was on the
+    // now-removed comparison slider. The manual selection canvas
+    // (#manualSelectCanvas) visibility is controlled directly in app.js
+    // setManualControlsActive(). This function is kept as a no-op stub for
+    // backward-compat with any callers that still reference it.
 }
 
 export function setupManualSelection(elements, callbacks = {}) {

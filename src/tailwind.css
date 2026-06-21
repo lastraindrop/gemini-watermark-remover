@@ -70,71 +70,8 @@
     box-shadow: 0 0 30px -5px rgba(79, 70, 229, 0.4);
   }
 
-  .comparison-slider {
-    position: relative;
-    width: 100%;
-    min-height: 280px;
-    height: auto;
-    overflow: hidden;
-    border-radius: 24px;
-    background: #f1f5f9;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
-    cursor: col-resize;
-  }
-
-  .comparison-slider .resize {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 50%;
-    height: 100%;
-    overflow: hidden;
-    z-index: 2;
-    border-right: 2px solid white;
-    transition: width 0.05s linear;
-  }
-
-  .comparison-slider .handle {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 50%;
-    width: 2px;
-    background: white;
-    z-index: 3;
-    pointer-events: none;
-  }
-
-  .comparison-slider .handle-btn {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 56px;
-    height: 56px;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 50%;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 4px solid #10B981;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  }
-
-  .comparison-slider:hover .handle-btn {
-    transform: translate(-50%, -50%) scale(1.1);
-    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
-  }
-
-  .comparison-slider.manual-select-active {
-    cursor: crosshair;
-  }
-
-  .comparison-slider.manual-select-active .handle,
-  .comparison-slider.manual-select-active .handle-btn {
-    opacity: 0.35;
-  }
+  /* v2.7: .comparison-slider and .magnifier-lens CSS removed (dead code —
+     #singlePreview section was deleted in v2.6, these classes had no DOM). */
 
   .gwr-image-card {
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -171,21 +108,6 @@
       transparent 55%
     );
     animation: sweep 3s infinite linear;
-  }
-
-  .magnifier-lens {
-    position: absolute;
-    width: 150px;
-    height: 150px;
-    border: 4px solid #10B981;
-    border-radius: 50%;
-    cursor: crosshair;
-    z-index: 50;
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(16, 185, 129, 0.2);
-    background-repeat: no-repeat;
-    pointer-events: none;
-    overflow: hidden;
-    background-color: rgba(0, 0, 0, 0.5);
   }
 
   .scrollbar-hide::-webkit-scrollbar {
