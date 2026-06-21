@@ -22,8 +22,8 @@
     },
     "v2-small": {
       "logoSize": 36,
-      "marginRight": 32,
-      "marginBottom": 32
+      "marginRight": 96,
+      "marginBottom": 96
     },
     "large-margin": {
       "logoSize": 48,
@@ -467,6 +467,17 @@
         "marginRight": 64,
         "marginBottom": 64,
         "tier": "2k"
+      },
+      {
+        "modelFamily": "gemini-3.x-image",
+        "aspectRatio": "16:9",
+        "width": 2816,
+        "height": 1536,
+        "logoSize": 96,
+        "marginRight": 192,
+        "marginBottom": 192,
+        "tier": "2k-new-margin",
+        "alphaVariant": "20260520"
       },
       {
         "modelFamily": "gemini-3.x-image",

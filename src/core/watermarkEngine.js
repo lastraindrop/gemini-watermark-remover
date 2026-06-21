@@ -15,6 +15,10 @@ import { WorkerPool } from './workerPool.js';
 // image loading taints the canvas.
 import bg48 from '../assets/bg_48.png';
 import bg96 from '../assets/bg_96.png';
+// BUG-C8 (STAGE_PLAN_v2.7 Phase A-4): alternate alpha variant for the
+// 96px Gemini glyph revised 2026-05-20. Registered under the asset key
+// '96-20260520' (see detectionPipeline.resolveAssetKey).
+import bg96_20260520 from '../assets/bg_96_20260520.png';
 import bgDoubao from '../assets/bg_doubao.png';
 import bgDoubaoBr from '../assets/bg_doubao_br.png';
 import bgDoubaoBrTall from '../assets/bg_doubao_br_tall.png';
@@ -27,6 +31,9 @@ import doubaoTlRefinedMask from '../assets/doubao_tl_refined_mask.png';
 const INLINE_ASSETS = {
     'bg_48': bg48,
     'bg_96': bg96,
+    // Variant alpha: keyed by the underscore form so _loadAsset's normalization
+    // (hyphen -> underscore) maps assetKey '96-20260520' -> 'bg_96_20260520'.
+    'bg_96_20260520': bg96_20260520,
     'bg_doubao': bgDoubao,
     'bg_doubao_br': bgDoubaoBr,
     'bg_doubao_br_tall': bgDoubaoBrTall,
@@ -114,7 +121,11 @@ export class WatermarkEngine {
         // v2.5: Use build-time inlined base64 data URLs. This completely avoids
         // CORS issues and canvas tainting that occur when loading external PNG
         // files via file:// protocol (where crossOrigin='anonymous' is blocked).
-        const assetName = assetKey.startsWith('bg_') ? assetKey : `bg_${assetKey}`;
+        // BUG-C8: normalize variant separators (hyphen -> underscore) so an
+        // assetKey like '96-20260520' resolves to the registered inline asset
+        // 'bg_96_20260520'. Existing keys (no hyphens) are unaffected.
+        const normalizedKey = assetKey.replace(/-/g, '_');
+        const assetName = normalizedKey.startsWith('bg_') ? normalizedKey : `bg_${normalizedKey}`;
         const inlineSrc = INLINE_ASSETS[assetName] || INLINE_ASSETS[assetKey];
         
         let src;

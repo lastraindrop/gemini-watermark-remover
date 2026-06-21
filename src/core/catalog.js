@@ -25,7 +25,11 @@ export const WATERMARK_CONFIGS = {
     get '0.5k'() { return getCatalogData().WATERMARK_CONFIGS['0.5k']; },
     get '1k'() { return getCatalogData().WATERMARK_CONFIGS['1k']; },
     get '2k'() { return getCatalogData().WATERMARK_CONFIGS['2k']; },
-    get '4k'() { return getCatalogData().WATERMARK_CONFIGS['4k']; }
+    get '4k'() { return getCatalogData().WATERMARK_CONFIGS['4k']; },
+    // v2.7 BUG-C6: expose new Gemini anchor variants defined in catalogs.json
+    get '2k-new-margin'() { return getCatalogData().WATERMARK_CONFIGS['2k-new-margin']; },
+    get 'v2-small'() { return getCatalogData().WATERMARK_CONFIGS['v2-small']; },
+    get 'large-margin'() { return getCatalogData().WATERMARK_CONFIGS['large-margin']; }
 };
 
 function buildCATALOGSProxy() {

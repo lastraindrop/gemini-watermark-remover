@@ -13,10 +13,22 @@ export const PROFILES = {
             '0.5k': { logoSize: 48, marginRight: 32, marginBottom: 32 },
             '1k': { logoSize: 96, marginRight: 64, marginBottom: 64 },
             '2k': { logoSize: 96, marginRight: 64, marginBottom: 64 },
-            '2k-new': { logoSize: 96, marginRight: 192, marginBottom: 192 },
+            // v2.7 BUG-C6: renamed '2k-new' → '2k-new-margin' to align with
+            // catalogs.json tier label; added alphaVariant for alternate alpha.
+            '2k-new-margin': { logoSize: 96, marginRight: 192, marginBottom: 192, alphaVariant: '20260520' },
+            // v2.7 BUG-C6: new variant tiers for upstream parity.
+            'large-margin': { logoSize: 48, marginRight: 96, marginBottom: 96 },
+            'v2-small': { logoSize: 36, marginRight: 96, marginBottom: 96, alphaVariant: 'v2' },
             '4k': { logoSize: 96, marginRight: 64, marginBottom: 64 }
         },
         getHeuristicConfig: (w, h) => {
+            // v2.7 BUG-C6: exact 2816x1536 uses 2k-new-margin tier (192px
+            // margins + 20260520 alpha variant). Catalog lookup handles this
+            // first, but this fallback covers slightly-off dimensions that
+            // fall outside the 10% catalog tolerance.
+            if (w === 2816 && h === 1536) {
+                return { ...PROFILES.gemini.tiers['2k-new-margin'], isOfficial: false };
+            }
             const pixels = w * h;
             const shortSide = Math.min(w, h);
             let tier;

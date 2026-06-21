@@ -49,6 +49,9 @@ export class TemplateRegistry {
     /**
      * Find matching catalog entries for a given resolution (strict).
      * Tolerance raised from 0.05 to 0.10 to handle slight rescaling.
+     * v2.7 BUG-C6: exact dimension matches are sorted first so that a
+     * new catalog entry (e.g. 2816x1536) is returned before a nearby
+     * existing entry (e.g. 2752x1536) that also falls within 10% tolerance.
      */
     findMatches(profileId, width, height) {
         const catalog = this.getCatalog(profileId);
@@ -60,6 +63,11 @@ export class TemplateRegistry {
             const scaleDelta = Math.abs(scaleX - scaleY);
             const scaleDeviation = Math.abs((scaleX + scaleY) / 2 - 1);
             return scaleDelta < STRICT_MATCH && scaleDeviation < STRICT_MATCH;
+        }).sort((a, b) => {
+            // Prefer exact dimension matches (scaleDeviation === 0) first
+            const aDev = Math.abs(width / a.width + height / a.height) / 2 - 1;
+            const bDev = Math.abs(width / b.width + height / b.height) / 2 - 1;
+            return Math.abs(aDev) - Math.abs(bDev);
         }).map(entry => ({ ...entry, isOfficial: true }));
     }
 
