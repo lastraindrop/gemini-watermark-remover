@@ -36,3 +36,11 @@ code_review.*
 
 # archive (temporary work files)
 archive/
+
+# opencode / local agent runtime artifacts
+.omo/
+
+# one-off alpha extraction scratch files
+alpha_maps_downloaded.js
+check_alpha.cjs
+get_alpha.js

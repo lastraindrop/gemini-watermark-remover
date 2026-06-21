@@ -169,9 +169,9 @@ else conf = combined
 
 ```bash
 pnpm lint         # ESLint (0 errors, 0 warnings on source)
-pnpm test         # 主测试集 (49 文件, 353 tests — 快速子集，排除 3 个已知慢速文件)
-pnpm test:all     # 全量测试 (52 文件，包含慢速全局搜索文件)
 pnpm build        # 生产构建
+pnpm test         # 顶层 JS 测试套件（通过 canvas/png fixtures 加载）
+pnpm test:all     # 顶层 JS 测试 + legacy script regressions
 ```
 
 ### v2.5.1 新增测试文件 (5 文件, 36 tests)

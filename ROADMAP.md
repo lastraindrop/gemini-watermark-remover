@@ -152,6 +152,6 @@
 
 ```bash
 pnpm lint                  # 0 errors
-pnpm test                  # core test suite (417 tests)
 pnpm build                 # production build
+pnpm test                  # full top-level JS test suite with fixtures
 ```

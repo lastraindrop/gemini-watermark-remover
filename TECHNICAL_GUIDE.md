@@ -394,7 +394,7 @@ Complete type coverage for all exported functions, classes, interfaces, and cons
 
 ### 10.1 Test Coverage
 
-417 tests across 44 test files covering:
+The active suite now spans 70 top-level `tests/*.test.js` files plus legacy script tests. Fast validation is split between the full `pnpm test` command and targeted bounded suites because some image-search regressions are intentionally slow.
 - **Core Algorithms**: detector, blendModes, alphaMap, multiPass, alphaCalibration, adaptiveDetector, decisionPolicy
 - **Pipeline**: detection fallback chain, probe gating, parameter matrix, end-to-end regression, scaled threshold, non-square alphaMap guard
 - **v2.3 Coverage**: PERFORMANCE_PRESETS, DETECTION_THRESHOLDS, rectangular watermark, smooth-background variance, scaled config threshold
@@ -417,10 +417,10 @@ Complete type coverage for all exported functions, classes, interfaces, and cons
 ### 10.3 Verification Commands
 
 ```bash
-pnpm test                  # 49 files, 353 tests (fast subset, excludes 3 known-slow files)
-pnpm test:all              # all tests including slow global-search files
 pnpm lint                  # 0 errors, 0 warnings on source
 pnpm build                 # clean production build
+pnpm test                  # full top-level JS test suite with canvas/png fixtures
+pnpm test:all              # full JS suite plus legacy script regressions
 ```
 
 ---
