@@ -1,10 +1,10 @@
 [中文说明](README_zh.md)
 
-# Gemini & Doubao Watermark Remover (v2.6.0)
+# Gemini & Doubao Watermark Remover (v2.7.0)
 
 A production-grade watermark detection and removal tool supporting Gemini, Doubao, and DALL-E 3 AI-generated images. Features a five-phase detection pipeline with 3D scoring, adaptive multi-scale search, multi-pass removal with safety gates, **sub-pixel refinement**, **NMS false-positive suppression**, **halo detection**, **coarse relocation search**, and a decision policy tier system.
 
-## What this release covers (v2.6.0)
+## What this release covers (v2.7.0)
 
 ### Detection & Removal Quality
 - **Non-Maximum Suppression (NMS)**: spatial overlap + confidence-floor filtering eliminates false-positive matches that previously caused triple-removal artifacts

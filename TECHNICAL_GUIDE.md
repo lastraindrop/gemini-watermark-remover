@@ -1,4 +1,4 @@
-# Technical Guide — Gemini Watermark Remover v2.6.0
+# Technical Guide — Gemini Watermark Remover v2.7.0
 
 ## 1. Overview
 
@@ -591,5 +591,5 @@ The user's threshold/penalty sliders control `probeThreshold`, `fallbackThreshol
 
 ---
 
-*Document version: 2.6.0 — 2026-06-17*
-*Corresponds to: v2.6.0, 48 test files, 480+ tests, 0 eslint errors, build clean*
+*Document version: 2.7.0 — 2026-06-22*
+*Corresponds to: v2.7.0, 48 test files, 480+ tests, 0 eslint errors, build clean*
