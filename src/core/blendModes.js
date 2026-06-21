@@ -4,7 +4,10 @@
  */
 
 // Constants definition
-const ALPHA_NOISE_FLOOR = 3 / 255;      // Remove low-level quantization noise from alpha map
+// v2.7 A-7: ALPHA_NOISE_FLOOR exported as default; callers can override via
+// removeWatermark({ alphaNoiseFloor }) without breaking Foundation-layer
+// independence (blendModes.js stays zero-import).
+export const DEFAULT_ALPHA_NOISE_FLOOR = 3 / 255;  // Remove low-level quantization noise from alpha map
 export const ALPHA_THRESHOLD = 0.002;   // Ignore very small alpha values after noise floor removal
 export const MAX_ALPHA = 0.99;          // Avoid division by near-zero values
 export const LOGO_VALUE = 255.0;        // Color value for white watermark (float)
@@ -58,12 +61,17 @@ function sampleBilinearAlpha(alphaMap, x, y, width, height) {
  * @param {ImageData|Object} imageData - Image data to process (will be modified in place)
  * @param {Float32Array} alphaMap - Alpha channel data
  * @param {Object} position - Watermark position {x, y, width, height}
- * @param {Object} [options] - Optional config { alphaGain: number }
+ * @param {Object} [options] - Optional config { alphaGain: number, alphaNoiseFloor: number }
  */
 export function removeWatermark(imageData, alphaMap, position, options = {}) {
     const { x, y, width, height } = position;
     const { data, width: imgWidth, height: imgHeight } = imageData;
     const alphaGain = Number.isFinite(options.alphaGain) && options.alphaGain > 0 ? options.alphaGain : 1;
+    // v2.7 A-7: allow caller to override the alpha noise floor (default 3/255).
+    // Useful for experimenting with lower floors (1/255) to reduce faint-watermark residue.
+    const alphaNoiseFloor = Number.isFinite(options.alphaNoiseFloor) && options.alphaNoiseFloor >= 0
+        ? options.alphaNoiseFloor
+        : DEFAULT_ALPHA_NOISE_FLOOR;
 
     const logoVal = Math.fround(LOGO_VALUE);
 
@@ -93,7 +101,7 @@ export function removeWatermark(imageData, alphaMap, position, options = {}) {
             // Remove low-level alpha noise from compressed background capture.
             // This noise floor is applied only for activation gating; the actual
             // blend still uses the full raw alpha to preserve edge fidelity.
-            const signalAlpha = Math.max(0, rawAlpha - ALPHA_NOISE_FLOOR) * alphaGain;
+            const signalAlpha = Math.max(0, rawAlpha - alphaNoiseFloor) * alphaGain;
             if (signalAlpha < ALPHA_THRESHOLD) continue;
 
             const effectiveAlpha = Math.min(rawAlpha * alphaGain, MAX_ALPHA);

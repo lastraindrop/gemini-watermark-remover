@@ -11,6 +11,7 @@ export { PROFILES, DEFAULT_PROFILE, GEMINI_PROFILE, getProfile, getAllProfiles }
 export { ENGINE_LIMITS, calculateWatermarkPosition, detectWatermarkConfig, getAllPotentialConfigs } from '../core/config.js';
 export { RestorationMetrics } from '../core/restorationMetrics.js';
 export { applyRemovalStrategy } from '../core/applyRemoval.js';
+export { applyEdgeCleanup } from '../core/edgeCleanup.js';
 export { WorkerPool } from '../core/workerPool.js';
 
 import { RestorationMetrics } from '../core/restorationMetrics.js';

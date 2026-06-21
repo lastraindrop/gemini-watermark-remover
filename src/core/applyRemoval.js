@@ -2,6 +2,10 @@ import { removeWatermark } from './blendModes.js';
 import { removeRepeatedWatermarkLayers } from './multiPassRemoval.js';
 import { shouldRecalibrateAlphaStrength, recalibrateAlphaStrength } from './alphaCalibration.js';
 import { refineSubpixelOutline } from './adaptiveDetector.js';
+import { calculateCorrelation } from './detector.js';
+import { DETECTION_THRESHOLDS } from './config.js';
+import { applyEdgeCleanup } from './edgeCleanup.js';
+import { assessRemovalDiffArtifacts } from './restorationMetrics.js';
 
 /**
  * Estimate optimal alphaGain by comparing watermark-center luminance against
@@ -124,8 +128,60 @@ export function applyRemovalStrategy(imageData, matches) {
     const filteredMatches = suppressOverlappingMatches(matches);
 
     for (const match of filteredMatches) {
-        const useMultiPass = match.profileId === 'gemini';
+        // v2.7 C-2: Extend multi-pass removal to all known profiles.
+        // Previously only Gemini used multi-pass; Doubao and DALL-E 3 got
+        // single-pass removal, leaving residual on rectangular watermarks.
+        // Multi-pass safety gates (near-black, texture, halo, sign-flip) are
+        // shape-agnostic and work for any alpha map dimensions.
+        const useMultiPass = ['gemini', 'doubao', 'dalle3'].includes(match.profileId);
         if (useMultiPass) {
+            // BUG-C7 (STAGE_PLAN_v2.7): Compute a PURE NCC score for the
+            // original (pre-removal) region BEFORE any modification, so it is
+            // directly comparable to multiPassRemoval's `afterSpatialScore`
+            // (also pure NCC from calculateCorrelation). Previously this used
+            // `match.confidence`, which is a 3D blend score
+            // (spatial×0.5 + gradient×0.3 + variance×0.2, range ~0.3-0.7).
+            // That type mismatch made shouldRecalibrateAlphaStrength's
+            // `originalScore >= 0.6` gate almost impossible to satisfy, leaving
+            // the recalibration path as effective dead code.
+            const originalSpatialScore = Math.abs(calculateCorrelation(
+                imageData,
+                match.pos.x, match.pos.y,
+                match.pos.width, match.pos.height,
+                match.alphaMap,
+                true
+            ));
+
+            // v2.7 C-1: Weak-alpha chain for large-margin (48@96) watermarks.
+            // Ported from upstream GargantuaX v1.0.17 candidateSelector.js.
+            // Gemini recently emits 48px watermarks at a 96px anchor with very
+            // faint alpha (~60% of standard). Standard gain=1.0 causes over-
+            // correction on these; trying gain=0.6 first avoids dark blotches.
+            // If 0.6 produces a clean result (residual NCC ≤ 0.22), short-
+            // circuit — skip the full multi-pass + recalibration chain.
+            const isWeakAlphaConfig = match.config?.logoSize === 48 &&
+                match.config?.marginRight === 96 &&
+                match.config?.marginBottom === 96;
+
+            if (isWeakAlphaConfig) {
+                const weakAlphaResult = removeRepeatedWatermarkLayers({
+                    imageData,
+                    alphaMap: match.alphaMap,  // no pre-scale — use raw alpha
+                    position: match.pos,
+                    maxPasses: DETECTION_THRESHOLDS.WEAK_ALPHA_MAX_PASSES,
+                    residualThreshold: 0.25,
+                    alphaGain: DETECTION_THRESHOLDS.WEAK_ALPHA_GAIN  // 0.6
+                });
+                const waLastPass = weakAlphaResult.passes[weakAlphaResult.passes.length - 1];
+                if (waLastPass &&
+                    Math.abs(waLastPass.afterSpatialScore) <= DETECTION_THRESHOLDS.WEAK_ALPHA_RESIDUAL_CLEAN_THRESHOLD) {
+                    // Weak-alpha chain succeeded — skip recalibration, use 0.6 result
+                    imageData.data.set(weakAlphaResult.imageData.data);
+                    continue;
+                }
+                // Otherwise fall through to standard gain path below
+            }
+
             // v2.6: Check for manual alphaGain override (difficult cases)
             const estimatedGain = estimateAlphaGain(imageData, match.alphaMap, match.pos);
             const alphaGain = (match.config?.alphaGainOverride && match.config.alphaGainOverride > 0)
@@ -156,8 +212,36 @@ export function applyRemovalStrategy(imageData, matches) {
                 residualThreshold: 0.25
             });
 
-            const lastPass = multiPassResult.passes.length > 0
-                ? multiPassResult.passes[multiPassResult.passes.length - 1]
+            // v2.7 B-1: Halo feedback retry. When multi-pass detects an alpha-
+            // band halo (dark/bright ring at watermark edge), it stops early
+            // with stopReason='safety-halo'. Instead of giving up, retry with
+            // progressively lower alphaGain (×0.8 each step, floor 0.5) to
+            // find a gain that removes the watermark without creating halos.
+            // Max 2 downgrade attempts. Ported from upstream watermarkProcessor.
+            let effectiveResult = multiPassResult;
+            if (effectiveResult.stopReason === 'safety-halo' && alphaGain > 0.55) {
+                const HALO_MAX_RETRIES = 2;
+                const HALO_GAIN_DECAY = 0.8;
+                const HALO_GAIN_FLOOR = 0.5;
+                let retryGain = alphaGain;
+                for (let retry = 0; retry < HALO_MAX_RETRIES; retry++) {
+                    retryGain = Math.max(HALO_GAIN_FLOOR, retryGain * HALO_GAIN_DECAY);
+                    if (retryGain >= alphaGain) break; // no meaningful reduction
+                    const retryAlpha = Float32Array.from(match.alphaMap, v => v * retryGain);
+                    const retryResult = removeRepeatedWatermarkLayers({
+                        imageData,
+                        alphaMap: retryAlpha,
+                        position: match.pos,
+                        maxPasses: 4,
+                        residualThreshold: 0.25
+                    });
+                    effectiveResult = retryResult;
+                    if (retryResult.stopReason !== 'safety-halo') break; // halo resolved
+                }
+            }
+
+            const lastPass = effectiveResult.passes.length > 0
+                ? effectiveResult.passes[effectiveResult.passes.length - 1]
                 : null;
 
             // v2.6: Try sub-pixel refinement when multi-pass did not fully
@@ -166,7 +250,7 @@ export function applyRemovalStrategy(imageData, matches) {
             // better alignment, reducing "micro-deviation" (1–2 px color/position
             // shift after removal). Only invoked when residual remains above
             // threshold, to avoid wasting compute on already-clean results.
-            if (lastPass && multiPassResult.stopReason !== 'residual-low') {
+            if (lastPass && effectiveResult.stopReason !== 'residual-low') {
                 const refined = refineSubpixelOutline({
                     sourceImageData: imageData,
                     alphaMap: match.alphaMap,  // unscaled — fn applies own gain
@@ -181,20 +265,23 @@ export function applyRemovalStrategy(imageData, matches) {
                 }
             }
 
-            if (multiPassResult.stopReason !== 'residual-low' && lastPass) {
-                const originalSpatialScore = match.confidence;
-                const suppressionGain = Math.abs(originalSpatialScore) - Math.abs(lastPass.afterSpatialScore);
+            if (effectiveResult.stopReason !== 'residual-low' && lastPass) {
+                // originalSpatialScore is already Math.abs'd (pure NCC).
+                // lastPass.afterSpatialScore is also pure NCC (set in
+                // multiPassRemoval.js via calculateCorrelation). The two
+                // values are now directly comparable in type and scale.
+                const suppressionGain = originalSpatialScore - Math.abs(lastPass.afterSpatialScore);
 
                 if (shouldRecalibrateAlphaStrength({
-                    originalScore: Math.abs(originalSpatialScore),
+                    originalScore: originalSpatialScore,
                     processedScore: Math.abs(lastPass.afterSpatialScore),
                     suppressionGain
                 })) {
                     const recalibrated = recalibrateAlphaStrength({
-                        sourceImageData: multiPassResult.imageData,
+                        sourceImageData: effectiveResult.imageData,
                         alphaMap: match.alphaMap,
                         position: match.pos,
-                        originalSpatialScore: Math.abs(originalSpatialScore),
+                        originalSpatialScore,
                         processedSpatialScore: Math.abs(lastPass.afterSpatialScore)
                     });
                     if (recalibrated) {
@@ -204,7 +291,28 @@ export function applyRemovalStrategy(imageData, matches) {
                 }
             }
 
-            imageData.data.set(multiPassResult.imageData.data);
+            // v2.7 B-3: Edge cleanup — apply alpha-gradient-aware blur to the
+            // removal result to reduce quantization banding (visible color steps
+            // caused by Math.round() in blendModes.js:111). Only runs when we're
+            // about to commit the final result (not skipped by subpixel/calibration).
+            applyEdgeCleanup(effectiveResult.imageData, match.alphaMap, match.pos);
+
+            // v2.7 P5: Post-removal diff artifact assessment. Measure the
+            // quality of the removal result by comparing original vs processed
+            // pixels in the watermark region. If severe banding is detected
+            // (score > 0.15), the removal quality is compromised — but we
+            // still commit the result since it's the best we have. The
+            // assessment result is attached to the match for downstream
+            // logging/UI feedback. Ported from upstream restorationMetrics.js.
+            const diffAssessment = assessRemovalDiffArtifacts(
+                imageData.data,
+                effectiveResult.imageData.data,
+                match.pos,
+                imageData.width
+            );
+            match.diffArtifacts = diffAssessment;
+
+            imageData.data.set(effectiveResult.imageData.data);
         } else {
             removeWatermark(imageData, match.alphaMap, match.pos);
         }
