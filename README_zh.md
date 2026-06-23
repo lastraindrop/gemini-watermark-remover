@@ -1,60 +1,85 @@
 [English](README.md)
 
-# Gemini & Doubao 无损去水印工具 (v2.7.0)
+# Gemini & Doubao 水印检测与移除工具 (v2.7.0)
 
-用于检测、分析并去除 Gemini、Doubao 图片中可见 AI 水印的独立 fork 生产级客户端工具。v2.3.0 包含五阶段检测管线、三维评分、**性能预设系统**、自适应多尺度搜索、多遍安全移除、Alpha 增益校准与决策分阶系统。前端已实现零外部CDN依赖的完全本地化部署，支持暗色模式与性能模式选择。
+这是一个本地优先的水印检查、分析与移除工具，面向 Gemini 与 Doubao 图片中的可见 AI 水印。当前生产入口支持 `gemini`、`doubao` 与 `auto`。`dalle3` 仅作为内部实验 profile 保留，不作为正式用户入口承诺。
 
-## 当前版本覆盖
+本工具使用确定性的图像分析与反向 alpha 混合恢复，不上传图片，也不使用生成式修复。
 
-- **五阶段检测管线**: 目录→缩放→启发式→自适应→全局
-- **三维评分**: `max(spatialNCC, weighted)` 策略防止 NCC 被后续评分稀释
-- **缩放匹配门控**: `isScaledMatch` 差异化基线与梯度阈值，减少虚警
-- **目录容忍度**: 严格匹配 10%，宽松匹配 25%（`findCloseMatches`），大幅提升非精确分辨率召回率
-- **自适应检测器**: 粗到精多尺度搜索（阈值 0.22）
-- **多遍安全移除**: 含近黑保护与纹理保护
-- **Alpha 增益校准**: 自动搜索最优 alpha 乘数（支持矩形水印）
-- **决策策略**: 三级分类 (direct-match / needs-validation / insufficient)
-- **恢复质量度量**: MSE、PSNR 及质量评估
-- 亚像素轮廓精化，模板插值与变形（支持矩形尺寸）
-- Worker Pool 并行处理，DetectorContext 内存池管理
-- 延迟目录加载，共享移除逻辑 (`applyRemoval.js`)
-- Web / CLI / Python 共享检测管线
-- Gemini 目录优先匹配 + 缩放匹配 + 启发式回退 + 自适应检测
-- Doubao 多锚点支持（左上 + 右下）+ 矩形水印尺寸
-- 暗色模式手动切换 (auto/dark/light)
-- 前端拖拽上传（含全局遮罩反馈）与批量 ZIP 下载
-- 7 语言界面，键盘快捷键提示面板
-- 独立 SDK/API 入口：`@lastraindrop/gemini-watermark-remover`
-- 390+ 回归测试 (49 文件，无空存根)
+## 当前版本重点
 
-## 验证基线
+- **减少漏检**：新增 Gemini 20260520 alpha 变体、48/96 模板动态排序、近锚点 25% 容差、自适应兜底放宽、Doubao 矩形资源键动态解析。
+- **减少误检**：候选 trial-removal 验证、标准锚点保护、free 模式置信度地板、重叠候选 NMS。
+- **降低去除偏差**：多遍移除、弱 alpha 链、halo 检测、亚像素精修、alpha 增益校准。
+- **前端一致化**：生产 UI 只展示 Gemini/Doubao/Auto；手动模板支持 `auto`；移动端 toast 与批量布局修复；对比按钮补齐无障碍属性。
+- **测试分层**：新增统一测试分组 runner，明确 unit/integration/precision/audit/diagnostic/stress。
+
+## 快速开始
 
 ```bash
-pnpm test        # 核心套件全通
-pnpm lint        # clean
-pnpm build       # clean (静态 Tailwind CSS，无 CDN 依赖)
+pnpm install
+pnpm build
+pnpm serve
+```
+
+开发模式：
+
+```bash
+pnpm dev
+```
+
+CLI 示例：
+
+```bash
+node src/cli.js -i input.png -o output.png --profile gemini
+node src/cli.js -i ./input-dir -o ./output-dir --profile doubao --json
+node src/cli.js --pipe < input.png > output.png
+```
+
+Python 示例：
+
+```python
+from python.remover import GeminiWatermarkRemover
+
+remover = GeminiWatermarkRemover("./")
+results = remover.remove_watermark("./input", "./output", deep_scan=True)
 ```
 
 ## 架构概览
 
-| 层 | 模块 | 职责 |
-|-------|---------|---------------|
-| 基础 | `blendModes.js`, `alphaMap.js`, `utils.js`, `templates/registry.js` | 反向 alpha 混合、alpha 映射计算、共享工具、模板注册 |
-| 核心 | `catalog.js` (+ `catalogs.json`), `config.js`, `detector.js` (+ `DetectorContext`), `detectionPipeline.js`, `adaptiveDetector.js`, `multiPassRemoval.js`, `alphaCalibration.js`, `decisionPolicy.js`, `restorationMetrics.js`, `applyRemoval.js`, `worker.js`, `workerPool.js`, `watermarkEngine.js`, `profiles.js` | 检测、评分、自适应搜索、缩放门控、多遍移除、alpha 校准、决策分阶、共享移除、Worker 池、管线编排 |
-| 应用 | `app.js` → 9 个子模块 | 前端状态、UI 组件、拖拽、快捷键、设置、视图模式、放大镜、手动选择、暗色模式 |
-| 入口 | `cli.js`, `sdk/index.js`, `userscript/index.js`, `python/` | CLI、SDK 导出、油猴脚本、Python 桥接 |
-| 构建 | `build.js`, `tailwind.config.js`, `src/tailwind.css` | esbuild 打包、静态 Tailwind CSS 生成 |
+| 层级 | 主要文件 | 职责 |
+| --- | --- | --- |
+| Profile 与目录 | `profiles.js`, `catalog.js`, `catalogs.json`, `templates/registry.js` | 生产 profile、官方尺寸、锚点、资源键与目录匹配 |
+| 检测 | `detectionPipeline.js`, `detector.js`, `adaptiveDetector.js`, `decisionPolicy.js` | Catalog/启发式/自适应/全局检测、候选验证与排序 |
+| 移除 | `applyRemoval.js`, `blendModes.js`, `multiPassRemoval.js`, `alphaCalibration.js` | 反向 alpha 混合、多遍移除、NMS、增益校准、artifact 检查 |
+| 运行时 | `watermarkEngine.js`, `worker.js`, `workerPool.js` | 资源加载、缓存、Worker 辅助与主线程回退 |
+| 前端 | `src/app/*.js`, `public/index.html`, `src/i18n/*.json` | 上传、拖拽、设置、手动选区、批量处理、结果对比、多语言 |
+| 接口 | `src/cli.js`, `src/sdk/index.js`, `python/remover.py` | CLI、SDK、TypeScript 类型、Python bridge |
 
-## 技术特性
+## 测试与验证
 
-- **梯度滤波**: Sobel 边缘相关抑制纯亮度假阳性，使用动态 `gradientPenalty` 参数（默认 0.30）。对缩放匹配采用更高梯度门控（0.18 vs 0.12）
-- **多阶段检测**: 目录→缩放→启发式→自适应→全局，逐级阈值。缩放匹配使用更高探针阈值（0.35）和无抖动精调
-- **Profile 系统**: 可插拔 profile（Gemini、Doubao；DALL-E 3 为实验研究项）
-- **尺寸目录**: 标准尺寸 10% 容差匹配，缩放目录覆盖裁切/缩放导出。新增 `findCloseMatches` 宽松匹配
-- **内存池优化**: `DetectorContext` 类封装可复用缓冲区
-- **Worker Pool**: 多 worker 并行像素修复，Transferable ArrayBuffer 零拷贝
-- **纯客户端**: 所有处理在本地完成
-- **暗色模式**: 手动 auto/dark/light 三态选择
+```bash
+pnpm lint             # ESLint
+pnpm build            # 生产构建
+pnpm test             # 快速 unit 层
+pnpm test:integration # 运行时/前端/CLI/Worker/管线集成层
+pnpm test:precision   # 检出率、真实样本、大型合成矩阵
+pnpm test:audit       # 产品验收审计
+pnpm test:diagnostic  # 慢速诊断基线
+pnpm test:stress      # 有边界的内存压力测试
+pnpm test:all         # 标准完整门禁：unit + integration + precision + audit + legacy
+pnpm test:exhaustive  # 真正全量：包含 diagnostic 与 stress
+```
+
+`scripts/test-groups.mjs` 是测试分层的唯一入口。新增顶层 `tests/*.test.js` 时必须归入一个主分组，`tests/test_groups_contract.test.js` 会自动检查遗漏和重复。
+
+## 参数一致化规则
+
+- 所有检测阈值集中在 `src/core/config.js` 的 `DETECTION_THRESHOLDS`。
+- 性能预设集中在 `PERFORMANCE_PRESETS`，UI 滑块不能覆盖预设内部的结构化阈值。
+- Profile、catalog、assets 与测试 mock 资产尺寸必须从同一套元数据推导，不能散落硬编码。
+- 手动模式通过 `manualConfig` 传递区域、模板、alpha 增益、搜索范围与强制处理参数。
+- 用户文档与生产 UI 只承诺 Gemini、Doubao、Auto；实验 profile 必须明确标注。
 
 ## 文档
 
@@ -62,9 +87,8 @@ pnpm build       # clean (静态 Tailwind CSS，无 CDN 依赖)
 - [开发者指南](./DEVELOPER_GUIDE.md)
 - [技术指南](./TECHNICAL_GUIDE.md)
 - [路线图](./ROADMAP.md)
-- [历史报告归档](./reports/)
-- [归档报告](./reports/)
+- [收尾报告](./reports/v2.7-finalization-report.md)
 
-## 许可证
+## 许可
 
 MIT

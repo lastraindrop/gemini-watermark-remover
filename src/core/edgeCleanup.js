@@ -1,3 +1,5 @@
+import { regionStdDev } from './utils.js';
+
 /**
  * Edge Cleanup Module (v2.7 Phase B-3)
  *
@@ -51,6 +53,9 @@ function computeAlphaGradient(alphaMap, width, height) {
 export function applyEdgeCleanup(imageData, alphaMap, position) {
     const { x, y, width, height } = position;
     const { data, width: imgWidth } = imageData;
+    const regionTexture = regionStdDev(data, imgWidth, Math.floor(x), Math.floor(y), width, height);
+    if (regionTexture > 24) return;
+
     const grad = computeAlphaGradient(alphaMap, width, height);
 
     // Find the edge zone: pixels where alpha gradient > 0.02 (transition region)

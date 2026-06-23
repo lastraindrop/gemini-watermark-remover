@@ -12,6 +12,7 @@
  */
 
 import { MockCanvas, MockImageElement } from './test_utils.js';
+import { PROFILES } from '../src/core/profiles.js';
 
 // ============================================================
 // Default mock factories
@@ -187,9 +188,53 @@ export function teardownNodeDOM(saved) {
     }
 }
 
+function dimensionsFromProfileAsset(assetKey) {
+    for (const profile of Object.values(PROFILES)) {
+        if (!profile.assets) continue;
+        const assetEntry = Object.entries(profile.assets).find(([, value]) => value === assetKey);
+        if (!assetEntry) continue;
+
+        const [anchor] = assetEntry;
+        const tier = Object.values(profile.tiers || {}).find(entry => entry.anchor === anchor);
+        if (!tier) continue;
+
+        const width = tier.logoWidth || tier.logoSize;
+        const height = tier.logoHeight || tier.logoSize;
+        if (Number.isFinite(width) && Number.isFinite(height)) {
+            return { width, height };
+        }
+    }
+    return null;
+}
+
+/**
+ * Resolve a synthetic asset size from the same profile metadata used by the app.
+ * Supports explicit WxH keys, profile asset aliases, and Gemini square variants.
+ */
+export function resolveMockAssetDimensions(key) {
+    const raw = String(key || '');
+    const explicitSize = raw.match(/^(\d+)x(\d+)$/);
+    if (explicitSize) {
+        return {
+            width: parseInt(explicitSize[1], 10),
+            height: parseInt(explicitSize[2], 10)
+        };
+    }
+
+    const profileDimensions = dimensionsFromProfileAsset(raw);
+    if (profileDimensions) return profileDimensions;
+
+    const squareSize = parseInt(raw, 10);
+    if (Number.isFinite(squareSize) && squareSize > 0) {
+        return { width: squareSize, height: squareSize };
+    }
+
+    return { width: 96, height: 96 };
+}
+
 /**
  * Create a mock WatermarkEngine asset loader that returns synthetic alpha maps.
- * Eliminates the duplicate _loadAsset override pattern in parameter_matrix and product_audit.
+ * Eliminates duplicate _loadAsset override patterns across integration suites.
  *
  * @param {WatermarkEngine} engine - Engine instance to install on
  * @param {Object} utils - { createMockAlphaMap, alphaToRGBA, createMockImageElement }
@@ -199,27 +244,14 @@ export function installMockAssetLoader(engine, { createMockAlphaMap, alphaToRGBA
     const cache = new Map();
 
     engine._loadAsset = async (key) => {
-        const k = String(key);
-        if (cache.has(k)) return cache.get(k);
+        const assetKey = String(key || '');
+        if (cache.has(assetKey)) return cache.get(assetKey);
 
-        let w = 96, h = 96;
-        if (key.includes('doubao')) {
-            w = 401; h = 173;
-            if (key.includes('_tl')) { w = 307; h = 167; }
-        } else if (key.includes('dalle3')) {
-            w = 120; h = 40;
-        } else if (key.includes('x')) {
-            const parts = key.split('x');
-            w = parseInt(parts[0]) || 96;
-            h = parseInt(parts[1]) || 96;
-        } else {
-            w = h = parseInt(key) || 96;
-        }
-
-        const alpha = createMockAlphaMap(w, h);
-        const rgba = alphaToRGBA(alpha, w, h);
-        const img = createMockImageElement(w, h, rgba);
-        cache.set(k, img);
+        const { width, height } = resolveMockAssetDimensions(assetKey);
+        const alpha = createMockAlphaMap(width, height);
+        const rgba = alphaToRGBA(alpha, width, height);
+        const img = createMockImageElement(width, height, rgba);
+        cache.set(assetKey, img);
         return img;
     };
 

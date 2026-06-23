@@ -128,6 +128,80 @@ describe('applyRemovalStrategy branch coverage', () => {
         applyRemovalStrategy(img, matches);
     });
 
+    test('NMS keeps low-confidence matches when they are spatially independent', () => {
+        const img = createMockImageData(512, 512, 'solid', 96);
+        const alphaMap1 = createMockAlphaMap(48, 48);
+        const alphaMap2 = createMockAlphaMap(48, 48);
+        const pos1 = { x: 24, y: 24, width: 48, height: 48 };
+        const pos2 = { x: 420, y: 420, width: 48, height: 48 };
+        applyWatermark(img, pos1.x, pos1.y, pos1.width, pos1.height, alphaMap1, 255);
+        applyWatermark(img, pos2.x, pos2.y, pos2.width, pos2.height, alphaMap2, 255);
+
+        const before = new Uint8ClampedArray(img.data);
+        const matches = [
+            { profileId: 'unknown-profile', alphaMap: alphaMap1, pos: pos1, confidence: 0.9, config: {} },
+            { profileId: 'unknown-profile', alphaMap: alphaMap2, pos: pos2, confidence: 0.3, config: {} }
+        ];
+
+        applyRemovalStrategy(img, matches);
+
+        let secondRegionChanged = 0;
+        for (let r = 0; r < pos2.height; r++) {
+            for (let c = 0; c < pos2.width; c++) {
+                const idx = ((pos2.y + r) * img.width + pos2.x + c) << 2;
+                if (Math.abs(img.data[idx] - before[idx]) > 1) secondRegionChanged++;
+            }
+        }
+        assert.ok(secondRegionChanged > 0, 'NMS must not drop a non-overlapping lower-confidence watermark');
+    });
+
+    test('standard Gemini watermark uses physical alpha gain and avoids bright residue', () => {
+        const img = createMockImageData(512, 512, 'grid', 100);
+        const original = new Uint8ClampedArray(img.data);
+        const alphaMap = createMockAlphaMap(48, 48);
+        const pos = { x: 432, y: 432, width: 48, height: 48, anchor: 'bottom-right' };
+        applyWatermark(img, pos.x, pos.y, pos.width, pos.height, alphaMap, 255);
+
+        applyRemovalStrategy(img, [{
+            profileId: 'gemini',
+            alphaMap,
+            pos,
+            confidence: 0.48,
+            config: { logoSize: 48, marginRight: 32, marginBottom: 32, isOfficial: true }
+        }]);
+
+        let maxDiff = 0;
+        for (let r = 0; r < pos.height; r++) {
+            for (let c = 0; c < pos.width; c++) {
+                const idx = ((pos.y + r) * img.width + pos.x + c) << 2;
+                maxDiff = Math.max(maxDiff, Math.abs(img.data[idx] - original[idx]));
+            }
+        }
+        assert.ok(maxDiff <= 50, `standard Gemini removal should not leave bright residue, maxDiff=${maxDiff}`);
+    });
+
+    test('standard Doubao rectangular watermark does not use underestimated alpha gain', () => {
+        const img = createMockImageData(768, 432, 'grid', 96);
+        const original = new Uint8ClampedArray(img.data);
+        const alphaMap = createMockAlphaMap(120, 52);
+        const pos = { x: 38, y: 25, width: 120, height: 52, anchor: 'top-left' };
+        applyWatermark(img, pos.x, pos.y, pos.width, pos.height, alphaMap, 255);
+
+        applyRemovalStrategy(img, [{
+            profileId: 'doubao',
+            alphaMap,
+            pos,
+            confidence: 0.52,
+            config: { logoWidth: 120, logoHeight: 52, marginLeft: 38, marginTop: 25, anchor: 'top-left', isOfficial: true }
+        }]);
+
+        const centerX = Math.floor(pos.x + pos.width / 2);
+        const centerY = Math.floor(pos.y + pos.height / 2);
+        const idx = (centerY * img.width + centerX) << 2;
+        assert.ok(Math.abs(img.data[idx] - original[idx]) <= 12,
+            `standard Doubao removal should restore center pixel, diff=${img.data[idx] - original[idx]}`);
+    });
+
     test('empty matches array is a no-op', () => {
         const img = createMockImageData(256, 256, 'noise', 128);
         const before = new Uint8ClampedArray(img.data);

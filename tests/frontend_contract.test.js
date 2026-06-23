@@ -87,6 +87,13 @@ describe('Frontend Contract Verification', () => {
         });
     });
 
+    test('production UI does not advertise experimental-only profiles', () => {
+        const experimentalProfileName = /DALL[\s.-]*(?:&middot;|·)?[\s.-]*E/i;
+        assert.ok(!experimentalProfileName.test(html), 'HTML title/metadata should not advertise DALL-E while it is experimental-only');
+        assert.ok(!experimentalProfileName.test(enUS.title), 'Localized production title should not advertise DALL-E while it is experimental-only');
+        assert.ok(appSource.includes('filter(p => !p.experimental)'), 'Profile selector should hide experimental profiles');
+    });
+
     test('localized comparison controls exist in locale files', () => {
         assert.ok(enUS['view.slider'], 'en-US missing view.slider');
         assert.ok(zhCN['view.slider'], 'zh-CN missing view.slider');
@@ -130,6 +137,28 @@ describe('Frontend Contract Verification', () => {
         assert.ok(dragDropSource.includes('setManualSelectionEnabled(elements, false)') || appSource.includes('setManualSelectionEnabled(elements, false)'), 'New uploads should not keep a stale overlay active');
         assert.ok(processingSource.includes('item.originalImg || await loadImage'), 'Manual reprocess should reuse the loaded source image');
         assert.ok(processingSource.includes('objectUrlManager.revoke(item.processedUrl)'), 'Manual reprocess should revoke superseded result URLs');
+    });
+
+    test('manual template selector supports auto profile-aware asset resolution', () => {
+        assert.ok(html.includes('name="manualTemplateSize" value="auto"'), 'Manual template selector should expose an Auto option');
+        assert.ok(html.includes('data-i18n="manual.templateAuto"'), 'Auto template label should be localizable');
+        assert.ok(settingsSource.includes('resolveManualAssetKey'), 'Settings layer should resolve manual template asset keys');
+        assert.ok(settingsSource.includes('return `${width}x${height}`;'), 'Rectangular profiles should use WxH manual asset keys');
+    });
+
+    test('mobile batch layout and toast container avoid narrow viewport overflow', () => {
+        const multiPreview = html.match(/<section[^>]+id="multiPreview"[^>]+class="([^"]+)"/)?.[1] || '';
+        const toastContainer = html.match(/<div[^>]+id="toastContainer"[^>]+class="([^"]+)"/)?.[1] || '';
+        assert.ok(multiPreview.includes('mt-14'), 'Batch preview should reduce excessive mobile top spacing');
+        assert.ok(html.includes('flex flex-col sm:flex-row'), 'Batch header should stack on mobile');
+        assert.ok(toastContainer.includes('left-4') && toastContainer.includes('right-4'), 'Toasts should be constrained on mobile');
+        assert.ok(cssSource.includes('break-words') || readFileSync(resolve(process.cwd(), 'src/app/ui.js'), 'utf8').includes('break-words'), 'Toast text should wrap instead of overflowing');
+    });
+
+    test('batch compare toggle exposes accessible pressed state', () => {
+        assert.ok(dragDropSource.includes("compareBadge.type = 'button'"), 'Compare toggle should have explicit button type');
+        assert.ok(dragDropSource.includes("aria-pressed"), 'Compare toggle should expose pressed state');
+        assert.ok(dragDropSource.includes("aria-label"), 'Compare toggle should keep a readable label');
     });
 
     test('scanner animation only runs while work is active', () => {

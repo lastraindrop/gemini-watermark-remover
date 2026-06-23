@@ -163,4 +163,38 @@ describe('Worker Timeout Recovery (BUG-H2 guard)', () => {
             global.window = originalWindow;
         }
     });
+
+    test('WorkerPool releases worker after successful task so queued tasks continue', async () => {
+        const originalWorker = global.Worker;
+        const originalWindow = global.window;
+        let pool;
+
+        global.Worker = MockFastWorker;
+        global.window = { Worker: global.Worker, GM_info: null };
+
+        try {
+            const { WorkerPool } = await import('../src/core/workerPool.js');
+            pool = new WorkerPool('mock-worker.js', 1);
+
+            const img1 = { width: 2, height: 2, data: new Uint8ClampedArray(16).fill(1) };
+            const img2 = { width: 2, height: 2, data: new Uint8ClampedArray(16).fill(2) };
+
+            const first = await pool.postTask(img1, []);
+            assert.strictEqual(first[0], 1, 'first task should complete');
+
+            const second = await Promise.race([
+                pool.postTask(img2, []),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('second task timed out')), 250))
+            ]);
+
+            assert.strictEqual(second[0], 2, 'second task should complete on the same one-worker pool');
+            assert.strictEqual(pool.activeCount, 0, 'No active tasks after both tasks complete');
+            assert.strictEqual(pool.pendingCount, 0, 'No pending tasks after both tasks complete');
+
+        } finally {
+            if (pool) pool.terminate();
+            global.Worker = originalWorker;
+            global.window = originalWindow;
+        }
+    });
 });

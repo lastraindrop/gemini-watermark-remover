@@ -44,7 +44,8 @@ export class WorkerPool {
                 if (task) {
                     this._activeTasks.delete(taskId);
                     clearTimeout(task.timer);
-                    task.workerInUse = false;
+                    if (task.workerInUse) task.workerInUse._inUse = false;
+                    task.workerInUse = null;
                     if (error) {
                         task.reject(new Error(error));
                     } else {

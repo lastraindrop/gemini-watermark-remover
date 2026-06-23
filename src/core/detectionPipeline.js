@@ -32,10 +32,28 @@ export function resolveAssetKey(profile, config, pos) {
     if (config.alphaVariant === '20260520') {
         return '96-20260520';
     }
+    if (profile.id === 'doubao' || profile.id === 'dalle3') {
+        const width = config.logoWidth || config.logoSize || pos.width;
+        const height = config.logoHeight || config.logoSize || pos.height;
+        if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+            return `${width}x${height}`;
+        }
+    }
     if (profile.assets) {
         return profile.assets[pos.anchor] || profile.assets[config.anchor];
     }
-    return config.assetKey || profile.defaultAsset || config.logoSize || '96';
+    if (config.assetKey) {
+        return config.assetKey;
+    }
+
+    const squareSize = Number.isFinite(config.logoSize)
+        ? config.logoSize
+        : (config.logoWidth === config.logoHeight ? config.logoWidth : null);
+    if (Number.isFinite(squareSize) && squareSize > 0) {
+        return squareSize <= 48 ? '48' : '96';
+    }
+
+    return profile.defaultAsset || '96';
 }
 
 function normalizeAlphaMap(alphaMap, width, height, assetKey) {

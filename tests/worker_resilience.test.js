@@ -5,6 +5,17 @@ import { createMockImageData, MockCanvas } from './test_utils.js';
 
 const savedGlobals = {};
 
+function installWorkerMock(WorkerClass) {
+    const originalWorker = global.Worker;
+    const originalWindow = global.window;
+    global.Worker = WorkerClass;
+    global.window = { ...(originalWindow || {}), Worker: WorkerClass, GM_info: null };
+    return () => {
+        global.Worker = originalWorker;
+        global.window = originalWindow;
+    };
+}
+
 before(() => {
     // Mock DOM environment for Node.js testing
     if (typeof global.document === 'undefined') {
@@ -80,23 +91,22 @@ describe('Worker Resilience (Timeout Fallback)', () => {
     });
 
     test('Engine can be created without failing even when Worker constructor throws', async () => {
-        const origWorker = global.Worker;
-        global.Worker = function() { throw new Error('Worker not available'); };
-
-        const engine = new WatermarkEngine();
-        const pool = engine._getWorkerPool();
-        assert.strictEqual(pool, null, 'Should return null when Worker fails to construct');
-        assert.strictEqual(engine._useWorker, false, 'Should disable worker on failure');
-        
-        engine.destroy();
-        global.Worker = origWorker;
+        const restoreWorker = installWorkerMock(function() { throw new Error('Worker not available'); });
+        try {
+            const engine = new WatermarkEngine();
+            const pool = engine._getWorkerPool();
+            assert.strictEqual(pool, null, 'Should return null when Worker fails to construct');
+            assert.strictEqual(engine._useWorker, false, 'Should disable worker on failure');
+            engine.destroy();
+        } finally {
+            restoreWorker();
+        }
     });
 
     test('_performWorkerRemoval sends matches to worker and receives modified pixels', async () => {
-        const origWorker = global.Worker;
         let postedData = null;
 
-        global.Worker = class {
+        const restoreWorker = installWorkerMock(class {
             constructor() {
                 this._inUse = false;
                 this.onmessage = null;
@@ -115,30 +125,31 @@ describe('Worker Resilience (Timeout Fallback)', () => {
                 }, 10);
             }
             terminate() {}
-        };
+        });
 
-        const engine = new WatermarkEngine();
-        engine._getWorkerPool();
-        const imgData = { width: 10, height: 10, data: new Uint8ClampedArray(400).fill(100) };
-        const originalPixel = imgData.data[0];
+        try {
+            const engine = new WatermarkEngine();
+            engine._getWorkerPool();
+            const imgData = { width: 10, height: 10, data: new Uint8ClampedArray(400).fill(100) };
+            const originalPixel = imgData.data[0];
 
-        const modifiedData = await engine._performWorkerRemoval(imgData, [
-            { alphaMap: new Float32Array(100).fill(0.5), pos: { x: 0, y: 0, width: 10, height: 10 } }
-        ]);
+            const modifiedData = await engine._performWorkerRemoval(imgData, [
+                { alphaMap: new Float32Array(100).fill(0.5), pos: { x: 0, y: 0, width: 10, height: 10 } }
+            ]);
 
-        assert.ok(postedData, 'Worker postMessage should have been called');
-        assert.strictEqual(postedData.matches.length, 1, 'Worker should receive the matches array');
-        assert.strictEqual(modifiedData[0], (originalPixel + 1) & 0xFF, 'Worker should have modified the pixel data');
-        assert.strictEqual(engine.getExecutionMode(), 'worker-assisted', 'Should report worker-assisted');
+            assert.ok(postedData, 'Worker postMessage should have been called');
+            assert.strictEqual(postedData.matches.length, 1, 'Worker should receive the matches array');
+            assert.strictEqual(modifiedData[0], (originalPixel + 1) & 0xFF, 'Worker should have modified the pixel data');
+            assert.strictEqual(engine.getExecutionMode(), 'worker-assisted', 'Should report worker-assisted');
 
-        engine.destroy();
-        global.Worker = origWorker;
+            engine.destroy();
+        } finally {
+            restoreWorker();
+        }
     });
 
     test('_performWorkerRemoval falls back correctly when worker times out', async () => {
-        const origWorker = global.Worker;
-
-        global.Worker = class {
+        const restoreWorker = installWorkerMock(class {
             constructor() {
                 this._inUse = false;
                 this.onmessage = null;
@@ -148,21 +159,24 @@ describe('Worker Resilience (Timeout Fallback)', () => {
                 // Worker never replies
             }
             terminate() {}
-        };
+        });
 
-        const engine = new WatermarkEngine();
-        engine._getWorkerPool();
-        const imgData = { width: 4, height: 4, data: new Uint8ClampedArray(64).fill(100) };
+        try {
+            const engine = new WatermarkEngine();
+            engine._getWorkerPool();
+            const imgData = { width: 4, height: 4, data: new Uint8ClampedArray(64).fill(100) };
 
-        await assert.rejects(
-            () => engine._performWorkerRemoval(imgData, [
-                { alphaMap: new Float32Array(16).fill(0.5), pos: { x: 0, y: 0, width: 4, height: 4 } }
-            ]),
-            /Worker pool failed|timed out/,
-            'Worker timeout should reject with informative message'
-        );
+            await assert.rejects(
+                () => engine._performWorkerRemoval(imgData, [
+                    { alphaMap: new Float32Array(16).fill(0.5), pos: { x: 0, y: 0, width: 4, height: 4 } }
+                ]),
+                /Worker pool failed|timed out/,
+                'Worker timeout should reject with informative message'
+            );
 
-        engine.destroy();
-        global.Worker = origWorker;
+            engine.destroy();
+        } finally {
+            restoreWorker();
+        }
     });
 });

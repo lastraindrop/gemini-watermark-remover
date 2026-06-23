@@ -5,6 +5,20 @@ import { applyProfileTheme } from './viewModes.js';
 import { PERFORMANCE_PRESETS, DEFAULT_PERFORMANCE_PRESET, DETECTION_THRESHOLDS } from '../core/config.js';
 import { readManualTemplateSize, readManualForceProcess } from './manualSelection.js';
 
+function resolveManualAssetKey(profileId, manualConfig) {
+    const selected = readManualTemplateSize();
+    if (selected !== 'auto') return String(selected);
+
+    const width = Math.trunc(manualConfig.width);
+    const height = Math.trunc(manualConfig.height);
+    if ((profileId === 'doubao' || profileId === 'dalle3') && Number.isFinite(width) && Number.isFinite(height)) {
+        return `${width}x${height}`;
+    }
+
+    const largestSide = Math.max(width, height);
+    return largestSide <= 48 ? '48' : '96';
+}
+
 export function saveSettings(elements) {
     const settings = {
         profileId: elements.profileSelect?.value,
@@ -153,8 +167,8 @@ export function getEngineOptions(elements, behavior = {}) {
             y: Math.trunc(manualConfig.y),
             width: Math.trunc(manualConfig.width),
             height: Math.trunc(manualConfig.height),
-            // v2.5: Template size for alpha map selection & force flag
-            assetKey: String(readManualTemplateSize()),
+            // Auto resolves rectangular profile selections to WxH alpha keys.
+            assetKey: resolveManualAssetKey(opts.profileId, manualConfig),
             forceProcess: readManualForceProcess(),
             // v2.6: Advanced overrides for difficult cases
             alphaGainOverride: parseFloat(document.getElementById('manualAlphaGain')?.value || '1.0') || 1.0,

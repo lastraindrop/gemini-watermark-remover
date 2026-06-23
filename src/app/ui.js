@@ -74,7 +74,7 @@ export function showToast(message, type = 'info', duration = 4000) {
         info: 'bg-indigo-600 shadow-glow-indigo'
     };
 
-    toast.className = `flex items-center gap-4 px-8 py-4 rounded-[20px] text-white text-sm font-black shadow-2xl transition-all duration-700 translate-x-24 opacity-0 pointer-events-auto border border-white/20 backdrop-blur-md ${colors[type] || colors.info}`;
+    toast.className = `flex w-full sm:w-auto max-w-full sm:max-w-sm items-center gap-4 px-5 sm:px-8 py-4 rounded-2xl text-white text-sm font-black break-words shadow-2xl transition-all duration-700 translate-x-24 opacity-0 pointer-events-auto border border-white/20 backdrop-blur-md ${colors[type] || colors.info}`;
 
     const iconSpan = document.createElement('span');
     iconSpan.className = 'w-6 h-6 flex-shrink-0';

@@ -110,4 +110,29 @@ describe('Edge cleanup (B-3)', () => {
         assert.strictEqual(changes, 0,
             `Uniform alpha should not trigger edge cleanup (got ${changes} changes)`);
     });
+
+    test('applyEdgeCleanup skips high-texture regions', () => {
+        const w = 32, h = 32;
+        const data = new Uint8ClampedArray(w * h * 4);
+        for (let row = 0; row < h; row++) {
+            for (let col = 0; col < w; col++) {
+                const idx = (row * w + col) * 4;
+                const v = ((row + col) % 2) === 0 ? 32 : 224;
+                data[idx] = data[idx + 1] = data[idx + 2] = v;
+                data[idx + 3] = 255;
+            }
+        }
+        const imageData = { width: w, height: h, data };
+        const alphaMap = new Float32Array(16 * 16);
+        for (let row = 0; row < 16; row++) {
+            for (let col = 0; col < 16; col++) {
+                alphaMap[row * 16 + col] = Math.max(0, 1 - Math.abs(col - 8) / 8);
+            }
+        }
+        const before = new Uint8ClampedArray(data);
+
+        applyEdgeCleanup(imageData, alphaMap, { x: 8, y: 8, width: 16, height: 16 });
+
+        assert.deepStrictEqual(data, before, 'high-texture regions should not be blurred');
+    });
 });

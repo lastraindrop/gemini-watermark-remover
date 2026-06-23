@@ -48,7 +48,10 @@ function createImageCard(item, elements) {
     const compareBadge = document.createElement('button');
     compareBadge.id = `compare-${item.id}`;
     compareBadge.className = 'absolute top-2 right-2 z-30 px-2 py-1 rounded-full text-[9px] font-black bg-black/60 text-white opacity-0 transition-opacity duration-300 hover:bg-black/80 cursor-pointer';
+    compareBadge.type = 'button';
     compareBadge.textContent = i18n.t('badge.compare') || 'Compare';
+    compareBadge.setAttribute('aria-label', compareBadge.textContent);
+    compareBadge.setAttribute('aria-pressed', 'false');
     compareBadge.dataset.state = 'result';  // 'result' or 'original'
     compareBadge.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -58,12 +61,16 @@ function createImageCard(item, elements) {
             originalImg.style.opacity = '1';
             img.style.opacity = '0';
             compareBadge.textContent = i18n.t('badge.result') || 'Result';
+            compareBadge.setAttribute('aria-label', compareBadge.textContent);
+            compareBadge.setAttribute('aria-pressed', 'true');
             compareBadge.dataset.state = 'original';
         } else {
             // Show result
             originalImg.style.opacity = '0';
             img.style.opacity = '1';
             compareBadge.textContent = i18n.t('badge.compare') || 'Compare';
+            compareBadge.setAttribute('aria-label', compareBadge.textContent);
+            compareBadge.setAttribute('aria-pressed', 'false');
             compareBadge.dataset.state = 'result';
         }
     });

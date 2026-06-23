@@ -10,6 +10,7 @@ import {
     readManualTemplateSize,
     readManualForceProcess
 } from '../src/app/manualSelection.js';
+import { getEngineOptions } from '../src/app/settings.js';
 
 function createInput(value = '') {
     return { value };
@@ -31,7 +32,7 @@ function createClassList(initial = []) {
 describe('Manual selection — v2.6 canvas-based', () => {
     let _storedSelectImage = null;
 
-    function setupDOM() {
+    function setupDOM({ templateSize = 'auto' } = {}) {
         const selectCanvas = { classList: createClassList(['hidden']) };
         const selectImage = { src: '', naturalWidth: 100, naturalHeight: 100, getBoundingClientRect: () => ({ left: 10, top: 20, width: 200, height: 100 }) };
         const selectBox = { classList: createClassList(['hidden']), style: {} };
@@ -44,11 +45,14 @@ describe('Manual selection — v2.6 canvas-based', () => {
                 if (id === 'manualSelectBox') return selectBox;
                 if (id === 'manualModeToggle') return { checked: false };
                 if (id === 'manualForceToggle') return { checked: false };
+                if (id === 'autoDownloadToggle') return { checked: false };
+                if (id === 'manualAlphaGain') return { value: '1.0' };
+                if (id === 'manualSearchRange') return { value: '10' };
                 if (id === 'comparisonSlider') return { getBoundingClientRect: () => ({ left: 0, top: 0, width: 200, height: 100 }) };
                 return null;
             },
             querySelector: sel => {
-                if (sel === 'input[name="manualTemplateSize"]:checked') return { value: '48' };
+                if (sel === 'input[name="manualTemplateSize"]:checked') return { value: templateSize };
                 return null;
             }
         };
@@ -104,13 +108,38 @@ describe('Manual selection — v2.6 canvas-based', () => {
 
     // --- Template size & force process ---
 
-    test('readManualTemplateSize returns 48 by default', () => {
+    test('readManualTemplateSize returns auto by default', () => {
         setupDOM();
+        assert.strictEqual(readManualTemplateSize(), 'auto');
+    });
+
+    test('readManualTemplateSize preserves explicit square template choices', () => {
+        setupDOM({ templateSize: '48' });
         assert.strictEqual(readManualTemplateSize(), 48);
     });
 
     test('readManualForceProcess returns false by default', () => {
         setupDOM();
         assert.strictEqual(readManualForceProcess(), false);
+    });
+
+    test('getEngineOptions resolves auto manual templates to rectangular Doubao asset keys', () => {
+        setupDOM({ templateSize: 'auto' });
+        const elements = {
+            profileSelect: { value: 'doubao' },
+            performanceSelect: { value: 'balanced' },
+            thresholdSlider: { value: '0.18' },
+            penaltySlider: { value: '0.30' },
+            manualModeToggle: { checked: true },
+            manualX: createInput('12'),
+            manualY: createInput('24'),
+            manualW: createInput('401'),
+            manualH: createInput('173')
+        };
+
+        const opts = getEngineOptions(elements);
+        assert.equal(opts.manualConfig.assetKey, '401x173');
+        assert.equal(opts.manualConfig.width, 401);
+        assert.equal(opts.manualConfig.height, 173);
     });
 });

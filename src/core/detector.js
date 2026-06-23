@@ -400,10 +400,13 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     }
 
     if (bestResult) {
+        const hasExplicitFinalFree = Number.isFinite(overrides?.THRESHOLDS?.FINAL_FREE);
         const thresholds = { 
             'anchored': config.THRESHOLDS.FINAL_ANCHORED, 
             'aligned': config.THRESHOLDS.FINAL_ALIGNED, 
-            'free': config.THRESHOLDS.FINAL_FREE 
+            'free': hasExplicitFinalFree
+                ? config.THRESHOLDS.FINAL_FREE
+                : Math.max(config.THRESHOLDS.FINAL_FREE, DETECTION_THRESHOLDS.GLOBAL_FALLBACK_MIN)
         }; 
         if (bestResult.confidence >= (thresholds[bestResult.mode] || config.THRESHOLDS.FINAL_FREE)) {
             return bestResult;

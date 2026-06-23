@@ -18,6 +18,7 @@ import {
     createMockImageElement,
     alphaToRGBA
 } from './test_utils.js';
+import { installMockAssetLoader } from './setup.js';
 import { PROFILES } from '../src/core/profiles.js';
 import { calculateWatermarkPosition } from '../src/core/config.js';
 
@@ -37,29 +38,7 @@ describe('Deep Regression: Parameter Matrix', () => {
         
         engine = await WatermarkEngine.create();
         
-        const assetCache = new Map();
-        engine._loadAsset = async (key) => {
-            if (assetCache.has(key)) return assetCache.get(key);
-            
-            let w = 96, h = 96;
-            // Handle all key formats: "48", "96", "WxH", "doubao_br", "doubao_tl"
-            if (key.includes('doubao')) {
-                w = 401; h = 173; // Default doubao BR
-                if (key.includes('tl')) { w = 307; h = 167; }
-            } else if (key.includes('x')) {
-                const parts = key.split('x');
-                w = parseInt(parts[0]) || 96;
-                h = parseInt(parts[1]) || 96;
-            } else {
-                w = h = parseInt(key) || 96;
-            }
-
-            const alpha = createMockAlphaMap(w, h);
-            const rgba = alphaToRGBA(alpha, w, h);
-            const img = createMockImageElement(w, h, rgba);
-            assetCache.set(key, img);
-            return img;
-        };
+        installMockAssetLoader(engine, { createMockAlphaMap, alphaToRGBA, createMockImageElement });
     });
 
     // We split the matrix into batches to prevent log overflow while keeping exhaustive coverage

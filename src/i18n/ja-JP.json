@@ -1,5 +1,5 @@
 {
-  "title": "AI Watermark Studio - Gemini, Doubao & DALL-E 3",
+  "title": "AI Watermark Studio - Gemini & Doubao",
   "header.title": "AI Watermark Studio",
   "brand.name": "Watermark Studio",
   "nav.userscript": "Gemini用ユーザースクリプトをインストール",
@@ -137,6 +137,7 @@
   "error.imageTooLarge": "画像が大きすぎます：{{width}}x{{height}} は {{limit}}MP の制限を超えています。",
   "error.encodeFailed": "処理結果をPNGとしてエンコードできませんでした",
   "manual.templateSize": "透かしテンプレートサイズ",
+  "manual.templateAuto": "自動",
   "manual.forceProcess": "強制処理（難易度の高い画像の信頼度チェックをスキップ）",
   "manual.dragHint": "ドラッグして透かし領域を選択",
   "badge.compare": "比較",

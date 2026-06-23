@@ -1,5 +1,5 @@
 {
-  "title": "AI Watermark Studio – Gemini, Doubao & DALL·E 3",
+  "title": "AI Watermark Studio - Gemini & Doubao",
   "header.title": "AI Watermark Studio",
   "brand.name": "Watermark Studio",
   "nav.userscript": "Install Userscript for Gemini",
@@ -135,6 +135,7 @@
   "manual.height": "Height",
   "drag.dropHint": "Drop images anywhere",
   "manual.templateSize": "Watermark Template",
+  "manual.templateAuto": "Auto",
   "manual.forceProcess": "Force process (skip confidence checks for difficult images)",
   "manual.dragHint": "Drag to select watermark area",
   "manual.advancedOverrides": "Advanced Overrides",

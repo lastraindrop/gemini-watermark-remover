@@ -34,7 +34,8 @@ export function writeManualRegion(elements, region) {
 
 export function readManualTemplateSize() {
     const checked = document.querySelector('input[name="manualTemplateSize"]:checked');
-    return checked ? Number(checked.value) : 48;
+    if (!checked || checked.value === 'auto') return 'auto';
+    return Number(checked.value);
 }
 
 export function readManualForceProcess() {

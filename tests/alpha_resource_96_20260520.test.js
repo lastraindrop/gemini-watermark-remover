@@ -93,13 +93,12 @@ describe('BUG-C8 A-4: resolveAssetKey alphaVariant routing', () => {
             'standard 2k/1k config must resolve to defaultAsset (96)');
     });
 
-    test('regression: 0.5k (48px) config without alphaVariant -> defaultAsset', () => {
+    test('regression: 0.5k (48px) config without alphaVariant -> 48px asset', () => {
         const profile = PROFILES.gemini;
         const config = { logoSize: 48, marginRight: 32, marginBottom: 32 };
         const pos = { anchor: 'bottom-right' };
-        // profile.defaultAsset='96' is checked BEFORE config.logoSize=48
-        assert.strictEqual(resolveAssetKey(profile, config, pos), '96',
-            'without alphaVariant, defaultAsset wins over logoSize');
+        assert.strictEqual(resolveAssetKey(profile, config, pos), '48',
+            '48px Gemini configs must use the native 48px alpha resource');
     });
 
     test('regression: doubao profile uses profile.assets map (unchanged path)', () => {
@@ -107,6 +106,20 @@ describe('BUG-C8 A-4: resolveAssetKey alphaVariant routing', () => {
         const config = { anchor: 'bottom-right' };
         const pos = { anchor: 'bottom-right' };
         assert.strictEqual(resolveAssetKey(profile, config, pos), 'doubao_br');
+    });
+
+    test('regression: doubao catalog dimensions resolve to size-specific asset keys', () => {
+        const profile = PROFILES.doubao;
+        const config = { logoWidth: 248, logoHeight: 105, anchor: 'top-left' };
+        const pos = { width: 248, height: 105, anchor: 'top-left' };
+        assert.strictEqual(resolveAssetKey(profile, config, pos), '248x105');
+    });
+
+    test('regression: dalle3 catalog dimensions resolve to size-specific asset keys', () => {
+        const profile = PROFILES.dalle3;
+        const config = { logoWidth: 120, logoHeight: 40, anchor: 'bottom-left' };
+        const pos = { width: 120, height: 40, anchor: 'bottom-left' };
+        assert.strictEqual(resolveAssetKey(profile, config, pos), '120x40');
     });
 
     test('v2-small (alphaVariant: "v2") keeps existing behavior — not routed to 20260520', () => {
@@ -117,7 +130,7 @@ describe('BUG-C8 A-4: resolveAssetKey alphaVariant routing', () => {
         const pos = { anchor: 'bottom-right' };
         const key = resolveAssetKey(profile, config, pos);
         assert.notStrictEqual(key, '96-20260520', 'v2 variant must not be misrouted');
-        assert.strictEqual(key, '96', 'v2-small falls back to defaultAsset (96)');
+        assert.strictEqual(key, '48', 'v2-small should scale from the closest native 48px asset');
     });
 });
 

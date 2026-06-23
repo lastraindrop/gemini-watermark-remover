@@ -1,28 +1,47 @@
 # Doubao Watermark Support Report
 
-## 1. Goal
+## 1. Current Support
 
-This report documents Doubao watermark support in the current branch and records the current directory/catalog coverage.
-
-## 2. Current Support
-
-`src/core/profiles.js` and `src/core/catalog.js` now cover the current Doubao multi-anchor flow.
+Doubao is a production profile in the current branch.
 
 Supported anchors:
 
 - `top-left`
 - `bottom-right`
 
-Supported catalog entries include the main square and portrait/landscape resolutions used by the current sample set.
+Supported shape:
 
-## 3. Verification Summary
+- Rectangular watermarks.
+- Asset dimensions are derived from profile/catalog metadata.
+- Manual selections can produce explicit `widthxheight` asset keys.
 
-- The current support path is shared by Web, CLI, and Python bridge.
-- Detection and removal use the same candidate policy as Gemini.
-- Current local verification baseline is `417` test cases passing (v2.5.1).
+## 2. Architecture
 
-## 4. Key Notes
+Doubao uses the same shared pipeline as Gemini:
 
-- Doubao is intentionally handled through the same shared pipeline rather than a separate code path.
-- Any change to anchor or catalog coverage must be mirrored in tests.
-- If a new Doubao sample appears, it should be added to the regression set before the documentation is updated.
+1. Catalog and heuristic candidates.
+2. Adaptive search when needed.
+3. Candidate validation and anchor preservation.
+4. Shared `applyRemovalStrategy()`.
+5. Multi-pass removal with safety gates.
+
+There is no separate Doubao-only removal path.
+
+## 3. Test Coverage
+
+Relevant tests include:
+
+- `tests/doubao.test.js`
+- `tests/real_sample.test.js`
+- `tests/parameter_matrix.test.js`
+- `tests/product_audit.test.js`
+- `tests/manual_selection.test.js`
+- `tests/setup_contract.test.js`
+
+Doubao coverage is included in the `precision`, `audit`, and standard `test:all` gates.
+
+## 4. Maintenance Rules
+
+- Any Doubao anchor or dimension change must update `profiles.js`, `catalogs.json`, tests, and docs together.
+- Do not duplicate `401x173` or `307x167` in new tests. Use shared helpers that derive dimensions from profile metadata.
+- Add a real sample before documenting a new Doubao variant as supported.

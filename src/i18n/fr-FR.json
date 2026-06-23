@@ -137,6 +137,7 @@
   "error.imageTooLarge": "Image trop grande : {{width}}x{{height}} dépasse la limite de {{limit}}MP.",
   "error.encodeFailed": "Impossible d'encoder l'image traitée en PNG",
   "manual.templateSize": "Taille du modèle de filigrane",
+  "manual.templateAuto": "Auto",
   "manual.forceProcess": "Traitement forcé (ignorer les vérifications de confiance pour les images difficiles)",
   "manual.dragHint": "Glisser pour sélectionner la zone du filigrane",
   "badge.compare": "Comparer",

@@ -1,54 +1,52 @@
 # Frontend & Test Audit Report
 
-## 1. Scope
+## 1. Current Scope
 
-This report covers the browser frontend, its runtime wiring, UX quality, drag-and-drop behavior, batch download behavior, and the unit test coverage that validates the current architecture.
+This report summarizes the current frontend and test architecture after the v2.7 closure. Detailed closure notes are in `reports/v2.7-finalization-report.md`.
 
 Reviewed areas:
 
 - `public/index.html`
-- `public/index.css`
-- `src/app.js`
-- `src/app/processing.js`
-- `src/i18n.js`
+- `src/app/*.js`
 - `src/i18n/*.json`
 - `tests/frontend_contract.test.js`
 - `tests/frontend_interaction.test.js`
-- `tests/gemini_regression.test.js`
-- `tests/i18n.test.js`
-- `tests/build_pipeline.test.js`
+- `tests/manual_selection.test.js`
+- `tests/test_groups_contract.test.js`
+- `scripts/test-groups.mjs`
 
-Current verification status (v2.5.1):
+## 2. Frontend Status
 
-- `tests/frontend_contract.test.js`: passing
-- `tests/build_pipeline.test.js`: passing
-- `tests/i18n_completeness.test.js`: passing
-- full suite: 44 files, 417 test cases
+- Production UI exposes Gemini, Doubao, and Auto.
+- Experimental profiles are not presented as production support.
+- Manual selection defaults to template `auto`.
+- Doubao manual selections can use rectangular `widthxheight` asset keys.
+- Batch UI and mobile toast layout are stable.
+- Compare controls are real buttons with accessible pressed state.
+- i18n keys are synchronized across supported locales.
 
-## 2. Frontend Architecture
+## 3. Test Status
 
-- `public/index.html` provides the shell and entry points.
-- `src/app.js` handles state, event wiring, drag-and-drop, and upload flow.
-- `src/app/processing.js` handles queueing, concurrency, and downloads.
-- `src/core/*` provides the actual watermark logic.
-- `src/i18n.js` applies locale-driven text updates.
+The test suite is now grouped by purpose:
 
-The frontend now reflects the current multi-profile architecture instead of a single hardcoded workflow.
+- `unit`
+- `integration`
+- `precision`
+- `audit`
+- `diagnostic`
+- `stress`
+- `legacy`
+- `worker`
 
-## 3. Key Findings
+`scripts/test-groups.mjs` validates that top-level tests are assigned exactly once. `tests/test_groups_contract.test.js` prevents future drift.
 
-- Window-level drag-and-drop is now wired.
-- Directory drag-and-drop is handled.
-- Batch downloads are packaged as ZIP files.
-- Language select styling now remains readable.
-- Batch queueing yields to the browser more often, reducing visible lag.
+## 4. Remaining Watchpoints
 
-## 4. Remaining UX Watchpoints
-
-- Keep the control surface dense but stable.
-- Avoid reintroducing per-file browser download fan-out.
-- Keep frontend labels aligned with the actual engine parameters.
+- Add browser-level Playwright tests for real UI interactions.
+- Keep profile labels, i18n keys, and engine option construction aligned.
+- Keep diagnostic and stress tests out of the default developer loop.
+- Expand real-sample fixtures for difficult Gemini offsets and Doubao variants.
 
 ## 5. Conclusion
 
-The frontend is now aligned with the current architecture and test baseline. The main risk is regression through future refactors that touch the upload/download pipeline or the shared parameter contract.
+The frontend and tests now reflect the current architecture. The main remaining gap is browser-level E2E coverage, not unit or integration coverage.

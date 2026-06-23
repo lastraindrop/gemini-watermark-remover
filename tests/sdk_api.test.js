@@ -17,8 +17,25 @@ describe('Public SDK API', () => {
     test('package declares layered verification scripts', () => {
         const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
 
-        for (const scriptName of ['test:unit', 'test:legacy', 'test:all', 'test:python', 'test:stress']) {
+        for (const scriptName of [
+            'test:unit',
+            'test:integration',
+            'test:precision',
+            'test:audit',
+            'test:diagnostic',
+            'test:legacy',
+            'test:all',
+            'test:exhaustive',
+            'test:python',
+            'test:stress'
+        ]) {
             assert.ok(pkg.scripts[scriptName], `Missing package script: ${scriptName}`);
+        }
+        for (const scriptName of ['test', 'test:unit', 'test:integration', 'test:precision', 'test:audit', 'test:diagnostic', 'test:all', 'test:exhaustive']) {
+            assert.ok(
+                pkg.scripts[scriptName].includes('scripts/test-groups.mjs'),
+                `${scriptName} should use the shared test group runner`
+            );
         }
     });
 

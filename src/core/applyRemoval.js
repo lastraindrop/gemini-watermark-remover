@@ -75,19 +75,9 @@ function suppressOverlappingMatches(matches) {
     const sorted = [...matches].sort((a, b) => b.confidence - a.confidence);
     const accepted = [];
 
-    // v2.6: Confidence ratio filter — only keep matches whose confidence is
-    // within 50% of the strongest match. If the winner has conf=0.97, any match
-    // below 0.49 is almost certainly a false positive (different watermark
-    // geometry, margin, or template creating spurious correlation). This is
-    // especially important after adding 192px margin probing, which increases
-    // the candidate pool and false-positive surface.
-    const topConfidence = sorted[0].confidence;
-    const confidenceFloor = topConfidence * 0.5;
-
+    // Keep the highest-confidence candidate only inside each spatial cluster.
+    // Non-overlapping lower-confidence matches can be real independent anchors.
     for (const candidate of sorted) {
-        // Skip weak matches far below the winner
-        if (candidate.confidence < confidenceFloor && accepted.length > 0) continue;
-
         let overlapsExisting = false;
         for (const existing of accepted) {
             // Check actual pixel-level bounding box intersection
@@ -182,11 +172,13 @@ export function applyRemovalStrategy(imageData, matches) {
                 // Otherwise fall through to standard gain path below
             }
 
-            // v2.6: Check for manual alphaGain override (difficult cases)
-            const estimatedGain = estimateAlphaGain(imageData, match.alphaMap, match.pos);
+            // Standard templates are already calibrated to the physical alpha
+            // used by removeWatermark. The luminance estimator is intentionally
+            // not applied by default because high-contrast backgrounds can make
+            // a normal-strength watermark look weak, leaving bright residue.
             const alphaGain = (match.config?.alphaGainOverride && match.config.alphaGainOverride > 0)
                 ? match.config.alphaGainOverride
-                : estimatedGain;
+                : 1;
             // v2.5: Pre-scale the alpha map once before multi-pass removal.
             // Passing alphaGain to each pass causes cumulative over-correction:
             // after pass 1 removes the watermark, pass 2 applies the SAME gain

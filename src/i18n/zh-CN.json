@@ -135,6 +135,7 @@
   "manual.height": "高度",
   "drag.dropHint": "拖放图片到此处",
   "manual.templateSize": "水印模板尺寸",
+  "manual.templateAuto": "自动",
   "manual.forceProcess": "强制处理（跳过疑难图像的置信度检查）",
   "manual.dragHint": "拖拽框选水印区域",
   "manual.advancedOverrides": "高级参数覆盖",

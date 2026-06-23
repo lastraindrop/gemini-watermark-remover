@@ -31,6 +31,7 @@ import {
     setupMemoryMocks,
     alphaToRGBA
 } from './test_utils.js';
+import { installMockAssetLoader } from './setup.js';
 import { RestorationMetrics } from '../src/core/restorationMetrics.js';
 
 
@@ -102,32 +103,7 @@ describe('GWR Ultimate Product Audit', () => {
         engine = await WatermarkEngine.create();
         state.engine = engine;
         
-        // Mock Asset Loading (v1.9.0: Universal dimension parser)
-        const assetCache = new Map();
-        engine._loadAsset = async (key) => {
-            if (assetCache.has(key)) return assetCache.get(key);
-            
-            let w = 96, h = 96;
-            if (key.includes('x')) {
-                const parts = key.split('x');
-                w = parseInt(parts[0]) || 96;
-                h = parseInt(parts[1]) || 96;
-            } else if (!isNaN(parseInt(key))) {
-                w = h = parseInt(key);
-            } else if (key.includes('doubao')) {
-                // Heuristic doubao assets
-                if (key.includes('_tl')) { w = 307; h = 167; }
-                else { w = 401; h = 173; }
-            } else if (key.includes('dalle3')) {
-                w = 120; h = 40;
-            }
-
-            const alpha = createMockAlphaMap(w, h);
-            const rgba = alphaToRGBA(alpha, w, h);
-            const img = createMockImageElement(w, h, rgba);
-            assetCache.set(key, img);
-            return img;
-        };
+        installMockAssetLoader(engine, { createMockAlphaMap, alphaToRGBA, createMockImageElement });
     });
 
     describe('1. Architecture & Registry Integrity', () => {

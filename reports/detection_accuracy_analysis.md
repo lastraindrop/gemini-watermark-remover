@@ -1,5 +1,7 @@
 # 检测准确率根因分析报告
 
+> **状态**: 历史根因分析。v2.7 收尾已处理其中多项问题，包括 20260520 alpha 变体、候选验证、标准锚点保护、free 模式置信度地板、NMS 与手动矩形资源键。当前状态以 `reports/v2.7-finalization-report.md` 与 `TECHNICAL_GUIDE.md` 为准。
+>
 > **分析日期**: 2026-06-19  
 > **分析对象**: 检测管线完整流程（detector.js + detectionPipeline.js + config.js + adaptiveDetector.js）  
 > **用户反馈**: 检测准确率不高，检测到错误位置
