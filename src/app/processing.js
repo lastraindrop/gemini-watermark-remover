@@ -11,6 +11,10 @@ import JSZip from 'jszip';
 
 export async function processSingle(item, options, callbacks = {}) {
     try {
+        // Feature C: Show current file being processed
+        const progressText = document.getElementById('progressText');
+        if (progressText) progressText.textContent = `${i18n.t('batch.processing') || 'Processing'}: ${item.name}`;
+
         const img = item.originalImg || await loadImage(item.file, { objectUrlManager });
         
         if (img.width * img.height > ENGINE_LIMITS.MAX_PIXELS) {
@@ -24,12 +28,19 @@ export async function processSingle(item, options, callbacks = {}) {
         if (callbacks.onOriginalStatus) {
             callbacks.onOriginalStatus({ is_google, is_original });
         }
+        item.isGoogle = is_google;
+        item.isOriginal = is_original;
 
         const startTime = performance.now();
         const result = await state.engine.removeWatermarkFromImage(img, options);
         const endTime = performance.now();
         const { canvas, confidence, config, pos, removedCount, profileId } = result;
         if (result._detectionSource) item._detectionSource = result._detectionSource;
+        item.lastConfig = config || null;
+        item.lastPos = pos || null;
+        item.lastConfidence = confidence;
+        item.lastProfileId = profileId;
+        item.lastRemovedCount = removedCount;
         
         const latency = (endTime - startTime).toFixed(0);
         const confPercent = (confidence * 100).toFixed(0);
@@ -75,8 +86,16 @@ export function getBatchConcurrency(options = {}, queue = state.imageQueue) {
 export async function processQueue(options, callbacks = {}) {
     if (state.isProcessing) return;
     state.isProcessing = true;
+    state._pendingQueue = false;
     
-    const queue = [...state.imageQueue];
+    const restartIfQueued = () => {
+        if (state._pendingQueue && state.imageQueue.filter(i => i.queued && i.status === 'pending').length > 0) {
+            state.imageQueue.forEach(i => { i.queued = false; });
+            processQueue(options, callbacks);
+        }
+    };
+    
+    const queue = state.imageQueue.filter(i => i.status === 'pending');
     const total = queue.length;
     const concurrency = getBatchConcurrency(options, queue);
 
@@ -122,6 +141,8 @@ export async function processQueue(options, callbacks = {}) {
     } finally {
         state.isProcessing = false;
         if (callbacks.onComplete) callbacks.onComplete();
+        // Auto-resume if files were queued during this batch
+        setTimeout(() => restartIfQueued(), 100);
     }
 }
 

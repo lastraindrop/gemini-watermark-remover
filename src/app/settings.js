@@ -28,6 +28,8 @@ export function saveSettings(elements) {
         penalty: elements.penaltySlider?.value,
         // FE-BUG-M1: persist autoDownload so user choice survives reloads
         autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false,
+        manualAlphaGain: document.getElementById('manualAlphaGain')?.value,
+        manualSearchRange: document.getElementById('manualSearchRange')?.value,
         darkMode: typeof localStorage !== 'undefined' ? localStorage.getItem('gwr_dark_mode') : null
     };
     localStorage.setItem('gwr_pro_settings', JSON.stringify(settings));
@@ -73,6 +75,19 @@ export function loadSettings(elements) {
         if (settings.autoDownload != null) {
             const toggle = document.getElementById('autoDownloadToggle');
             if (toggle) toggle.checked = !!settings.autoDownload;
+        }
+        // restore manual overrides
+        if (settings.manualAlphaGain != null) {
+            const agSlider = document.getElementById('manualAlphaGain');
+            const agVal = document.getElementById('manualAlphaGainVal');
+            if (agSlider) agSlider.value = settings.manualAlphaGain;
+            if (agVal) agVal.textContent = parseFloat(settings.manualAlphaGain).toFixed(2);
+        }
+        if (settings.manualSearchRange != null) {
+            const srSlider = document.getElementById('manualSearchRange');
+            const srVal = document.getElementById('manualSearchRangeVal');
+            if (srSlider) srSlider.value = settings.manualSearchRange;
+            if (srVal) srVal.textContent = settings.manualSearchRange;
         }
     } catch (error) {
         AuditLog.log(`Settings ignored: ${error.message}`, 'err');

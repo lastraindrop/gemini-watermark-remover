@@ -59,21 +59,7 @@ export async function checkOriginal(file) {
     }
 }
 
-export function getOriginalStatus({ is_google, is_original }) {
-    if (!is_google) return i18n.t('original.not_gemini');
-    if (!is_original) return i18n.t('original.not_original');
-    return '';
-}
-
-function getStatusMessageEl() { return typeof document !== 'undefined' ? document.getElementById('statusMessage') : null; }
 function getLoadingOverlayEl() { return typeof document !== 'undefined' ? document.getElementById('loadingOverlay') : null; }
-
-export function setStatusMessage(message, type = 'info') {
-    const el = getStatusMessageEl();
-    if (!el) return;
-    el.textContent = message;
-    el.className = `mt-6 text-sm min-h-[1.25rem] ${type === 'err' ? 'text-err font-bold' : (type === 'success' ? 'text-success font-bold' : 'text-gray-500')}`;
-}
 
 export function showLoading(text, subText = '') {
     const el = getLoadingOverlayEl();

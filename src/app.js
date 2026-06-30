@@ -253,18 +253,22 @@ function setupEventListeners() {
     elements.thresholdSlider?.addEventListener('input', (e) => {
         if (elements.thresholdVal) elements.thresholdVal.textContent = e.target.value;
     });
+    elements.thresholdSlider?.addEventListener('change', () => saveSettings(elements));
 
     elements.penaltySlider?.addEventListener('input', (e) => {
         if (elements.penaltyVal) elements.penaltyVal.textContent = e.target.value;
     });
+    elements.penaltySlider?.addEventListener('change', () => saveSettings(elements));
 
     // v2.6: Manual override sliders
     const agSlider = document.getElementById('manualAlphaGain');
     const agVal = document.getElementById('manualAlphaGainVal');
     agSlider?.addEventListener('input', (e) => { if (agVal) agVal.textContent = parseFloat(e.target.value).toFixed(2); });
+    agSlider?.addEventListener('change', () => saveSettings(elements));
     const srSlider = document.getElementById('manualSearchRange');
     const srVal = document.getElementById('manualSearchRangeVal');
     srSlider?.addEventListener('input', (e) => { if (srVal) srVal.textContent = e.target.value; });
+    srSlider?.addEventListener('change', () => saveSettings(elements));
 
     // v2.3: Performance preset radio buttons — persist choice + sync toggles
     document.querySelectorAll('input[name="performancePreset"]').forEach(radio => {
@@ -424,7 +428,10 @@ function updateCardUI(item, removedCount, confidence, latency) {
     const preview = img?.closest('.scanner-effect');
     const status = document.getElementById(`status-${item.id}`);
     const meta = document.getElementById(`meta-${item.id}`);
+    const detailRow = document.getElementById(`detail-${item.id}`);
+    const posOverlay = document.getElementById(`pos-${item.id}`);
     const dlBtn = document.getElementById(`download-${item.id}`);
+    const progressText = document.getElementById('progressText');
 
     if (loader) loader.style.display = 'none';
     preview?.classList.remove('is-processing');
@@ -432,17 +439,48 @@ function updateCardUI(item, removedCount, confidence, latency) {
         img.src = item.processedUrl;
         img.classList.remove('opacity-0');
     }
-    // v2.6: Populate original image for before/after comparison
     if (originalImg && item.originalUrl) {
         originalImg.src = item.originalUrl;
         originalImg.style.display = '';
     }
-    // Show the compare toggle badge
     if (compareBadge) {
         compareBadge.style.opacity = '1';
     }
     if (status) status.textContent = confidence > 0 ? i18n.t('status.dewatermarked') : i18n.t('status.noWatermark');
     if (meta) meta.textContent = `${removedCount} / ${latency}ms`;
+
+    // Feature A: Detection detail display
+    if (detailRow) {
+        const details = [];
+        if (item.isGoogle) details.push(`<span class="text-emerald-500 font-black">Gemini Original</span>`);
+        else if (item.isOriginal) details.push(`<span class="text-amber-500 font-black">AI Image</span>`);
+        if (item._detectionSource) details.push(`<span class="text-indigo-400">${item._detectionSource}</span>`);
+        if (item.lastConfig?.alphaVariant) details.push(`<span class="text-slate-400">alpha:${item.lastConfig.alphaVariant}</span>`);
+        if (item.lastConfig?.logoSize) details.push(`<span class="text-slate-400">${item.lastConfig.logoSize}px</span>`);
+        if (details.length > 0) {
+            detailRow.innerHTML = details.join(' · ');
+            detailRow.classList.remove('hidden');
+        }
+    }
+
+    // Feature F: Position overlay on result image
+    if (posOverlay && item.lastPos && item.lastPos.width && item.lastPos.height) {
+        const pw = posOverlay.parentElement?.clientWidth || 200;
+        const ph = posOverlay.parentElement?.clientHeight || 200;
+        const scaleX = pw / (item.originalImg?.naturalWidth || pw);
+        const scaleY = ph / (item.originalImg?.naturalHeight || ph);
+        posOverlay.style.left = `${item.lastPos.x * scaleX}px`;
+        posOverlay.style.top = `${item.lastPos.y * scaleY}px`;
+        posOverlay.style.width = `${item.lastPos.width * scaleX}px`;
+        posOverlay.style.height = `${item.lastPos.height * scaleY}px`;
+        posOverlay.classList.remove('hidden');
+    }
+
+    // Feature C: Real-time progress with current file name
+    if (progressText && item.name) {
+        progressText.textContent = `${i18n.t('batch.processing') || 'Processing'}: ${item.name}`;
+    }
+
     if (dlBtn) {
         dlBtn.classList.remove('hidden');
         dlBtn.onclick = () => downloadImage(item);

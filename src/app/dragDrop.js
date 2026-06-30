@@ -17,12 +17,15 @@ export function isSupportedImageFile(file) {
 }
 
 function createImageCard(item, elements) {
+    const isSingle = state.imageQueue.length === 1;
     const card = document.createElement('div');
     card.id = `card-${item.id}`;
     card.className = 'gwr-image-card glass-premium rounded-3xl p-4 group overflow-hidden animate-fade-up';
 
     const preview = document.createElement('div');
-    preview.className = 'relative aspect-square rounded-2xl bg-slate-900/5 dark:bg-slate-900/50 flex items-center justify-center overflow-hidden mb-4 scanner-effect is-processing';
+    preview.className = isSingle
+        ? 'relative rounded-2xl bg-slate-900/5 dark:bg-slate-900/50 flex items-center justify-center overflow-hidden mb-4 scanner-effect is-processing min-h-[320px]'
+        : 'relative aspect-square rounded-2xl bg-slate-900/5 dark:bg-slate-900/50 flex items-center justify-center overflow-hidden mb-4 scanner-effect is-processing';
 
     // v2.6: Before/after comparison — original image behind the result.
     // Toggle button switches which image is visible.
@@ -77,11 +80,23 @@ function createImageCard(item, elements) {
 
     preview.append(originalImg, img, loader, compareBadge);
 
+    // Feature F: Detection position overlay box
+    const posOverlay = document.createElement('div');
+    posOverlay.id = `pos-${item.id}`;
+    posOverlay.className = 'absolute z-30 border-2 border-indigo-400 bg-indigo-500/15 rounded-md hidden pointer-events-none';
+    posOverlay.style.transition = 'all 0.3s ease';
+    preview.appendChild(posOverlay);
+
     const content = document.createElement('div');
-    content.className = 'space-y-1 px-1';
+    content.className = 'space-y-1.5 px-1';
     const title = document.createElement('h4');
     title.className = 'font-black text-slate-900 dark:text-white truncate text-xs';
     title.textContent = item.name;
+
+    // EXIF / detection detail row (Feature A)
+    const detailRow = document.createElement('div');
+    detailRow.id = `detail-${item.id}`;
+    detailRow.className = 'text-[8px] font-medium text-slate-400 space-y-0.5 hidden';
 
     const metaRow = document.createElement('div');
     metaRow.className = 'flex items-center justify-between';
@@ -93,7 +108,7 @@ function createImageCard(item, elements) {
     meta.id = `meta-${item.id}`;
     meta.className = 'text-[9px] font-black text-emerald-500 font-mono';
     metaRow.append(status, meta);
-    content.append(title, metaRow);
+    content.append(title, detailRow, metaRow);
 
     const downloadButton = document.createElement('button');
     downloadButton.id = `download-${item.id}`;
@@ -107,7 +122,21 @@ function createImageCard(item, elements) {
 export function handleFiles(files, elements, onBatchItemSuccess, onBatchItemError, onBatchComplete) {
     if (!state.engine) return;
     if (state.isProcessing) {
-        showToast(i18n.t('toast.processingBusy'), 'info');
+        // Queue new files for after current batch completes instead of discarding
+        const newId = Date.now();
+        const newItems = files.filter(isSupportedImageFile).map((file, idx) => ({
+            id: newId + idx,
+            file,
+            name: file.name,
+            status: 'pending',
+            queued: true
+        }));
+        newItems.forEach(item => {
+            createImageCard(item, elements);
+            state.imageQueue.push(item);
+        });
+        AuditLog.log(`Queued ${newItems.length} files (processing in progress)`, 'info');
+        state._pendingQueue = true;
         return;
     }
 
@@ -152,6 +181,10 @@ export function handleFiles(files, elements, onBatchItemSuccess, onBatchItemErro
     state.activeSingleItem = null;
     elements.multiPreview.style.display = 'block';
     state.imageQueue.forEach(item => createImageCard(item, elements));
+    // Feature B: single-image focus mode — larger preview
+    elements.imageList.className = state.imageQueue.length === 1
+        ? 'grid grid-cols-1 gap-6 max-w-2xl mx-auto'
+        : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
 
     processQueue(getEngineOptions(elements, { ignoreManual: true }), {
         onItemSuccess: ({ item, removedCount, confidence, latency }) => {
@@ -165,12 +198,15 @@ export function handleFiles(files, elements, onBatchItemSuccess, onBatchItemErro
             const failedCount = state.imageQueue.filter(i => i.status === 'error').length;
             showToast(i18n.t('toast.batchComplete', { success: successCount, failed: failedCount }), failedCount ? 'info' : 'success');
             elements.downloadAllBtn.style.display = successCount > 0 ? 'block' : 'none';
+            // Reset progress text to summary
+            const progressText = document.getElementById('progressText');
+            if (progressText) progressText.textContent = `${successCount + failedCount} / ${state.imageQueue.length}`;
             if (onBatchComplete) onBatchComplete();
         }
     });
 }
 
-export async function handleUrl(uri, elements, handleFilesFn) {
+async function handleUrl(uri, elements, handleFilesFn) {
     try {
         AuditLog.log(`Remote asset detected: ${uri.split('/').pop()}`, 'process');
         const response = await fetch(uri);
@@ -185,7 +221,7 @@ export async function handleUrl(uri, elements, handleFilesFn) {
     }
 }
 
-export async function handleDataTransferItems(items, elements, handleFilesFn) {
+async function handleDataTransferItems(items, elements, handleFilesFn) {
     const files = [];
     const readAllEntries = async (reader) => {
         const entries = [];
@@ -221,7 +257,7 @@ export async function handleDataTransferItems(items, elements, handleFilesFn) {
     return false;
 }
 
-export async function handleDropEvent(event, elements, handleFilesFn) {
+async function handleDropEvent(event, elements, handleFilesFn) {
     const dataTransfer = event.dataTransfer;
     if (!dataTransfer) return;
 
