@@ -26,7 +26,11 @@ export const PROFILES = {
             // margins + 20260520 alpha variant). Catalog lookup handles this
             // first, but this fallback covers slightly-off dimensions that
             // fall outside the 10% catalog tolerance.
-            if (w === 2816 && h === 1536) {
+            const aspect = Math.max(w, h) / Math.max(1, Math.min(w, h));
+            const isNewMarginFamily = Math.abs(aspect - (2816 / 1536)) <= 0.12 &&
+                Math.max(w, h) >= 2600 && Math.max(w, h) <= 3200 &&
+                Math.min(w, h) >= 1400 && Math.min(w, h) <= 1900;
+            if ((w === 2816 && h === 1536) || isNewMarginFamily) {
                 return { ...PROFILES.gemini.tiers['2k-new-margin'], isOfficial: false };
             }
             const pixels = w * h;

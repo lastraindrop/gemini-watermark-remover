@@ -46,6 +46,27 @@ class GeminiWatermarkRemover:
         except (subprocess.CalledProcessError, FileNotFoundError):
             raise RuntimeError("Node.js is not installed or not in PATH.")
 
+    @staticmethod
+    def calculate_timeout_seconds_for_pixels(pixel_count: int) -> int:
+        """Return a bounded processing timeout scaled by image size."""
+        try:
+            pixels = max(0, int(pixel_count))
+        except (TypeError, ValueError):
+            pixels = 0
+        megapixels = pixels / 1_000_000
+        return max(60, min(600, int(megapixels * 10)))
+
+    def _calculate_timeout_seconds(self, input_path: str) -> int:
+        """Estimate timeout from PNG/JPEG dimensions when cheaply available."""
+        try:
+            from PIL import Image  # type: ignore
+            if os.path.isfile(input_path):
+                with Image.open(input_path) as img:
+                    return self.calculate_timeout_seconds_for_pixels(img.width * img.height)
+        except Exception:
+            pass
+        return 60
+
     def remove_watermark(self, input_path: str, output_path: str, deep_scan: bool = True, noise_reduction: bool = False, profile: str = "gemini", **kwargs) -> List[Dict[str, Any]]:
         """
         Processes a single image or a directory.
@@ -70,7 +91,8 @@ class GeminiWatermarkRemover:
                 final_cmd.extend(["--gradientPenalty", str(kwargs["gradient_penalty"])])
             
             # v1.9.8 Enhancement: Use explicit timeout and capture all output
-            result = subprocess.run(final_cmd, capture_output=True, text=True, check=False, timeout=60)
+            timeout_seconds = self._calculate_timeout_seconds(input_path)
+            result = subprocess.run(final_cmd, capture_output=True, text=True, check=False, timeout=timeout_seconds)
             
             results = []
             combined_output = (result.stdout or "") + (result.stderr or "")
@@ -87,8 +109,9 @@ class GeminiWatermarkRemover:
                 return [{"status": "error", "message": f"CLI Exit {result.returncode}: {result.stderr.strip() or 'Unknown error'}"}]
                 
             return results
-        except subprocess.TimeoutExpired:
-            return [{"status": "error", "message": "Processing timed out after 60s"}]
+        except subprocess.TimeoutExpired as e:
+            timeout = getattr(e, 'timeout', 60)
+            return [{"status": "error", "message": f"Processing timed out after {int(timeout)}s"}]
         except Exception as e:
             return [{"status": "error", "message": str(e)}]
 

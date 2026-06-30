@@ -7,7 +7,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { applyRemovalStrategy } from '../src/core/applyRemoval.js';
+import { applyRemovalStrategy, getHaloRetryGains } from '../src/core/applyRemoval.js';
 
 function makeImage(width, height, baseLum = 128) {
     const data = new Uint8ClampedArray(width * height * 4);
@@ -19,6 +19,13 @@ function makeImage(width, height, baseLum = 128) {
 }
 
 describe('Halo feedback retry (B-1)', () => {
+
+    test('retry gain policy applies ×0.8 decay with 0.5 floor', () => {
+        assert.deepStrictEqual(getHaloRetryGains(1.0), [0.8, 0.6400000000000001]);
+        assert.deepStrictEqual(getHaloRetryGains(0.6), [0.5]);
+        assert.deepStrictEqual(getHaloRetryGains(0.55), []);
+        assert.deepStrictEqual(getHaloRetryGains(0.5), []);
+    });
 
     test('Halo stopReason handled without crash', () => {
         const img = makeImage(200, 200, 180);

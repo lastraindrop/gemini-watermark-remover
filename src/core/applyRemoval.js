@@ -54,6 +54,21 @@ export function estimateAlphaGain(imageData, alphaMap, position) {
     return Math.max(0.01, Math.min(2.0, estAlpha / templateAlpha));
 }
 
+export function getHaloRetryGains(alphaGain, maxRetries = 2) {
+    if (!(alphaGain > 0.55)) return [];
+    const HALO_GAIN_DECAY = 0.8;
+    const HALO_GAIN_FLOOR = 0.5;
+    const gains = [];
+    let retryGain = alphaGain;
+    for (let retry = 0; retry < maxRetries; retry++) {
+        const previousGain = retryGain;
+        retryGain = Math.max(HALO_GAIN_FLOOR, retryGain * HALO_GAIN_DECAY);
+        if (retryGain >= alphaGain || retryGain >= previousGain) break;
+        gains.push(retryGain);
+    }
+    return gains;
+}
+
 /**
  * v2.6: Non-Maximum Suppression for watermark matches.
  *
@@ -212,13 +227,7 @@ export function applyRemovalStrategy(imageData, matches) {
             // Max 2 downgrade attempts. Ported from upstream watermarkProcessor.
             let effectiveResult = multiPassResult;
             if (effectiveResult.stopReason === 'safety-halo' && alphaGain > 0.55) {
-                const HALO_MAX_RETRIES = 2;
-                const HALO_GAIN_DECAY = 0.8;
-                const HALO_GAIN_FLOOR = 0.5;
-                let retryGain = alphaGain;
-                for (let retry = 0; retry < HALO_MAX_RETRIES; retry++) {
-                    retryGain = Math.max(HALO_GAIN_FLOOR, retryGain * HALO_GAIN_DECAY);
-                    if (retryGain >= alphaGain) break; // no meaningful reduction
+                for (const retryGain of getHaloRetryGains(alphaGain, 2)) {
                     const retryAlpha = Float32Array.from(match.alphaMap, v => v * retryGain);
                     const retryResult = removeRepeatedWatermarkLayers({
                         imageData,
