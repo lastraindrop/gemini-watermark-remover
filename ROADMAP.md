@@ -64,6 +64,7 @@ The branch is now aligned around:
    - Include desktop and mobile viewport snapshots.
 
 2. **Real-sample regression pack**
+   - ✅ Fixture directory and metadata schema created (`tests/fixtures/user-feedback/`)
    - Curate difficult Gemini offset cases, 20260520 variants, Doubao TL/BR samples, and clean negative images.
    - Track detection position drift, confidence, PSNR/MSE, and artifact flags.
 
@@ -71,11 +72,21 @@ The branch is now aligned around:
    - Record timing for Fast/Balanced/Thorough across 512, 1K, 2K, and 4K inputs.
    - Keep stress defaults bounded but allow large local runs through environment variables.
 
-4. **CLI and Python parity**
-   - Ensure every user-facing engine parameter has an equivalent CLI/Python path or an explicit reason for absence.
+4. **Frontend improvements** (from v2.7+ audit)
+   - ✅ Detection details overlay (source, tier, variant, EXIF status) in card UI.
+   - ✅ Watermark position overlay box on result images.
+   - ✅ Single-image focus mode with larger preview.
+   - ✅ Real-time batch progress with current file name.
+   - ✅ File queueing during processing (no more silent discard).
+   - ✅ Slider settings persistence across reloads.
+   - Queue management: per-item retry/cancel/remove.
+   - Output format selection (PNG/WebP/JPEG) in Web UI.
+   - Custom output naming templates.
 
-5. **Documentation guard**
-   - Add a lightweight doc-contract test for production profile names and script names if docs drift again.
+5. **Documentation guard** ✅
+   - ✅ Technical guide, user guide, developer guide, and roadmap updated to v2.7+.
+   - ✅ Dead code cleanup: removed unused exports (`setStatusMessage`, `getOriginalStatus`).
+   - Add lightweight doc-contract test for production profile names and script names.
 
 ## Mid-Term Plan
 

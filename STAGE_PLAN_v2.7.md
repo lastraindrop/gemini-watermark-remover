@@ -1,11 +1,20 @@
 # 综合阶段计划 v2.7 — 现阶段诊断、根因与修复蓝图
 
-> **文档版本**: 2026-06-18 完整诊断（基于 v2.6.0 实际代码验证，非 ROADMAP 自述）  
-> **分析对象**: `@lastraindrop/gemini-watermark-remover` package.json v2.6.0  
-> **上游对比**: `@pilio/gemini-watermark-remover` v1.0.25 (GargantuaX/gemini-watermark-remover，HEAD 2026-06-17)  
-> **前序文档**: `STAGE_PLAN_v2.6.md` (2026-06-16)、`COMPREHENSIVE_STAGE_PLAN.md` (2026-06-14)、`FRONTEND_DIAGNOSTIC_REPORT.md`  
-> **诊断动机**: v2.6.0 宣称"diagnostic closure & precision upgrade"后，仍需独立验证实际交付质量、修正前序计划对上游基线的误判、并覆盖新发现的深层问题  
-> **执行纪律**: 本文档为**计划文档**，需用户确认后方可执行任何代码修改
+> ⚠️ **历史归档 (2026-06-30)**: 本文档中 BUG-C6/C7/H8/H9、Phase A/B/C/D 的大部分修复已实施完成。以下关键 BUG 已关闭：
+> - **C6** (catalog 可达性): `catalog.js:30-32` 代理已暴露新 tier
+> - **C7** (recalibration 死码): `applyRemoval.js:152-158` 已使用纯 NCC
+> - **H8** (Python 60s 硬超时): `python/remover.py:50-57` 动态 timeout
+> - **H9** (halo 无重试): `applyRemoval.js:228-242` 实现 ×0.8 衰减重试
+> - **L5/L6** (死代码/命名冲突): 已清理
+> 
+> 剩余开放的 BUG (B-2/B-5/B-7/D-5/D-6 等) 移至 [ROADMAP.md](./ROADMAP.md) 短中期计划跟踪。
+> 
+> > **文档版本**: 2026-06-18 完整诊断（基于 v2.6.0 实际代码验证，非 ROADMAP 自述）  
+> > **分析对象**: `@lastraindrop/gemini-watermark-remover` package.json v2.6.0  
+> > **上游对比**: `@pilio/gemini-watermark-remover` v1.0.25 (GargantuaX/gemini-watermark-remover，HEAD 2026-06-17)  
+> > **前序文档**: `STAGE_PLAN_v2.6.md` (2026-06-16)、`COMPREHENSIVE_STAGE_PLAN.md` (2026-06-14)、`FRONTEND_DIAGNOSTIC_REPORT.md`  
+> > **诊断动机**: v2.6.0 宣称"diagnostic closure & precision upgrade"后，仍需独立验证实际交付质量、修正前序计划对上游基线的误判、并覆盖新发现的深层问题  
+> > **执行纪律**: 本文档为**计划文档**，需用户确认后方可执行任何代码修改
 
 ---
 

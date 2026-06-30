@@ -93,16 +93,25 @@ Required checklist:
 `scripts/test-groups.mjs` owns test grouping.
 
 ```bash
-pnpm test             # unit layer, default fast feedback
-pnpm test:integration # runtime/frontend/CLI/worker/pipeline
-pnpm test:precision   # recall, real samples, parameter matrix
-pnpm test:audit       # product acceptance audit
-pnpm test:diagnostic  # slow diagnostic baseline
-pnpm test:stress      # bounded memory pressure
-pnpm test:legacy      # legacy v1.5 smoke regressions
+pnpm test             # unit layer (default fast feedback)
+pnpm test:unit        # unit: module contracts, algorithm invariants, heuristic tests
+pnpm test:integration # integration: runtime, CLI, worker, pipeline, build
+pnpm test:precision   # precision: detection recall, removal quality, parameter matrix, real samples
+pnpm test:audit       # audit: product acceptance (smoke), full matrix moved to stress
+pnpm test:diagnostic  # diagnostic: slow detection/removal tests + hanging frontend tests
+pnpm test:stress      # stress: memory pressure + full catalog×profiles audit matrix
+pnpm test:worker      # worker: Web Worker lifecycle and timeout recovery
+pnpm test:legacy      # legacy: v1.5 smoke regressions
 pnpm test:all         # standard gate: unit + integration + precision + audit + legacy
-pnpm test:exhaustive  # every top-level test plus diagnostic/stress/legacy
+pnpm test:exhaustive  # every top-level test including diagnostic/stress/legacy
 ```
+
+Test helpers (in `tests/helpers/`):
+- `imageQualityAssertions.js`: MAE, maxDelta, PSNR, residualNcc, haloScore, assertImageClose
+- `syntheticWatermarkFactory.js`: deterministic backgrounds, alpha maps, watermark blending, region extraction
+
+User feedback fixtures:
+- `tests/fixtures/user-feedback/`: schema and directories for real-sample regression (<sftp>missed/</sftp>, <sftp>deviation/</sftp>)
 
 Rules:
 
