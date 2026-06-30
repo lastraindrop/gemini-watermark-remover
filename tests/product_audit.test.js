@@ -32,28 +32,10 @@ import {
     alphaToRGBA
 } from './test_utils.js';
 import { installMockAssetLoader } from './setup.js';
-import { RestorationMetrics } from '../src/core/restorationMetrics.js';
 
 
 describe('GWR Ultimate Product Audit', () => {
     let engine;
-    const maxSyntheticPixels = 2048 * 2048;
-    const keyGeminiDimensions = new Set([
-        '512x512',
-        '1024x1024',
-        '1536x672',
-        '832x1248',
-        '1344x768',
-        '2048x2048',
-        '512x2048'
-    ]);
-
-    const selectAuditCatalog = (profile, catalog) => {
-        if (profile.id === 'gemini') {
-            return catalog.filter(entry => keyGeminiDimensions.has(`${entry.width}x${entry.height}`));
-        }
-        return catalog.filter(entry => entry.width * entry.height <= maxSyntheticPixels);
-    };
 
     before(async () => {
         // Mock Browser Environment
@@ -123,62 +105,10 @@ describe('GWR Ultimate Product Audit', () => {
         });
     });
 
-    describe('2. Comprehensive Parameter Matrix', () => {
-        test('Exhaustive probe across ALL catalog entries & profiles', async () => {
-            const profiles = registry.getAllProfiles();
-            for (const profile of profiles) {
-                const catalog = registry.getCatalog(profile.id);
-                
-                // Full engine probes stay under a practical pixel cap; catalog-level
-                // tests cover the complete official dimension list.
-                for (const entry of selectAuditCatalog(profile, catalog)) {
-                    const { width: w, height: h } = entry;
-                    const rawData = createMockImageData(w, h, 'grid', 100);
-                    const originalSnapshot = new Uint8ClampedArray(rawData.data);
-                    
-                    const pos = calculateWatermarkPosition(w, h, entry);
-                    const alpha = createMockAlphaMap(pos.width, pos.height);
-                    applyWatermark(rawData, pos.x, pos.y, pos.width, pos.height, alpha, profile.logoValue);
-
-                    const mockImg = createMockImageElement(w, h, rawData.data);
-                    
-                    // Test both normal and deepScan
-                    for (const deepScan of [true, false]) {
-                        const result = await engine.removeWatermarkFromImage(mockImg, { 
-                            profileId: profile.id,
-                            deepScan 
-                        });
-
-                        assert.ok(result.removedCount >= 1, `Detection Fault: [${profile.id}] at ${w}x${h} (DeepScan:${deepScan})`);
-                        assert.ok(result.pos, `Detection position missing: [${profile.id}] at ${w}x${h}`);
-                        assert.ok(Math.abs(result.pos.x - pos.x) <= 1, `Position X drift: [${profile.id}] expected ${pos.x}, got ${result.pos.x}`);
-                        assert.ok(Math.abs(result.pos.y - pos.y) <= 1, `Position Y drift: [${profile.id}] expected ${pos.y}, got ${result.pos.y}`);
-                        // v1.9.8: 0.40 is a safe lower bound for mock noise in small 0.5k resolutions
-                        assert.ok(result.confidence > 0.40, `Precision Loss: [${profile.id}] at ${w}x${h} confidence=${result.confidence}`);
-                        
-                        // Fidelity Audit
-                        const ctx = result.canvas.getContext('2d');
-                        const final = ctx.getImageData(pos.x, pos.y, pos.width, pos.height).data;
-                        
-                        const subOriginal = new Uint8ClampedArray(pos.width * pos.height * 4);
-                        for(let r=0; r<pos.height; r++) {
-                            for(let c=0; c<pos.width; c++) {
-                                const idx = (r * pos.width + c) << 2;
-                                const oIdx = ((pos.y + r) * w + (pos.x + c)) << 2;
-                                subOriginal[idx] = originalSnapshot[oIdx];
-                                subOriginal[idx+1] = originalSnapshot[oIdx+1];
-                                subOriginal[idx+2] = originalSnapshot[oIdx+2];
-                                subOriginal[idx+3] = originalSnapshot[oIdx+3];
-                            }
-                        }
-                        
-                        const psnr = RestorationMetrics.calculatePSNR(final, subOriginal);
-                        // Rule: Minimal PSNR for math restoration should be > 24dB in mock environment
-                        assert.ok(psnr > 24, `Mathematical Regression! ${profile.id}@${w}x${h} Fidelity: ${psnr}dB`);
-                    }
-                }
-            }
-        });
+    describe('2. Comprehensive Parameter Matrix (smoke)', () => {
+        // The exhaustive catalog×profiles matrix has been moved to
+        // tests/product_audit_stress.test.js (stress group) to keep
+        // standard audit fast.
 
         test('Auto-detect mode should correctly identify profile', async () => {
             const w = 1024;

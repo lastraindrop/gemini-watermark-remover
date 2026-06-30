@@ -33,6 +33,7 @@ export const TEST_GROUPS = Object.freeze({
         t('config'),
         t('core_math'),
         t('decision_policy'),
+        t('detection_subpixel_position'),
         t('detector_scoring'),
         t('diff_artifacts_wiring'),
         t('edge_cases'),
@@ -40,6 +41,7 @@ export const TEST_GROUPS = Object.freeze({
         t('gemini_regression'),
         t('gradient_formula_consistency'),
         t('halo_feedback_retry'),
+        t('heuristic_returns_new_tier'),
         t('i18n_completeness'),
         t('manual_selection'),
         t('memory_queue'),
@@ -62,16 +64,15 @@ export const TEST_GROUPS = Object.freeze({
         t('template_resolution'),
         t('test_groups_contract'),
         t('threshold_sot_integrity'),
-        t('weak_alpha_chain')
+        t('weak_alpha_chain'),
+        t('python_timeout_scales')
     ],
     integration: [
         t('build_pipeline'),
         t('cli.integration'),
-        t('detection_fallback_chain'),
         t('detector'),
         t('engine_lifecycle'),
         t('frontend_contract'),
-        t('frontend_interaction'),
         t('object_url_lifecycle'),
         t('pipeline'),
         t('subpixel_integration'),
@@ -80,20 +81,31 @@ export const TEST_GROUPS = Object.freeze({
         t('worker_timeout_recovery')
     ],
     precision: [
+        t('alpha_map_estimation_accuracy'),
+        t('detection_doubao_rectangular_alpha_map'),
+        t('detection_gemini_standard_positions'),
+        t('detection_non_catalog_scaled'),
+        t('detection_offset_tolerance'),
         t('detection_recall'),
         t('doubao'),
         t('e2e_integration'),
         t('parameter_matrix'),
-        t('real_sample')
+        t('real_sample'),
+        t('removal_alpha_gain_stability'),
+        t('removal_edge_cleanup_effectiveness'),
+        t('removal_precision_gradient_background')
     ],
     audit: [
         t('product_audit')
     ],
     diagnostic: [
-        t('diagnostic_baseline')
+        t('detection_fallback_chain'),
+        t('diagnostic_baseline'),
+        t('frontend_interaction')
     ],
     stress: [
-        t('memory_pressure')
+        t('memory_pressure'),
+        t('product_audit_stress')
     ],
     legacy: [
         'tests/scripts/v1.5_edge_crop.test.js',
@@ -176,6 +188,9 @@ export function buildNodeTestArgs(group, options = {}) {
     args.push('--loader', './tests/fixtures/png-loader.mjs');
     args.push('--test');
     args.push(`--test-concurrency=${concurrency}`);
+    if (group === 'integration') {
+        args.push('--test-timeout=300000');  // CLI spawn tests need longer
+    }
     if (reporter) {
         args.push(`--test-reporter=${reporter}`);
     }

@@ -11,8 +11,7 @@ describe('Build Pipeline & Assets Verification', () => {
         const indexHtmlPath = resolve(process.cwd(), 'dist/index.html');
 
         if (!existsSync(appJsPath) || !existsSync(workerJsPath) || !existsSync(indexHtmlPath)) {
-            console.warn('⚠️ Skipping build verification: dist assets not found. Build first.');
-            return;
+            assert.fail('dist assets not found. Run pnpm build before build pipeline verification.');
         }
         
         const appJsContent = readFileSync(appJsPath, 'utf8');
@@ -33,7 +32,7 @@ describe('Build Pipeline & Assets Verification', () => {
 
     test('Production bundle should load assets from dist/assets directory', () => {
         const appJsPath = resolve(process.cwd(), 'dist/app.js');
-        if (!existsSync(appJsPath)) return;
+        if (!existsSync(appJsPath)) assert.fail('dist/app.js not found. Run pnpm build before asset path verification.');
 
         const content = readFileSync(appJsPath, 'utf8');
         assert.ok(content.includes('assets/'), 'Asset path reference missing: assets/ path not found in bundle');
@@ -50,8 +49,7 @@ describe('Build Pipeline & Assets Verification', () => {
     test('UI static assets should be copied to dist', () => {
         const i18nPath = resolve(process.cwd(), 'dist/i18n/zh-CN.json');
         if (!existsSync(i18nPath)) {
-             console.warn('⚠️ Skipping asset verification: dist/i18n not found.');
-             return;
+             assert.fail('dist/i18n/zh-CN.json not found. Run pnpm build before static asset verification.');
         }
         assert.ok(existsSync(i18nPath), 'i18n files must be copied to dist');
     });

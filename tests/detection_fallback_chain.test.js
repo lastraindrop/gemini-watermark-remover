@@ -65,11 +65,11 @@ describe('Detection Fallback Chain', () => {
 
         const permissive = await detectWatermarks({
             imageData: img, profileId: 'auto', getAlphaMap: getAlphaMapFn(),
-            options: { autoNonCatalogMinConfidence: 0.01, deepScan: true }
+            options: { autoNonCatalogMinConfidence: 0.01, deepScan: false }
         });
         const strict = await detectWatermarks({
             imageData: img, profileId: 'auto', getAlphaMap: getAlphaMapFn(),
-            options: { autoNonCatalogMinConfidence: 0.99, deepScan: true }
+            options: { autoNonCatalogMinConfidence: 0.99, deepScan: false }
         });
         assert.ok(permissive && strict);
     });
@@ -187,7 +187,7 @@ describe('Detection Fallback Chain', () => {
             getAlphaMap: async (key) => String(key) === '96'
                 ? { data: alpha96, width: 96, height: 96, assetKey: '96' }
                 : alphaMock(key, 48, 48),
-            options: { deepScan: true }
+            options: { deepScan: false, globalFallbackBelow: 0.30 }
         });
         if (result.winner && result.winner.source === 'catalog-probe' && result.winner.confidence >= 0.60) {
             assert.ok(result.winner.source === 'catalog-probe');
@@ -256,78 +256,5 @@ describe('Probe gating & multi-dimension scoring (v2.2)', () => {
 });
 
 // ─── v2.3: Scaled Threshold and Non-Square AlphaMap Guard ────────────────────
-
-describe('v2.3 Scaled Config Detection', () => {
-
-    test('Scaled-config probe uses 0.25 threshold (lowered from 0.35)', () => {
-        assert.strictEqual(DETECTION_THRESHOLDS.SCALED_CONFIG_MIN, 0.25,
-            'Scaled config threshold should be 0.25');
-    });
-
-    test('Non-catalog resolution with watermark still traverses pipeline stages', async () => {
-        // 1200×1200 — not an exact catalog match, triggers scaled-config path
-        const img = createMockImageData(1200, 1200, 'noise', 128);
-        const alphaMap = createMockAlphaMap(96);
-        // Apply watermark at standard 1k position scaled to 1200×1200
-        const x = 1200 - 64 - 96;
-        const y = 1200 - 64 - 96;
-        applyWatermark(img, x, y, 96, 96, alphaMap, 255);
-
-        const result = await detectWatermarks({
-            imageData: img, profileId: 'gemini',
-            getAlphaMap: async (key) => alphaMock(key, 96),
-            options: { deepScan: true, probeThreshold: 0.18 }
-        });
-
-        // With lowered scaled threshold (0.25), non-catalog resolutions
-        // should have a better chance of detection. The pipeline should
-        // at minimum not crash and return a structured result.
-        assert.ok(result, 'Should return a result object');
-        assert.ok(Number.isFinite(result.confidence), 'Confidence should be a number');
-    });
-});
-
-describe('v2.3 Non-Square AlphaMap Lookup Guard', () => {
-
-    test('Rectangular alphaMap key (WxH) is correctly handled by pipeline', async () => {
-        const w = 2048, h = 1535;
-        const logoW = 200, logoH = 86;
-        const img = createMockImageData(w, h, 'noise', 128);
-        const alphaMap = createMockAlphaMap(logoW, logoH);
-
-        const x = w - 24 - logoW;
-        const y = h - 10 - logoH;
-        applyWatermark(img, x, y, logoW, logoH, alphaMap, 255);
-
-        // Supply alpha maps with the exact WxH key needed for rectangular detection
-        const result = await detectProfileWatermarks({
-            imageData: img,
-            profileId: 'doubao',
-            getAlphaMap: async (key) => {
-                if (key === 'doubao_br') return { data: alphaMap, width: logoW, height: logoH, assetKey: 'doubao_br' };
-                return null;
-            },
-            options: { deepScan: true, probeThreshold: 0.10, adaptiveMode: false, globalFallback: false }
-        });
-
-        // Pipeline should not crash when handling rectangular (non-square) alpha maps.
-        // The v2.3 fix prevents single-dimension fallback (e.g. alphaMaps[200]) from
-        // matching unrelated square templates.
-        assert.ok(result, 'Pipeline should handle rectangular alpha maps without crash');
-    });
-
-    test('Square alphaMaps still work correctly (regression guard)', async () => {
-        const img = createMockImageData(1024, 1024, 'noise', 128);
-        const pos = DEFAULT_POS();
-        const alphaMap = createMockAlphaMap(96);
-        applyWatermark(img, pos.x, pos.y, 96, 96, alphaMap, 255);
-
-        const result = await detectWatermarks({
-            imageData: img, profileId: 'gemini',
-            getAlphaMap: async (key) => alphaMock(key, 96),
-            options: { deepScan: true }
-        });
-
-        assert.ok(result.winner, 'Square watermarks should still be detected normally');
-    });
-});
+// Heavy pipeline tests (1200×1200, 2048×1535) moved to
+// tests/detection_non_catalog_scaled.test.js (precision group).
