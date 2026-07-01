@@ -47,8 +47,7 @@ if (args.includes('-i') || args.includes('--input')) {
             ['--profile', '-p'],
             ['--format', '-f'],
             ['--probeThreshold'],
-            ['--fallbackThreshold'],
-            ['--gradientPenalty']
+            ['--fallbackThreshold']
         ].forEach(([longFlag, shortFlag]) => {
             const idx = args.findIndex(a => a === longFlag || (shortFlag && a === shortFlag));
             if (idx !== -1 && args[idx + 1]) adaptedArgs.push(longFlag, args[idx + 1]);

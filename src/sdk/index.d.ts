@@ -10,6 +10,9 @@ export interface ManualConfig {
   width: number;
   height: number;
   assetKey?: string;
+  forceProcess?: boolean;
+  alphaGainOverride?: number;
+  searchRangeOverride?: number;
 }
 
 export interface DetectionOptions {
@@ -17,7 +20,6 @@ export interface DetectionOptions {
   noiseReduction?: boolean;
   probeThreshold?: number;
   fallbackThreshold?: number;
-  gradientPenalty?: number;
   globalFallback?: boolean;
   globalFallbackBelow?: number;
   autoNonCatalogMinConfidence?: number;
@@ -27,6 +29,7 @@ export interface DetectionOptions {
   adaptiveMinConfidence?: number;
   globalFreeMinConfidence?: number;
   positionTolerance?: number;
+  candidateValidation?: boolean;
   startingPassIndex?: number;
 }
 
@@ -45,6 +48,34 @@ export interface WatermarkMatch {
   confidence: number;
   profileId: string;
   source: string;
+  removalResult?: RemovalResult;
+}
+
+export interface DetectionTrace {
+  profileId: string;
+  candidateCount: number;
+  acceptedCount: number;
+  candidates: Array<Record<string, unknown>>;
+  validations: Array<Record<string, unknown>>;
+  decisionTier: string;
+  winner: Record<string, unknown> | null;
+}
+
+export interface RemovalResult {
+  applied: boolean;
+  changedPixels: number;
+  maxChannelDelta: number;
+  stopReason: string;
+  passCount: number;
+  attemptedPassCount: number;
+}
+
+export interface RemovalReport {
+  attemptedCount: number;
+  acceptedCount: number;
+  suppressedCount: number;
+  appliedCount: number;
+  results: RemovalResult[];
 }
 
 export interface DetectionResult {
@@ -53,19 +84,24 @@ export interface DetectionResult {
   winner: WatermarkMatch | null;
   confidence: number;
   decisionTier?: string;
+  trace?: DetectionTrace;
 }
 
 export interface MultiPassResult {
   imageData: GwrImageData;
   passCount: number;
   attemptedPassCount: number;
-  stopReason: 'max-passes' | 'safety-near-black' | 'safety-texture-collapse' | 'residual-low';
+  stopReason: 'max-passes' | 'safety-near-black' | 'safety-texture-collapse' |
+    'residual-low' | 'first-pass-sign-flip' | 'no-improvement';
   passes: Array<{
     index: number;
     beforeSpatialScore: number;
     afterSpatialScore: number;
     improvement: number;
     gradientDelta: number;
+    beforeGradientScore: number;
+    afterGradientScore: number;
+    haloSeverity: number;
     nearBlackRatio: number;
   }>;
 }
@@ -102,6 +138,15 @@ export interface DecisionTierResult {
 
 export type ExecutionMode = 'worker-assisted' | 'main-thread';
 
+export class WorkerPool {
+  constructor(workerUrl: string | URL, poolSize?: number);
+  readonly isAvailable: boolean;
+  readonly activeCount: number;
+  readonly pendingCount: number;
+  postTask(imageData: GwrImageData, matches: WatermarkMatch[]): Promise<Uint8ClampedArray & { removalReport?: RemovalReport }>;
+  terminate(): void;
+}
+
 export class DetectorContext {
   _blurBuffer: Uint8ClampedArray | null | undefined;
   _sharedGradientsI: Float32Array | null | undefined;
@@ -120,6 +165,9 @@ export class WatermarkEngine {
     detectionMode: string;
     confidence: number;
     removedCount: number;
+    detectedCount: number;
+    removal: RemovalReport | null;
+    trace: DetectionTrace | null;
     config: Record<string, unknown> | null;
     pos: WatermarkPosition | null;
     profileId: string;
@@ -145,9 +193,12 @@ export function getProfilesToTry(requestedProfileId?: string): string[];
 
 export function calculateAlphaMap(imageData: GwrImageData): Float32Array;
 
-export function removeWatermark(imageData: GwrImageData, alphaMap: Float32Array, pos: WatermarkPosition, options?: { alphaGain?: number }): void;
-
-export function applyEdgeCleanup(imageData: GwrImageData, alphaMap: Float32Array, pos: WatermarkPosition): void;
+export function removeWatermark(
+  imageData: GwrImageData,
+  alphaMap: Float32Array,
+  pos: WatermarkPosition,
+  options?: { alphaGain?: number; alphaNoiseFloor?: number }
+): void;
 
 export function calculateWatermarkPosition(imageWidth: number, imageHeight: number, config: Record<string, number | string>): WatermarkPosition;
 
@@ -163,6 +214,7 @@ export function getAllProfiles(): Record<string, unknown>[];
 
 export function calculateMSE(a: ArrayLike<number>, b: ArrayLike<number>): number;
 export function calculatePSNR(a: ArrayLike<number>, b: ArrayLike<number>): number;
+/** @deprecated This is a PSNR-derived compatibility estimate, not true SSIM. */
 export function calculateSSIM(a: ArrayLike<number>, b: ArrayLike<number>): number;
 export function estimateQualityFromPSNR(a: ArrayLike<number>, b: ArrayLike<number>): number;
 
@@ -185,7 +237,7 @@ export function calculateProbeConfidence(
   pos: WatermarkPosition,
   alphaMap: Float32Array,
   profile?: string,
-  options?: { deepScan?: boolean; gradientPenalty?: number }
+  options?: { deepScan?: boolean }
 ): { confidence: number; x: number; y: number };
 
 export function calculateCorrelation(
@@ -289,4 +341,4 @@ export const ENGINE_LIMITS: {
 export function applyRemovalStrategy(
   imageData: GwrImageData,
   matches: WatermarkMatch[]
-): void;
+): RemovalReport;

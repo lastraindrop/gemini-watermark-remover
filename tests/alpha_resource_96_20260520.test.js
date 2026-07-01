@@ -17,6 +17,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import sharp from 'sharp';
@@ -24,6 +25,7 @@ import sharp from 'sharp';
 import { resolveAssetKey } from '../src/core/detectionPipeline.js';
 import { getCatalogConfig } from '../src/core/catalog.js';
 import { PROFILES } from '../src/core/profiles.js';
+import { getInlineAssetName } from '../src/core/assetRegistry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -63,6 +65,42 @@ describe('BUG-C8 A-4: bg_96_20260520.png resource', () => {
         assert.ok(nonZeroRgb > 0, 'alpha map must contain visible glyph pixels');
         // Sanity band: a real Gemini glyph covers a meaningful fraction of the tile.
         assert.ok(nonZeroRgb <= 96 * 96, 'non-zero count cannot exceed pixel count');
+    });
+
+    test('matches the calibrated grayscale alpha distribution and checksum', async () => {
+        const file = readFileSync(PNG_PATH);
+        const checksum = createHash('sha256').update(file).digest('hex');
+        assert.strictEqual(checksum, 'b1ff0ae3df78ff9da540851e8728c10e5c35bdfe25aad821c786c5491717b511');
+
+        const { data, info } = await sharp(PNG_PATH).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+        let sum = 0;
+        let borderSum = 0;
+        let borderCount = 0;
+        let aboveThreshold = 0;
+        let max = 0;
+        for (let y = 0; y < info.height; y++) {
+            for (let x = 0; x < info.width; x++) {
+                const index = (y * info.width + x) * 4;
+                assert.strictEqual(data[index], data[index + 1], 'alpha resource must be grayscale');
+                assert.strictEqual(data[index], data[index + 2], 'alpha resource must be grayscale');
+                assert.strictEqual(data[index + 3], 255, 'alpha resource pixels must be opaque');
+                const value = data[index] / 255;
+                sum += value;
+                max = Math.max(max, value);
+                if (value > 0.1) aboveThreshold++;
+                if (x === 0 || y === 0 || x === info.width - 1 || y === info.height - 1) {
+                    borderSum += value;
+                    borderCount++;
+                }
+            }
+        }
+        const mean = sum / (info.width * info.height);
+        const borderMean = borderSum / borderCount;
+        const coverage = aboveThreshold / (info.width * info.height);
+        assert.ok(mean > 0.08 && mean < 0.14, `unexpected mean alpha: ${mean}`);
+        assert.ok(borderMean < 0.05, `unexpected border alpha: ${borderMean}`);
+        assert.ok(coverage > 0.30 && coverage < 0.42, `unexpected glyph coverage: ${coverage}`);
+        assert.ok(max > 0.30 && max < 0.50, `unexpected max alpha: ${max}`);
     });
 });
 
@@ -115,13 +153,6 @@ describe('BUG-C8 A-4: resolveAssetKey alphaVariant routing', () => {
         assert.strictEqual(resolveAssetKey(profile, config, pos), '248x105');
     });
 
-    test('regression: dalle3 catalog dimensions resolve to size-specific asset keys', () => {
-        const profile = PROFILES.dalle3;
-        const config = { logoWidth: 120, logoHeight: 40, anchor: 'bottom-left' };
-        const pos = { width: 120, height: 40, anchor: 'bottom-left' };
-        assert.strictEqual(resolveAssetKey(profile, config, pos), '120x40');
-    });
-
     test('v2-small (alphaVariant: "v2") keeps existing behavior — not routed to 20260520', () => {
         // Per A-4 scope: only the '20260520' variant is wired to a dedicated
         // asset. Other variant tags fall through to the standard resolution.
@@ -165,15 +196,9 @@ describe('BUG-C8 A-4: WatermarkEngine asset wiring', () => {
             'INLINE_ASSETS must contain a "bg_96_20260520" entry');
     });
 
-    test('_loadAsset normalizes assetKey "96-20260520" -> registered inline asset', () => {
+    test('asset registry maps "96-20260520" to the registered inline asset', () => {
         const src = readFileSync(ENGINE_SRC, 'utf8');
-        // The normalization step must exist (hyphen -> underscore).
-        assert.ok(src.includes("replace(/-/g, '_')"),
-            '_loadAsset must normalize hyphens to underscores');
-        // Replicate the resolution logic and confirm the key is registered.
-        const assetKey = '96-20260520';
-        const normalizedKey = assetKey.replace(/-/g, '_');
-        const assetName = normalizedKey.startsWith('bg_') ? normalizedKey : `bg_${normalizedKey}`;
+        const assetName = getInlineAssetName('96-20260520');
         assert.strictEqual(assetName, 'bg_96_20260520');
         const registered = new RegExp(`['"\`]${assetName}['"\`]\\s*:`).test(src);
         assert.ok(registered, `"${assetName}" must be a key in INLINE_ASSETS`);

@@ -91,7 +91,7 @@ describe('Missed-Detection Regression: Offset Tolerance', () => {
                     options: { deepScan: true }
                 });
 
-                assert.ok(result.winner, `${label}: winner is null (missed detection)`);
+                assert.ok(result.winner, `${label}: winner is null (missed detection): ${JSON.stringify(result.trace)}`);
                 assert.ok(
                     result.confidence >= DETECTION_THRESHOLDS.FINAL_ANCHORED,
                     `${label}: confidence ${result.confidence.toFixed(3)} < FINAL_ANCHORED ${DETECTION_THRESHOLDS.FINAL_ANCHORED}`
@@ -133,7 +133,7 @@ describe('Missed-Detection Regression: Offset Tolerance', () => {
                     options: { deepScan: true }
                 });
 
-                assert.ok(result.winner, `${label}: missed detection`);
+                assert.ok(result.winner, `${label}: missed detection: ${JSON.stringify(result.trace)}`);
                 // When the winner matches the injected template size, the
                 // detected position must track the true offset.
                 if (result.winner.pos.width === basePos.width) {

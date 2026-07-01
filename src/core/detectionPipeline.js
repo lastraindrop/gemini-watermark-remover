@@ -5,6 +5,10 @@ import { PROFILES } from './profiles.js';
 import { decideDetectionTier } from './decisionPolicy.js';
 import { removeWatermark } from './blendModes.js';
 import { cloneImageData, calculateNearBlackRatio } from './utils.js';
+import { resolveAssetKey } from './assetRegistry.js';
+import { compareDetectionCandidates, upsertBestOverlappingCandidate } from './candidateGeometry.js';
+
+export { resolveAssetKey } from './assetRegistry.js';
 
 const DEFAULT_PROBE_THRESHOLD = DETECTION_THRESHOLDS.DEFAULT_PROBE_THRESHOLD;
 const DEFAULT_GLOBAL_FALLBACK_THRESHOLD = DETECTION_THRESHOLDS.GLOBAL_FALLBACK_MIN;
@@ -12,48 +16,16 @@ const DEFAULT_AUTO_NON_CATALOG_THRESHOLD = DETECTION_THRESHOLDS.AUTO_NON_CATALOG
 
 export function getProfilesToTry(requestedProfileId = 'gemini') {
     if (requestedProfileId === 'auto') {
-        return Object.values(PROFILES)
-            .filter(profile => !profile.experimental)
-            .map(profile => profile.id);
+        return Object.values(PROFILES).map(profile => profile.id);
+    }
+    if (!PROFILES[requestedProfileId]) {
+        throw new Error(`Unknown profile: ${requestedProfileId}`);
     }
     return [requestedProfileId];
 }
 
 function getProfile(profileId) {
-    return PROFILES[profileId] || PROFILES.gemini;
-}
-
-export function resolveAssetKey(profile, config, pos) {
-    // BUG-C8 (STAGE_PLAN_v2.7 Phase A-4): alternate alpha variant. When a
-    // matched config declares the 20260520 alpha variant (96px Gemini glyph
-    // revised 2026-05-20), resolve to the dedicated alpha resource
-    // ('96-20260520' -> src/assets/bg_96_20260520.png) instead of the
-    // standard bg_96.png. Other configs keep the existing resolution path.
-    if (config.alphaVariant === '20260520') {
-        return '96-20260520';
-    }
-    if (profile.id === 'doubao' || profile.id === 'dalle3') {
-        const width = config.logoWidth || config.logoSize || pos.width;
-        const height = config.logoHeight || config.logoSize || pos.height;
-        if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-            return `${width}x${height}`;
-        }
-    }
-    if (profile.assets) {
-        return profile.assets[pos.anchor] || profile.assets[config.anchor];
-    }
-    if (config.assetKey) {
-        return config.assetKey;
-    }
-
-    const squareSize = Number.isFinite(config.logoSize)
-        ? config.logoSize
-        : (config.logoWidth === config.logoHeight ? config.logoWidth : null);
-    if (Number.isFinite(squareSize) && squareSize > 0) {
-        return squareSize <= 48 ? '48' : '96';
-    }
-
-    return profile.defaultAsset || '96';
+    return PROFILES[profileId];
 }
 
 function normalizeAlphaMap(alphaMap, width, height, assetKey) {
@@ -85,25 +57,8 @@ function addAlphaMap(alphaMaps, alphaMap) {
     if (assetKey) alphaMaps[String(assetKey)] = alphaMap.data;
 }
 
-function isOverlapping(a, b) {
-    const ax = a.pos.x + a.pos.width / 2;
-    const ay = a.pos.y + a.pos.height / 2;
-    const bx = b.pos.x + b.pos.width / 2;
-    const by = b.pos.y + b.pos.height / 2;
-    const limitX = Math.max(8, Math.min(a.pos.width, b.pos.width) / 2);
-    const limitY = Math.max(8, Math.min(a.pos.height, b.pos.height) / 2);
-    return Math.abs(ax - bx) < limitX && Math.abs(ay - by) < limitY;
-}
-
 function upsertMatch(matches, match) {
-    const existingIndex = matches.findIndex(existing => isOverlapping(existing, match));
-    if (existingIndex === -1) {
-        matches.push(match);
-        return;
-    }
-    if (match.confidence > matches[existingIndex].confidence) {
-        matches[existingIndex] = match;
-    }
+    upsertBestOverlappingCandidate(matches, match);
 }
 
 function createConfigFromDetection(imageData, detection) {
@@ -165,7 +120,10 @@ function isNearExpectedAnchor(imageData, detection, profileId, options = {}) {
         // v2.7 Fix-8: Raised to 25% — observed 20-25px offsets in the wild
         // were still being classified as 'free' at 20%, causing near-misses
         // to jump from 0.15 threshold to 0.35 (2.3x harder to detect).
-        const positionTolerance = Math.max(4, Math.min(pos.width, pos.height) * (options.positionTolerance ?? 0.25));
+        const positionTolerance = Math.max(
+            DETECTION_THRESHOLDS.POSITION_TOLERANCE_MIN_PX,
+            Math.min(pos.width, pos.height) * (options.positionTolerance ?? DETECTION_THRESHOLDS.POSITION_TOLERANCE_FACTOR)
+        );
         const sizeMatches = Math.abs(detection.width - pos.width) <= sizeTolerance &&
             Math.abs(detection.height - pos.height) <= sizeTolerance;
         const positionMatches = Math.abs(detection.x - pos.x) <= positionTolerance &&
@@ -243,11 +201,11 @@ export async function detectProfileWatermarks({
     options = {}
 }) {
     const profile = getProfile(profileId);
+    if (!profile) throw new Error(`Unknown profile: ${profileId}`);
     const sharedContext = new DetectorContext();
     const detectionOptions = {
         deepScan: options.deepScan !== false,
         noiseReduction: options.noiseReduction === true,
-        gradientPenalty: options.gradientPenalty,
         overrides: options.overrides
     };
 
@@ -346,7 +304,7 @@ export async function detectProfileWatermarks({
             pos,
             alphaMap.data,
             profile.id,
-            { ...detectionOptions, isScaledMatch: !!config.scaledFrom },
+            { ...detectionOptions, isScaledMatch: !!config.scaledFrom, isOfficial: !!config.isOfficial },
             sharedContext
         );
         // v2.3: Lowered scaled-from threshold from 0.35→0.25 to reduce missed
@@ -389,7 +347,7 @@ export async function detectProfileWatermarks({
             imageData,
             alphaMaps,
             defaultConfig,
-            threshold: options.adaptiveMinConfidence ?? 0.22
+            threshold: options.adaptiveMinConfidence ?? DETECTION_THRESHOLDS.ADAPTIVE_MIN_CONFIDENCE
         });
         if (adaptiveResult) {
             const regionW = adaptiveResult.region.width;
@@ -465,27 +423,42 @@ export async function detectProfileWatermarks({
     //   2. Does removal actually reduce NCC? (if not, candidate is wrong position)
     // Candidates that fail validation are filtered out before final ranking.
     // This prevents false positives at wrong positions from winning.
+    const candidateTrace = matches.map(match => ({
+        profileId: match.profileId,
+        source: match.source,
+        confidence: match.confidence,
+        assetKey: resolveAssetKey(profile, match.config, match.pos),
+        pos: { ...match.pos },
+        config: { ...match.config }
+    }));
+    const validationTrace = [];
     const MAX_NEAR_BLACK_INCREASE = 0.05;  // 5% new black pixels = likely false positive
     const MIN_IMPROVEMENT = 0.02;  // removal must reduce NCC by at least this
 
-    if (matches.length > 0) {
+    if (matches.length > 0 && options.candidateValidation !== false) {
         const validatedMatches = [];
         for (const match of matches) {
             // Skip validation for manual/forced matches
             if (match.source === 'manual-forced' || match.source === 'manual-input') {
                 validatedMatches.push(match);
+                validationTrace.push({ source: match.source, pos: { ...match.pos }, accepted: true, reason: 'manual' });
                 continue;
             }
 
             // Trial removal: clone image, remove watermark, measure residual
             const trialImage = cloneImageData(imageData);
             const baselineNearBlack = calculateNearBlackRatio(trialImage, match.pos);
+            const baselineNCC = Math.abs(calculateCorrelation(
+                imageData, match.pos.x, match.pos.y,
+                match.pos.width, match.pos.height, match.alphaMap, true
+            ));
 
             // Use the match's alphaMap (already loaded)
             try {
                 removeWatermark(trialImage, match.alphaMap, match.pos);
             } catch {
                 // If removal crashes, the candidate is definitely bad
+                validationTrace.push({ source: match.source, pos: { ...match.pos }, accepted: false, reason: 'trial-error' });
                 continue;
             }
 
@@ -494,6 +467,14 @@ export async function detectProfileWatermarks({
 
             // Check: did removal create clipping artifacts?
             if (nearBlackIncrease > MAX_NEAR_BLACK_INCREASE) {
+                validationTrace.push({
+                    source: match.source,
+                    pos: { ...match.pos },
+                    accepted: false,
+                    reason: 'near-black',
+                    baselineNCC,
+                    nearBlackIncrease
+                });
                 // Too many new black pixels → false positive at wrong position
                 continue;
             }
@@ -503,22 +484,36 @@ export async function detectProfileWatermarks({
                 trialImage, match.pos.x, match.pos.y,
                 match.pos.width, match.pos.height, match.alphaMap, true
             ));
-            const improvement = match.confidence - postNCC;
+            const improvement = baselineNCC - postNCC;
 
             // If removal didn't reduce NCC, the candidate position is likely wrong
             // (the "watermark signal" was a background texture coincidence)
             if (improvement < MIN_IMPROVEMENT && match.confidence < 0.40) {
+                validationTrace.push({
+                    source: match.source,
+                    pos: { ...match.pos },
+                    accepted: false,
+                    reason: 'insufficient-restoration-improvement',
+                    baselineNCC,
+                    postNCC,
+                    improvement,
+                    nearBlackIncrease
+                });
                 continue;
             }
 
             // Candidate passed validation — keep it
             validatedMatches.push(match);
-        }
-
-        // If all candidates were filtered, keep the top 1 as fallback
-        // (better to attempt removal than return nothing)
-        if (validatedMatches.length === 0 && matches.length > 0) {
-            validatedMatches.push(matches[0]);
+            validationTrace.push({
+                source: match.source,
+                pos: { ...match.pos },
+                accepted: true,
+                reason: 'validated',
+                baselineNCC,
+                postNCC,
+                improvement,
+                nearBlackIncrease
+            });
         }
 
         matches.length = 0;
@@ -533,37 +528,7 @@ export async function detectProfileWatermarks({
     // a clear confidence improvement. This prevents position errors where a
     // slightly-higher-NCC false positive at a wrong position wins over the
     // correct anchor match.
-    matches.sort((a, b) => {
-        const aIsAnchor = a.source === 'catalog-probe' || a.source === 'heuristic-probe';
-        const bIsAnchor = b.source === 'catalog-probe' || b.source === 'heuristic-probe';
-        const aIsDrifted = a.source === 'global-search' || a.source === 'global-free' ||
-                           a.source === 'global-aligned' || a.source === 'adaptive-search';
-        const bIsDrifted = b.source === 'global-search' || b.source === 'global-free' ||
-                           b.source === 'global-aligned' || b.source === 'adaptive-search';
-
-        // If both are same type (both anchor or both drifted), sort by confidence
-        if (aIsAnchor === bIsAnchor) {
-            return b.confidence - a.confidence;
-        }
-
-        // Anchor candidate vs drifted candidate:
-        // Preserve anchor if it has reliable signal (confidence >= 0.20)
-        // and the drifted candidate doesn't offer a clear improvement (> 0.08)
-        if (aIsAnchor && bIsDrifted) {
-            if (a.confidence >= 0.20 && (b.confidence - a.confidence) < 0.08) {
-                return -1;  // keep anchor first
-            }
-            return b.confidence - a.confidence;
-        }
-        if (bIsAnchor && aIsDrifted) {
-            if (b.confidence >= 0.20 && (a.confidence - b.confidence) < 0.08) {
-                return 1;  // keep anchor first
-            }
-            return b.confidence - a.confidence;
-        }
-
-        return b.confidence - a.confidence;
-    });
+    matches.sort(compareDetectionCandidates);
     const result = {
         profileId: profile.id,
         matches,
@@ -571,6 +536,17 @@ export async function detectProfileWatermarks({
         confidence: matches[0]?.confidence || 0
     };
     result.decisionTier = decideDetectionTier(result).tier;
+    result.trace = {
+        profileId: profile.id,
+        candidateCount: candidateTrace.length,
+        acceptedCount: matches.length,
+        candidates: candidateTrace,
+        validations: validationTrace,
+        decisionTier: result.decisionTier,
+        winner: matches[0]
+            ? { source: matches[0].source, confidence: matches[0].confidence, pos: { ...matches[0].pos } }
+            : null
+    };
     return result;
 }
 

@@ -29,15 +29,9 @@ Production profiles:
 | --- | --- | --- | --- |
 | `gemini` | square | bottom-right | 48/96/36 variants, including `96-20260520` alpha variant |
 | `doubao` | rectangular | top-left and bottom-right | Uses profile metadata and catalog dimensions for rectangular assets |
-| `auto` | virtual | production profiles only | Tries non-experimental profiles and returns the strongest valid result |
+| `auto` | virtual | supported profiles | Tries Gemini and Doubao and returns the strongest valid result |
 
 The heuristic new-tier family (`2k-new-margin` for wide dimensions) extends detection coverage for non-standard aspect ratios, giving the pipeline additional margin candidates on wider images.
-
-Experimental profile:
-
-| Profile | Status |
-| --- | --- |
-| `dalle3` | Internal experimental profile. Do not expose as production support without product approval and real asset validation. |
 
 ## 3. Detection Pipeline
 
@@ -62,7 +56,7 @@ Sequence:
 Important cases:
 
 - Gemini `alphaVariant: '20260520'` resolves to `96-20260520`.
-- Doubao and experimental rectangular profiles prefer explicit `widthxheight` keys.
+- Doubao rectangular catalog variants prefer explicit `widthxheight` keys.
 - Profile asset aliases remain supported for fallback loading.
 - Square configs resolve to `48` or `96`.
 
@@ -96,8 +90,8 @@ The current branch contains multiple guards against wrong-position removals:
 - **Free-mode confidence floor** in direct detector ranking.
 - **Candidate trial-removal validation** in `detectionPipeline.js`.
 - **Standard-anchor preservation** so a slightly higher drifted candidate does not replace a reliable anchor candidate.
-- **Overlap NMS** in `applyRemoval.js`, preserving non-overlapping independent anchors such as Doubao top-left plus bottom-right.
-- **Halo/artifact checks** during multi-pass removal, with `getHaloRetryGains` providing a controlled retry gain schedule for halo-prone regions.
+- **Shared overlap NMS** in `candidateGeometry.js`, preserving non-overlapping independent anchors such as Doubao top-left plus bottom-right.
+- **Halo diagnostics** recorded during multi-pass removal without using the current scene-luminance metric as a hard rejection gate.
 
 These guards were added because user reports showed two failure modes:
 
@@ -116,9 +110,7 @@ Process:
 4. Try weak-alpha chain for faint large-margin cases.
 5. Use standard calibrated gain first.
 6. Recalibrate alpha only when residual gates require it.
-7. Stop when residual is low, halo/artifact risk is high, or safety gates trigger.
-
-When halo artifacts are detected, the engine applies the `getHaloRetryGains` contract to retry with progressively lower gains rather than abandoning the region. This contract is tested in `tests/halo_feedback_retry.test.js`.
+7. Stop when residual is low, a later pass regresses, or an authoritative safety gate triggers.
 
 The important distinction is that detection confidence and spatial NCC are not interchangeable. Recalibration decisions use spatial residual measurements.
 
@@ -161,13 +153,27 @@ Single sources of truth:
 | Catalog dimensions | `catalogs.json` |
 | Test mock dimensions | `resolveMockAssetDimensions()` |
 
+Runtime alignment is directional:
+
+```text
+config defaults -> performance preset -> explicit entry-point options -> manualConfig
+```
+
+- A preset supplies structural search values (`RANGE_X/Y`, jitter, candidate limits and final thresholds).
+- Explicit top-level options such as `probeThreshold` and `fallbackThreshold` override their corresponding defaults, but do not mutate the preset object.
+- The Web sensitivity control intentionally sends one value as both thresholds. CLI and SDK consumers can tune them independently.
+- `positionTolerance` is a fraction of the smaller template dimension and is clamped by `POSITION_TOLERANCE_MIN_PX`.
+- `searchRangeOverride` is converted to manual jitter values; it is not a global search radius.
+- Asset width and height come from the resolved asset metadata. The detector only searches dimensions represented by the supplied alpha maps and never scans unrelated registered profiles.
+
 Rules:
 
 1. Do not add detector threshold literals without adding a named config constant.
 2. Do not duplicate Doubao dimensions in individual tests.
 3. Do not let UI sliders overwrite preset-owned structural thresholds.
-4. Do not expose experimental profiles in production docs or UI.
+4. Do not register a profile before it satisfies the admission contract.
 5. When a new profile or asset variant lands, update code, tests, and docs together.
+6. Add every stable tuning value to `DETECTION_THRESHOLDS`, including validation and removal gates—not only scoring thresholds.
 
 ## 10. Test Architecture
 
@@ -190,6 +196,8 @@ Validation contracts:
 - `tests/test_groups_contract.test.js` ensures every top-level test is assigned exactly once.
 - `tests/setup_contract.test.js` ensures shared test asset dimensions follow profile metadata.
 - `tests/sdk_api.test.js` ensures package scripts expose the layered verification commands.
+- `tests/threshold_sot_integrity.test.js` verifies named threshold ownership.
+- `tests/p0_user_feedback_regression.test.js` validates real reported failures and fixture hashes.
 
 ## 11. Verification Baseline
 
@@ -214,91 +222,58 @@ pnpm test:all
 - A white watermark on a fully white background can be mathematically invisible.
 - Very heavy compression can distort alpha edges enough that manual mode is required.
 - Strong background texture can still produce plausible local correlations, so candidate validation and anchor preservation must remain active.
-- Experimental profiles require real alpha assets and real-sample tests before being promoted.
+- New profiles require real alpha assets and real-sample tests before registration.
 
-## 13. Future Technical Work
+## 13. Entry-Point Consistency
+
+All interfaces converge on the same core behavior:
+
+- Web and SDK call `WatermarkEngine.removeWatermarkFromImage()`.
+- Worker execution uses the same detection pipeline and `applyRemovalStrategy()`; main-thread fallback preserves the same report shape.
+- CLI decodes with Sharp, invokes the same engine policy, and serializes detection/removal metadata.
+- The Python module is a subprocess bridge to the CLI, not a separate detector. Its timeout scales from input pixel count when dimensions are available.
+
+When adding an option, update the runtime option type, CLI parser/help, Python mapping where appropriate, UI mapping, SDK declaration, and at least one interface contract test. An option that exists only in one entry point is not complete.
+
+## 14. Diagnostics and Result Contracts
+
+Detection can return a trace containing candidate counts, validations, decision tier and winner metadata. Removal returns an explicit report:
+
+- `attemptedCount`: candidates presented to removal.
+- `acceptedCount`: candidates retained after geometry/NMS filtering.
+- `suppressedCount`: overlaps rejected before pixel mutation.
+- `appliedCount`: removals that actually changed pixels.
+- `results`: per-candidate applied state, changed-pixel count, maximum channel delta, pass count and stop reason.
+
+This distinction prevents “detected” from being reported as “removed” when validation or safety logic performs no mutation. Consumers should use `detectedCount` for detection and `removedCount`/`removal.appliedCount` for actual application.
+
+## 15. Asset and Fixture Integrity
+
+`assetRegistry.js` validates known assets and dimensions before use. Invalid or mismatched assets fail closed instead of silently falling back to an unrelated template. `resolveAssetKey()` owns variant selection, including Gemini `96-20260520` and Doubao rectangular keys.
+
+Real feedback cases live in `tests/fixtures/user-feedback/manifest.json`. Each executable case records its source path, SHA-256 digest, profile and measurable expectation. Fixtures referenced by that manifest are test inputs and must not be removed as temporary files.
+
+## 16. Current Limits and Planned Engineering
 
 Short term:
 
-- Expand real-sample fixtures for difficult Gemini offsets and Doubao variants.
-- Add timing baselines per preset.
+- Expand hashed real-sample coverage with shifted Gemini, Doubao TL/BR and clean negatives.
+- Add browser E2E coverage and preset runtime baselines.
+- Add documentation/profile contract checks to CI.
 
 Mid term:
 
-- Introduce a typed `AssetLoader` abstraction for browser/CLI/worker parity.
-- Add SSIM or perceptual metrics beyond PSNR/MSE.
-- Consider WASM acceleration for NCC and Sobel search.
+- Introduce a typed `AssetLoader` shared by browser, CLI and worker boundaries.
+- Replace the scene-luminance halo diagnostic with a reference-delta metric that supports acceptance and rollback.
+- Add a real sliding-window SSIM or another perceptual metric; the compatibility `calculateSSIM` export is currently only a PSNR-derived estimate.
+- Evaluate NCC/Sobel acceleration only behind repeatable benchmarks.
 
 Long term:
 
-- Automate unknown watermark discovery and catalog proposal.
-- Package a browser extension after UI E2E coverage is stable.
+- Maintain a versioned recall/precision/artifact/runtime benchmark.
+- Automate candidate catalog proposals without automatically registering unknown profiles.
+- Package a browser extension only after browser E2E and release automation are stable.
 
-## 14. Frontend Architecture
+The authoritative schedule is [ROADMAP.md](./ROADMAP.md); historical stage plans are diagnostic archives and must not be used as current implementation contracts.
 
-The web frontend is built as a static application on top of the core engine. Key architectural features include:
-
-**State and persistence**
-
-- Slider values for quality and performance settings are persisted to `localStorage` so user preferences survive page reloads.
-
-**Detection feedback**
-
-- A detection details overlay shows per-image status, including EXIF metadata availability and parsed state.
-- A position overlay renders detected watermark boundaries directly on the preview, making it easy to verify detection before removal.
-
-**Interaction modes**
-
-- Single-image focus mode isolates the UI to one image at a time, simplifying manual review and fine-tuning.
-
-**Queueing and progress**
-
-- Files dropped or selected while processing is already underway are queued rather than rejected.
-- Batch progress feedback surfaces per-file and overall completion state, including error counts and retry eligibility.
-
-## 15. Recent Fixes
-
-The following production fixes landed during the Phase 0-7 improvement cycle:
-
-**Heuristic new-tier family**
-
-- `src/core/profiles.js` now includes a `2k-new-margin` heuristic family for wide dimensions. This gives the detection pipeline additional margin candidates on wider aspect ratios without affecting standard square images.
-
-**Halo retry gains contract**
-
-- `src/core/applyRemoval.js` implements `getHaloRetryGains`, a deterministic contract that defines retry gain schedules for halo-prone regions. When halo artifacts are detected during multi-pass removal, the engine retries with reduced gains instead of stopping immediately. The contract is exercised by `tests/halo_feedback_retry.test.js`.
-
-**Python bridge timeout scaling**
-
-- `python/remover.py` now uses `calculateTimeoutSecondsForPixels` to scale timeouts based on image pixel count. Large images receive proportionally longer timeouts, preventing premature failures on high-resolution inputs.
-
-**Build pipeline test reliability**
-
-- `tests/build_pipeline.test.js` was updated to use `assert.fail` for explicit failure paths. This replaces unlabeled exceptions with readable assertion messages, making CI failures faster to diagnose.
-
-## 16. Updated Test Architecture
-
-The test taxonomy was revised to reflect the current suite structure and to separate slow interactive tests from the standard integration gate.
-
-**Current group taxonomy**
-
-| Group | Contents |
-| --- | --- |
-| `unit` | Fast module-level behavior and contracts. Includes `heuristic_returns_new_tier`, `python_timeout_scales`, and `halo_feedback_retry` (with its contract test). |
-| `precision` | Detection regression tests and removal precision tests. Covers alpha-map estimation, standard-position recall, offset tolerance, and gradient-background removal accuracy. |
-| `integration` | Runtime, CLI, worker, pipeline, and frontend-contract integration. Now runs without `frontend_interaction` and `detection_fallback_chain`, which moved to `diagnostic`. |
-| `diagnostic` | Slow baseline tests for accuracy investigations. Now includes `frontend_interaction` and `detection_fallback_chain`. |
-| `audit` | Product acceptance audit. The original `product_audit` was split; extended stress coverage moved to `stress`. |
-| `stress` | Bounded memory-pressure runs and extended audit scenarios. Includes `product_audit_stress`. |
-| `legacy` | Historical v1.5 smoke regressions. |
-
-**New test helpers**
-
-- `tests/helpers/imageQualityAssertions.js` provides deterministic image comparison utilities, including `meanAbsoluteError`, `maxChannelDelta`, `psnr`, `residualNcc`, `haloScore`, and `assertImageClose`. These are used by precision and removal tests to measure quality quantitatively.
-- `tests/helpers/syntheticWatermarkFactory.js` generates deterministic synthetic watermarked images for isolated testing. It supports configurable backgrounds (solid, gradient, noise, grid), alpha-map shapes (radial, uniform, rect), and forward blending with fractional positions.
-
-**User-feedback fixtures**
-
-- `tests/fixtures/user-feedback/` contains metadata and fixtures derived from real user submissions. This directory is used by recall and regression tests to validate fixes against actual failure cases.
-
-*Document version: v2.7.0, updated 2026-06-30.*
+*Document version: v2.7.0, updated 2026-07-01.*

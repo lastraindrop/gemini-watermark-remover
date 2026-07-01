@@ -87,11 +87,8 @@ describe('Frontend Contract Verification', () => {
         });
     });
 
-    test('production UI does not advertise experimental-only profiles', () => {
-        const experimentalProfileName = /DALL[\s.-]*(?:&middot;|·)?[\s.-]*E/i;
-        assert.ok(!experimentalProfileName.test(html), 'HTML title/metadata should not advertise DALL-E while it is experimental-only');
-        assert.ok(!experimentalProfileName.test(enUS.title), 'Localized production title should not advertise DALL-E while it is experimental-only');
-        assert.ok(appSource.includes('filter(p => !p.experimental)'), 'Profile selector should hide experimental profiles');
+    test('profile selector lists the supported registry directly', () => {
+        assert.ok(appSource.includes('getAllProfiles().forEach'), 'Profile selector should use the supported registry');
     });
 
     test('localized comparison controls exist in locale files', () => {

@@ -8,6 +8,7 @@ import { resetDetectorBuffers } from './detector.js';
 import { detectWatermarks } from './detectionPipeline.js';
 import { applyRemovalStrategy } from './applyRemoval.js';
 import { WorkerPool } from './workerPool.js';
+import { getInlineAssetName } from './assetRegistry.js';
 
 // v2.5: Inline all watermark template PNGs as base64 data URLs at build time.
 // This avoids CORS issues and canvas tainting when the page is opened via
@@ -128,12 +129,12 @@ export class WatermarkEngine {
         // v2.5: Use build-time inlined base64 data URLs. This completely avoids
         // CORS issues and canvas tainting that occur when loading external PNG
         // files via file:// protocol (where crossOrigin='anonymous' is blocked).
-        // BUG-C8: normalize variant separators (hyphen -> underscore) so an
-        // assetKey like '96-20260520' resolves to the registered inline asset
-        // 'bg_96_20260520'. Existing keys (no hyphens) are unaffected.
-        const normalizedKey = assetKey.replace(/-/g, '_');
-        const assetName = normalizedKey.startsWith('bg_') ? normalizedKey : `bg_${normalizedKey}`;
-        const inlineSrc = INLINE_ASSETS[assetName] || INLINE_ASSETS[assetKey];
+        // Resolve logical and catalog-alias keys through the shared registry.
+        const assetName = getInlineAssetName(assetKey);
+        if (!assetName) {
+            throw new Error(`Unknown alpha asset: ${assetKey}`);
+        }
+        const inlineSrc = INLINE_ASSETS[assetName];
         
         let src;
         if (inlineSrc) {
@@ -218,6 +219,7 @@ export class WatermarkEngine {
         let removedCount = 0;
         let bestConfidence = 0;
         let lastResult = null;
+        let removalReport = null;
 
         const overallBest = await detectWatermarks({
             imageData,
@@ -238,6 +240,7 @@ export class WatermarkEngine {
                 try {
                     const modifiedData = await this._performWorkerRemoval(imageData, overallBest.matches);
                     imageData.data.set(modifiedData);
+                    removalReport = modifiedData.removalReport;
                     workerUsed = true;
                 } catch (err) {
                     console.warn('Worker removal failed, falling back to main thread:', err.message || err);
@@ -245,10 +248,10 @@ export class WatermarkEngine {
             }
 
             if (!workerUsed) {
-                applyRemovalStrategy(imageData, overallBest.matches);
+                removalReport = applyRemovalStrategy(imageData, overallBest.matches);
             }
 
-            removedCount = overallBest.matches.length;
+            removedCount = removalReport?.appliedCount || 0;
             bestConfidence = overallBest.confidence;
             lastResult = {
                 config: overallBest.winner.config,
@@ -264,9 +267,14 @@ export class WatermarkEngine {
 
         return { 
             canvas, 
-            detectionMode: removedCount > 0 ? 'multi-probe' : 'none',
+            detectionMode: removedCount > 0
+                ? 'multi-probe'
+                : (overallBest.matches.length > 0 ? 'detected-not-applied' : 'none'),
             confidence: bestConfidence,
             removedCount,
+            detectedCount: overallBest.matches.length,
+            removal: removalReport,
+            trace: overallBest.trace || null,
             config: lastResult ? lastResult.config : null,
             pos: lastResult ? lastResult.pos : null,
             profileId: lastResult ? lastResult.profileId : requestedProfileId,

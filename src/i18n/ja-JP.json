@@ -37,7 +37,6 @@
   "settings.model": "モデル",
   "settings.advanced": "詳細設定",
   "settings.threshold": "検出感度",
-  "settings.penalty": "勾配防御",
   "settings.manualMode": "手動エリア選択",
   "settings.autoDownload": "自動ダウンロード",
   "view.slider": "スライダー",

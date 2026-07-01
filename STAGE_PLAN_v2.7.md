@@ -1,13 +1,13 @@
 # 综合阶段计划 v2.7 — 现阶段诊断、根因与修复蓝图
 
-> ⚠️ **历史归档 (2026-06-30)**: 本文档中 BUG-C6/C7/H8/H9、Phase A/B/C/D 的大部分修复已实施完成。以下关键 BUG 已关闭：
+> ⚠️ **历史归档（最终校正：2026-07-01）**：本文记录的是诊断阶段的判断与当时计划，不是当前实现合同。当前状态以 [ROADMAP.md](./ROADMAP.md)、[TECHNICAL_GUIDE.md](./TECHNICAL_GUIDE.md) 与 [v2.7 收尾报告](./reports/v2.7-finalization-report.md) 为准。以下关键问题已经关闭或重新定性：
 > - **C6** (catalog 可达性): `catalog.js:30-32` 代理已暴露新 tier
 > - **C7** (recalibration 死码): `applyRemoval.js:152-158` 已使用纯 NCC
 > - **H8** (Python 60s 硬超时): `python/remover.py:50-57` 动态 timeout
-> - **H9** (halo 无重试): `applyRemoval.js:228-242` 实现 ×0.8 衰减重试
+> - **H9** (halo 处理): 旧重试和 edge-cleanup 路径因指标不足、缺少可靠验收/回滚而移除；halo 当前仅作诊断
 > - **L5/L6** (死代码/命名冲突): 已清理
 > 
-> 剩余开放的 BUG (B-2/B-5/B-7/D-5/D-6 等) 移至 [ROADMAP.md](./ROADMAP.md) 短中期计划跟踪。
+> 原文中的开放项、行号和测试名称可能已失效；后续任务只在 [ROADMAP.md](./ROADMAP.md) 跟踪。
 > 
 > > **文档版本**: 2026-06-18 完整诊断（基于 v2.6.0 实际代码验证，非 ROADMAP 自述）  
 > > **分析对象**: `@lastraindrop/gemini-watermark-remover` package.json v2.6.0  

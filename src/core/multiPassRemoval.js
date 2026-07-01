@@ -17,6 +17,7 @@ import { assessAlphaBandHalo } from './restorationMetrics.js';
 const DEFAULT_MAX_PASSES = 4;
 const DEFAULT_RESIDUAL_THRESHOLD = 0.25;
 const MAX_NEAR_BLACK_RATIO_INCREASE = 0.05;
+const MAX_PASS_REGRESSION = 0.02;
 
 function scoreRegion(imageData, alphaMap, position) {
     const { x, y, width, height } = position;
@@ -133,15 +134,24 @@ export function removeRepeatedWatermarkLayers(imageDataOrOptions, alphaMapArg, p
             break;
         }
 
+        // The first pass is allowed after the independent safety gates. Later
+        // passes are transactional: a material residual regression cannot
+        // overwrite the best accepted image from an earlier pass.
+        if (passIndex > 0 && improvement < -MAX_PASS_REGRESSION) {
+            stopReason = 'no-improvement';
+            break;
+        }
+
         // v2.6: Detect alpha-band halo after each pass. A halo appears as a
         // dark or bright ring around the watermark edge, caused by alpha-gain
         // mismatch or sub-pixel position error. If detected, stop early;
         // applyRemovalStrategy will retry with subpixel refinement instead.
         const haloAssessment = assessAlphaBandHalo(candidate, alphaMap, position);
-        if (haloAssessment.hasHalo && haloAssessment.severity > 0.5) {
-            stopReason = 'safety-halo';
-            break;
-        }
+        // The current halo metric samples absolute scene luminance and cannot
+        // reliably distinguish natural edges from removal artifacts. Keep it
+        // as diagnostic evidence only; near-black, texture and residual
+        // regression checks remain authoritative until a reference-delta halo
+        // metric replaces it.
 
         currentImageData = candidate;
         appliedPassCount = startingPassIndex + passIndex + 1;
@@ -153,7 +163,8 @@ export function removeRepeatedWatermarkLayers(imageDataOrOptions, alphaMapArg, p
             gradientDelta,
             beforeGradientScore: beforeGradient,
             afterGradientScore: afterGradient,
-            nearBlackRatio
+            nearBlackRatio,
+            haloSeverity: haloAssessment.severity
         });
 
         if (Math.abs(after.spatialScore) <= residualThreshold) {

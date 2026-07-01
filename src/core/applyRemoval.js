@@ -4,125 +4,31 @@ import { shouldRecalibrateAlphaStrength, recalibrateAlphaStrength } from './alph
 import { refineSubpixelOutline } from './adaptiveDetector.js';
 import { calculateCorrelation } from './detector.js';
 import { DETECTION_THRESHOLDS } from './config.js';
-import { applyEdgeCleanup } from './edgeCleanup.js';
 import { assessRemovalDiffArtifacts } from './restorationMetrics.js';
+import { suppressOverlappingCandidates } from './candidateGeometry.js';
 
-/**
- * Estimate optimal alphaGain by comparing watermark-center luminance against
- * surrounding background pixels. The template alpha map uses max-channel values
- * from the reference template (typically ~0.5 at star center). For very faint
- * watermarks (actual alpha 0.02-0.05), the default gain of 1.0 causes 10-15x
- * over-correction — producing dark blotches instead of clean removal.
- *
- * Returns a gain in [0.01, 2.0]; 1.0 means no adjustment.
- */
-export function estimateAlphaGain(imageData, alphaMap, position) {
-    const { x, y, width, height } = position;
-    const { data, width: imgWidth, height: imgHeight } = imageData;
+/** Count actual RGB pixel changes inside one candidate region. */
+function countChangedPixels(before, after, imageWidth, imageHeight, position) {
+    const startX = Math.max(0, Math.floor(position.x));
+    const startY = Math.max(0, Math.floor(position.y));
+    const endX = Math.min(imageWidth, Math.ceil(position.x + position.width));
+    const endY = Math.min(imageHeight, Math.ceil(position.y + position.height));
+    let changedPixels = 0;
+    let maxChannelDelta = 0;
 
-    // Weighted estimation: use the template alpha map as weights so that
-    // pixels where the watermark actually exists contribute more to the
-    // estimate. Simple averaging dilutes the watermark signal because the
-    // star occupies only a small fraction of the probe region.
-    let wmWeighted = 0, bgSum = 0, bgCount = 0, totalWeight = 0;
-
-    for (let row = 0; row < height; row++) {
-        for (let col = 0; col < width; col++) {
-            const px = Math.floor(x + col);
-            const py = Math.floor(y + row);
-            if (px < 0 || py < 0 || px >= imgWidth || py >= imgHeight) continue;
-            const i = (py * imgWidth + px) << 2;
-            const lum = (data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722) / 255;
-            const a = alphaMap[row * width + col];
-
-            if (a > 0.15) {
-                wmWeighted += lum * a;
-                totalWeight += a;
-            } else {
-                bgSum += lum;
-                bgCount++;
+    for (let y = startY; y < endY; y++) {
+        for (let x = startX; x < endX; x++) {
+            const index = (y * imageWidth + x) << 2;
+            let pixelChanged = false;
+            for (let channel = 0; channel < 3; channel++) {
+                const delta = Math.abs(after[index + channel] - before[index + channel]);
+                if (delta > 0) pixelChanged = true;
+                if (delta > maxChannelDelta) maxChannelDelta = delta;
             }
+            if (pixelChanged) changedPixels++;
         }
     }
-
-    if (totalWeight < 0.01 || bgCount < 10) return 1;
-    const wmMean = wmWeighted / totalWeight;
-    const bgMean = bgSum / bgCount;
-    const estAlpha = Math.max(0, (wmMean - bgMean) / Math.max(0.01, 1 - bgMean));
-    const templateAlpha = alphaMap[Math.floor(height / 2) * width + Math.floor(width / 2)];
-    if (templateAlpha <= 0.01 || estAlpha <= 0.001) return 1;
-    return Math.max(0.01, Math.min(2.0, estAlpha / templateAlpha));
-}
-
-export function getHaloRetryGains(alphaGain, maxRetries = 2) {
-    if (!(alphaGain > 0.55)) return [];
-    const HALO_GAIN_DECAY = 0.8;
-    const HALO_GAIN_FLOOR = 0.5;
-    const gains = [];
-    let retryGain = alphaGain;
-    for (let retry = 0; retry < maxRetries; retry++) {
-        const previousGain = retryGain;
-        retryGain = Math.max(HALO_GAIN_FLOOR, retryGain * HALO_GAIN_DECAY);
-        if (retryGain >= alphaGain || retryGain >= previousGain) break;
-        gains.push(retryGain);
-    }
-    return gains;
-}
-
-/**
- * v2.6: Non-Maximum Suppression for watermark matches.
- *
- * When the detection pipeline finds multiple candidates near the same region
- * (e.g. a 48px match at margin 32 AND a 96px match at margin 64 that spatially
- * overlap), applying removal to ALL of them corrupts the image — each pass
- * re-processes already-cleaned pixels, producing dark blotches and artifacts.
- *
- * This function keeps only the highest-confidence match per spatial cluster,
- * suppressing lower-confidence overlaps.
- *
- * @param {Array} matches - Detection matches (will be sorted by confidence desc)
- * @returns {Array} Filtered matches with no significant spatial overlap
- */
-function suppressOverlappingMatches(matches) {
-    if (matches.length <= 1) return matches;
-
-    // Sort by confidence descending
-    const sorted = [...matches].sort((a, b) => b.confidence - a.confidence);
-    const accepted = [];
-
-    // Keep the highest-confidence candidate only inside each spatial cluster.
-    // Non-overlapping lower-confidence matches can be real independent anchors.
-    for (const candidate of sorted) {
-        let overlapsExisting = false;
-        for (const existing of accepted) {
-            // Check actual pixel-level bounding box intersection
-            const ax1 = candidate.pos.x, ay1 = candidate.pos.y;
-            const ax2 = candidate.pos.x + candidate.pos.width;
-            const ay2 = candidate.pos.y + candidate.pos.height;
-            const bx1 = existing.pos.x, by1 = existing.pos.y;
-            const bx2 = existing.pos.x + existing.pos.width;
-            const by2 = existing.pos.y + existing.pos.height;
-
-            const overlapX = Math.max(0, Math.min(ax2, bx2) - Math.max(ax1, bx1));
-            const overlapY = Math.max(0, Math.min(ay2, by2) - Math.max(ay1, by1));
-            const overlapArea = overlapX * overlapY;
-
-            const candidateArea = candidate.pos.width * candidate.pos.height;
-            const existingArea = existing.pos.width * existing.pos.height;
-            const minArea = Math.min(candidateArea, existingArea);
-
-            // Suppress if overlap area exceeds 25% of the smaller match's area
-            if (overlapArea > minArea * 0.25) {
-                overlapsExisting = true;
-                break;
-            }
-        }
-        if (!overlapsExisting) {
-            accepted.push(candidate);
-        }
-    }
-
-    return accepted;
+    return { changedPixels, maxChannelDelta };
 }
 
 export function applyRemovalStrategy(imageData, matches) {
@@ -130,15 +36,21 @@ export function applyRemovalStrategy(imageData, matches) {
     // Without this, a single real watermark at 48px can produce 2-3 overlapping
     // false-positive matches at different sizes/margins, and applying removal to
     // all of them corrupts the image.
-    const filteredMatches = suppressOverlappingMatches(matches);
+    const filteredMatches = suppressOverlappingCandidates(matches, { preserveOrder: true });
+    const report = {
+        attemptedCount: matches.length,
+        acceptedCount: filteredMatches.length,
+        suppressedCount: matches.length - filteredMatches.length,
+        appliedCount: 0,
+        results: []
+    };
 
     for (const match of filteredMatches) {
-        // v2.7 C-2: Extend multi-pass removal to all known profiles.
-        // Previously only Gemini used multi-pass; Doubao and DALL-E 3 got
-        // single-pass removal, leaving residual on rectangular watermarks.
-        // Multi-pass safety gates (near-black, texture, halo, sign-flip) are
-        // shape-agnostic and work for any alpha map dimensions.
-        const useMultiPass = ['gemini', 'doubao', 'dalle3'].includes(match.profileId);
+        const beforeMatch = new Uint8ClampedArray(imageData.data);
+        let trace = { stopReason: 'not-run', passCount: 0, attemptedPassCount: 0 };
+        try {
+        // Multi-pass safety gates are shared by the supported profiles.
+        const useMultiPass = match.profileId === 'gemini' || match.profileId === 'doubao';
         if (useMultiPass) {
             // BUG-C7 (STAGE_PLAN_v2.7): Compute a PURE NCC score for the
             // original (pre-removal) region BEFORE any modification, so it is
@@ -174,7 +86,7 @@ export function applyRemovalStrategy(imageData, matches) {
                     alphaMap: match.alphaMap,  // no pre-scale — use raw alpha
                     position: match.pos,
                     maxPasses: DETECTION_THRESHOLDS.WEAK_ALPHA_MAX_PASSES,
-                    residualThreshold: 0.25,
+                    residualThreshold: DETECTION_THRESHOLDS.MULTIPASS_RESIDUAL_THRESHOLD,
                     alphaGain: DETECTION_THRESHOLDS.WEAK_ALPHA_GAIN  // 0.6
                 });
                 const waLastPass = weakAlphaResult.passes[weakAlphaResult.passes.length - 1];
@@ -182,6 +94,12 @@ export function applyRemovalStrategy(imageData, matches) {
                     Math.abs(waLastPass.afterSpatialScore) <= DETECTION_THRESHOLDS.WEAK_ALPHA_RESIDUAL_CLEAN_THRESHOLD) {
                     // Weak-alpha chain succeeded — skip recalibration, use 0.6 result
                     imageData.data.set(weakAlphaResult.imageData.data);
+                    trace = {
+                        stopReason: weakAlphaResult.stopReason,
+                        passCount: weakAlphaResult.passCount,
+                        attemptedPassCount: weakAlphaResult.attemptedPassCount,
+                        alphaGain: DETECTION_THRESHOLDS.WEAK_ALPHA_GAIN
+                    };
                     continue;
                 }
                 // Otherwise fall through to standard gain path below
@@ -208,6 +126,7 @@ export function applyRemovalStrategy(imageData, matches) {
             // for difficult images where near-black/over-correction checks abort.
             if (match.config?.forceProcess) {
                 removeWatermark(imageData, scaledAlpha, match.pos);
+                trace = { stopReason: 'forced-single-pass', passCount: 1, attemptedPassCount: 1, alphaGain };
                 continue;
             }
 
@@ -216,34 +135,26 @@ export function applyRemovalStrategy(imageData, matches) {
                 alphaMap: scaledAlpha,
                 position: match.pos,
                 maxPasses: 4,
-                residualThreshold: 0.25
+                residualThreshold: DETECTION_THRESHOLDS.MULTIPASS_RESIDUAL_THRESHOLD
             });
 
-            // v2.7 B-1: Halo feedback retry. When multi-pass detects an alpha-
-            // band halo (dark/bright ring at watermark edge), it stops early
-            // with stopReason='safety-halo'. Instead of giving up, retry with
-            // progressively lower alphaGain (×0.8 each step, floor 0.5) to
-            // find a gain that removes the watermark without creating halos.
-            // Max 2 downgrade attempts. Ported from upstream watermarkProcessor.
-            let effectiveResult = multiPassResult;
-            if (effectiveResult.stopReason === 'safety-halo' && alphaGain > 0.55) {
-                for (const retryGain of getHaloRetryGains(alphaGain, 2)) {
-                    const retryAlpha = Float32Array.from(match.alphaMap, v => v * retryGain);
-                    const retryResult = removeRepeatedWatermarkLayers({
-                        imageData,
-                        alphaMap: retryAlpha,
-                        position: match.pos,
-                        maxPasses: 4,
-                        residualThreshold: 0.25
-                    });
-                    effectiveResult = retryResult;
-                    if (retryResult.stopReason !== 'safety-halo') break; // halo resolved
-                }
-            }
+            const effectiveResult = multiPassResult;
 
             const lastPass = effectiveResult.passes.length > 0
                 ? effectiveResult.passes[effectiveResult.passes.length - 1]
                 : null;
+
+            // Safety gates may reject the first attempted pass. In that case
+            // no cleanup or calibration may manufacture an apparent change.
+            if (effectiveResult.passCount === 0) {
+                trace = {
+                    stopReason: effectiveResult.stopReason,
+                    passCount: 0,
+                    attemptedPassCount: effectiveResult.attemptedPassCount,
+                    alphaGain
+                };
+                continue;
+            }
 
             // v2.6: Try sub-pixel refinement when multi-pass did not fully
             // converge. refineSubpixelOutline tests small alpha-map shifts
@@ -262,6 +173,7 @@ export function applyRemovalStrategy(imageData, matches) {
                 });
                 if (refined) {
                     imageData.data.set(refined.imageData.data);
+                    trace = { stopReason: 'subpixel-refined', passCount: 1, attemptedPassCount: 1, alphaGain };
                     continue;
                 }
             }
@@ -287,16 +199,11 @@ export function applyRemovalStrategy(imageData, matches) {
                     });
                     if (recalibrated) {
                         imageData.data.set(recalibrated.imageData.data);
+                        trace = { stopReason: 'alpha-recalibrated', passCount: 1, attemptedPassCount: 1, alphaGain };
                         continue;
                     }
                 }
             }
-
-            // v2.7 B-3: Edge cleanup — apply alpha-gradient-aware blur to the
-            // removal result to reduce quantization banding (visible color steps
-            // caused by Math.round() in blendModes.js:111). Only runs when we're
-            // about to commit the final result (not skipped by subpixel/calibration).
-            applyEdgeCleanup(effectiveResult.imageData, match.alphaMap, match.pos);
 
             // v2.7 P5: Post-removal diff artifact assessment. Measure the
             // quality of the removal result by comparing original vs processed
@@ -314,8 +221,37 @@ export function applyRemovalStrategy(imageData, matches) {
             match.diffArtifacts = diffAssessment;
 
             imageData.data.set(effectiveResult.imageData.data);
+            trace = {
+                stopReason: effectiveResult.stopReason,
+                passCount: effectiveResult.passCount,
+                attemptedPassCount: effectiveResult.attemptedPassCount,
+                alphaGain
+            };
         } else {
             removeWatermark(imageData, match.alphaMap, match.pos);
+            trace = { stopReason: 'single-pass', passCount: 1, attemptedPassCount: 1, alphaGain: 1 };
+        }
+        } finally {
+            const delta = countChangedPixels(
+                beforeMatch,
+                imageData.data,
+                imageData.width,
+                imageData.height,
+                match.pos
+            );
+            const result = {
+                applied: delta.changedPixels > 0,
+                changedPixels: delta.changedPixels,
+                maxChannelDelta: delta.maxChannelDelta,
+                profileId: match.profileId,
+                source: match.source || null,
+                pos: { ...match.pos },
+                ...trace
+            };
+            match.removalResult = result;
+            report.results.push(result);
+            if (result.applied) report.appliedCount++;
         }
     }
+    return report;
 }

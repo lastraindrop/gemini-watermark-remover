@@ -23,15 +23,14 @@ describe('Template Resolution & Profile Selection', () => {
             assert.deepStrictEqual(result, ['doubao']);
         });
 
-        test('auto returns all non-experimental profiles', () => {
+        test('auto returns all supported profiles', () => {
             const result = getProfilesToTry('auto');
-            const allNonExp = getAllProfiles().filter(p => !p.experimental).map(p => p.id);
-            assert.deepStrictEqual(result.sort(), allNonExp.sort());
+            const supported = getAllProfiles().map(p => p.id);
+            assert.deepStrictEqual(result.sort(), supported.sort());
         });
 
-        test('unknown ID returns [id] as-is', () => {
-            const result = getProfilesToTry('unknown-profile');
-            assert.deepStrictEqual(result, ['unknown-profile']);
+        test('unknown ID is rejected', () => {
+            assert.throws(() => getProfilesToTry('unknown-profile'), /Unknown profile/);
         });
     });
 

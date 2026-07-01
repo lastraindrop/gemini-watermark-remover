@@ -321,7 +321,7 @@ describe('DIAG: Gradient Penalty Impact', () => {
         // With deepScan should not be drastically lower than without
         if (nccOnly.confidence > T.FINAL_ANCHORED) {
             const ratio = nccWithGrad.confidence / nccOnly.confidence;
-            // Current code may produce ratio as low as 0.30 due to gradientPenalty
+            // Blended gradient scoring may reduce the final confidence ratio.
             // This documents the CURRENT behavior before fixes
             console.log(`[S5.1] Current penalty ratio: ${ratio.toFixed(4)} (target: >= 0.30)`);
         }

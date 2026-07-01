@@ -39,7 +39,7 @@ export class WorkerPool {
         try {
             const worker = new Worker(this._workerUrl);
             worker.onmessage = (e) => {
-                const { taskId, imageData, error } = e.data;
+                const { taskId, imageData, removalReport, error } = e.data;
                 const task = this._activeTasks.get(taskId);
                 if (task) {
                     this._activeTasks.delete(taskId);
@@ -49,7 +49,7 @@ export class WorkerPool {
                     if (error) {
                         task.reject(new Error(error));
                     } else {
-                        task.resolve(imageData);
+                        task.resolve({ imageData, removalReport });
                     }
                 }
                 this._processQueue();
@@ -137,7 +137,11 @@ export class WorkerPool {
             } else {
                 this._taskQueue.push(task);
             }
-        }).then(resultImageData => resultImageData.data);
+        }).then(({ imageData: resultImageData, removalReport }) => {
+            const data = resultImageData.data;
+            data.removalReport = removalReport;
+            return data;
+        });
     }
 
     get isAvailable() {

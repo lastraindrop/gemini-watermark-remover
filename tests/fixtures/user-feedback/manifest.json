@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "halo-false-positive-001",
+      "issue": "detected-but-output-unchanged",
+      "input": "sample/error/Gemini_Generated_Image_6ndho06ndho06ndh.png",
+      "sha256": "0cbcf267e982b95151785c8ddc1f461bcbb68457d15ef7d576e0ea454e89e0e5",
+      "profileId": "gemini",
+      "expected": {
+        "assetKey": "48",
+        "position": { "x": 1120, "y": 816, "width": 48, "height": 48 },
+        "minimumAppliedCount": 1,
+        "residualMustImprove": true
+      }
+    },
+    {
+      "id": "gemini-20260520-missed-001",
+      "issue": "alternate-alpha-template-missed",
+      "input": "tests/fixtures/user-feedback/missed/20260520-3.png",
+      "sha256": "6bfbeb9af943e64ea0b08bc37f264712f7f7e06a3085407be2fde01f78174b81",
+      "profileId": "gemini",
+      "expected": {
+        "assetKey": "96-20260520",
+        "position": { "x": 2528, "y": 1248, "width": 96, "height": 96 },
+        "minimumConfidence": 0.8
+      }
+    }
+  ]
+}

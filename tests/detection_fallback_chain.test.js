@@ -157,13 +157,10 @@ describe('Detection Fallback Chain', () => {
         // On noise background, either template may correlate better — both are valid
     });
 
-    test('getProfilesToTry auto returns all non-experimental', async () => {
+    test('getProfilesToTry auto returns all supported profiles', async () => {
         const mod = await import('../src/core/detectionPipeline.js');
         const profiles = mod.getProfilesToTry('auto');
-        assert.ok(Array.isArray(profiles) && profiles.length > 0);
-        assert.ok(profiles.includes('gemini'));
-        assert.ok(profiles.includes('doubao'));
-        assert.ok(!profiles.includes('dalle3'));
+        assert.deepStrictEqual(profiles.sort(), ['doubao', 'gemini']);
     });
 
     test('Missing alphaMap returns empty gracefully', async () => {

@@ -10,10 +10,6 @@
 - `Doubao`
 - `Auto`，自动在生产 profile 中选择最可信结果
 
-内部实验项：
-
-- `dalle3` 在代码中保留为实验 profile，用于研究和回归测试；生产 UI 与普通 CLI 使用指南不把它作为正式支持目标。
-
 ## 2. Web 使用流程
 
 1. 运行 `pnpm build` 后打开 `dist/index.html`，或运行 `pnpm serve` 访问本地服务。
@@ -23,7 +19,7 @@
    - `Fast`：快速，适合标准尺寸和干净背景。
    - `Balanced`：默认推荐，兼顾速度与检出率。
    - `Thorough`：更大搜索范围和更强自适应兜底，适合裁剪、缩放、复杂背景和偏移水印。
-5. 需要时展开 Advanced Settings 调整检测阈值、梯度惩罚或手动区域。
+5. 需要时展开 Advanced Settings 调整检测灵敏度或手动区域。
 6. 处理完成后：
    - 每张卡片显示检测详情（水印来源、模板尺寸、alpha variant），以及"Gemini Original"标识（来自 EXIF 元数据检测）。
    - 使用 compare 按钮在原图与结果间切换，检测框（indigo 半透明）会标注找到的水印位置。
@@ -91,7 +87,6 @@ results = remover.remove_watermark(
 | `adaptiveMode` | 弱 catalog 命中时启用自适应搜索 | 默认 `auto` |
 | `probeThreshold` | catalog/heuristic 探针阈值 | 漏检时小幅降低 |
 | `fallbackThreshold` | 全局回退阈值 | 误检时提高 |
-| `gradientPenalty` | 梯度防御强度 | 复杂纹理误检时提高 |
 
 ## 7. 常见问题
 
@@ -114,9 +109,13 @@ results = remover.remove_watermark(
 3. 增大位置搜索范围到 20-30px。
 4. 对复杂背景尝试 `Balanced` 和 `Thorough` 分别处理，选择 artifact 更少的结果。
 
-当前引擎已包含 NMS、trial-removal 候选验证、halo 检测、弱 alpha 链与亚像素精修，但极端背景仍可能需要手动模式。
+当前引擎已包含 NMS、trial-removal 候选验证、弱 alpha 链与亚像素精修。Halo 指标目前只用于诊断，不会自动改写结果；极端背景仍可能需要手动模式。
 
-### Q3: 为什么纯白背景可能无法检测？
+### Q3: 检测灵敏度为什么同时影响两个阈值？
+
+Web 界面提供一个面向用户的灵敏度值，并将它同时传给 catalog/heuristic 探针与全局回退。SDK 和 CLI 仍可分别设置 `probeThreshold` 与 `fallbackThreshold`。降低阈值会提高召回率，也会增加误检风险；改变前应先尝试 `Thorough`。
+
+### Q4: 为什么纯白背景可能无法检测？
 
 白色水印叠加在纯白背景上时，数学上可能没有像素变化：
 

@@ -38,13 +38,6 @@ function syncSliderDefaults() {
             if (elements.thresholdVal) elements.thresholdVal.textContent = defaultThreshold.toFixed(2);
         }
     }
-    if (elements.penaltySlider && !elements.penaltySlider.dataset.userTouched) {
-        const defaultPenalty = DETECTION_THRESHOLDS.GRADIENT_PENALTY_DEFAULT;
-        if (Number.isFinite(defaultPenalty)) {
-            elements.penaltySlider.value = String(defaultPenalty);
-            if (elements.penaltyVal) elements.penaltyVal.textContent = defaultPenalty.toFixed(2);
-        }
-    }
 }
 
 const elements = {
@@ -65,8 +58,6 @@ const elements = {
     advancedPanel: document.getElementById('advancedPanel'),
     thresholdSlider: document.getElementById('thresholdSlider'),
     thresholdVal: document.getElementById('thresholdVal'),
-    penaltySlider: document.getElementById('penaltySlider'),
-    penaltyVal: document.getElementById('penaltyVal'),
     manualModeToggle: document.getElementById('manualModeToggle'),
     manualCoords: document.getElementById('manualCoords'),
     manualX: document.getElementById('manualX'),
@@ -121,7 +112,7 @@ async function init() {
         if (retryBtn) retryBtn.addEventListener('click', () => window.location.reload());
 
         if (elements.profileSelect) {
-            getAllProfiles().filter(p => !p.experimental).forEach(p => {
+            getAllProfiles().forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id;
                 opt.textContent = p.name;
@@ -254,11 +245,6 @@ function setupEventListeners() {
         if (elements.thresholdVal) elements.thresholdVal.textContent = e.target.value;
     });
     elements.thresholdSlider?.addEventListener('change', () => saveSettings(elements));
-
-    elements.penaltySlider?.addEventListener('input', (e) => {
-        if (elements.penaltyVal) elements.penaltyVal.textContent = e.target.value;
-    });
-    elements.penaltySlider?.addEventListener('change', () => saveSettings(elements));
 
     // v2.6: Manual override sliders
     const agSlider = document.getElementById('manualAlphaGain');
@@ -452,8 +438,8 @@ function updateCardUI(item, removedCount, confidence, latency) {
     // Feature A: Detection detail display
     if (detailRow) {
         const details = [];
-        if (item.isGoogle) details.push(`<span class="text-emerald-500 font-black">Gemini Original</span>`);
-        else if (item.isOriginal) details.push(`<span class="text-amber-500 font-black">AI Image</span>`);
+        if (item.isGoogle) details.push('<span class="text-emerald-500 font-black">Gemini Original</span>');
+        else if (item.isOriginal) details.push('<span class="text-amber-500 font-black">AI Image</span>');
         if (item._detectionSource) details.push(`<span class="text-indigo-400">${item._detectionSource}</span>`);
         if (item.lastConfig?.alphaVariant) details.push(`<span class="text-slate-400">alpha:${item.lastConfig.alphaVariant}</span>`);
         if (item.lastConfig?.logoSize) details.push(`<span class="text-slate-400">${item.lastConfig.logoSize}px</span>`);

@@ -38,7 +38,6 @@
   "settings.model": "模型",
   "settings.advanced": "高级配置",
   "settings.threshold": "检测灵敏度",
-  "settings.penalty": "梯度防御力",
   "settings.manualMode": "手动选区模式",
   "settings.autoDownload": "自动下载",
   "view.slider": "滑动对比",

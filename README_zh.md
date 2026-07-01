@@ -2,7 +2,7 @@
 
 # Gemini & Doubao 水印检测与移除工具 (v2.7.0)
 
-这是一个本地优先的水印检查、分析与移除工具，面向 Gemini 与 Doubao 图片中的可见 AI 水印。当前生产入口支持 `gemini`、`doubao` 与 `auto`。`dalle3` 仅作为内部实验 profile 保留，不作为正式用户入口承诺。
+这是一个本地优先的水印检查、分析与移除工具，面向 Gemini 与 Doubao 图片中的可见 AI 水印。支持的 profile 选择为 `gemini`、`doubao` 与 `auto`。
 
 本工具使用确定性的图像分析与反向 alpha 混合恢复，不上传图片，也不使用生成式修复。
 
@@ -10,7 +10,7 @@
 
 - **减少漏检**：新增 Gemini 20260520 alpha 变体、48/96 模板动态排序、近锚点 25% 容差、自适应兜底放宽、Doubao 矩形资源键动态解析。
 - **减少误检**：候选 trial-removal 验证、标准锚点保护、free 模式置信度地板、重叠候选 NMS。
-- **降低去除偏差**：多遍移除、弱 alpha 链、halo 检测、亚像素精修、alpha 增益校准。
+- **降低去除偏差**：多遍移除、弱 alpha 链、artifact 诊断、亚像素精修、alpha 增益校准。
 - **前端一致化**：生产 UI 只展示 Gemini/Doubao/Auto；手动模板支持 `auto`；移动端 toast 与批量布局修复；对比按钮补齐无障碍属性。
 - **测试分层**：新增统一测试分组 runner，明确 unit/integration/precision/audit/diagnostic/stress。
 
@@ -51,7 +51,8 @@ results = remover.remove_watermark("./input", "./output", deep_scan=True)
 | --- | --- | --- |
 | Profile 与目录 | `profiles.js`, `catalog.js`, `catalogs.json`, `templates/registry.js` | 生产 profile、官方尺寸、锚点、资源键与目录匹配 |
 | 检测 | `detectionPipeline.js`, `detector.js`, `adaptiveDetector.js`, `decisionPolicy.js` | Catalog/启发式/自适应/全局检测、候选验证与排序 |
-| 移除 | `applyRemoval.js`, `blendModes.js`, `multiPassRemoval.js`, `alphaCalibration.js` | 反向 alpha 混合、多遍移除、NMS、增益校准、artifact 检查 |
+| 候选 | `candidateGeometry.js` | 重叠几何、候选合并、NMS 与锚点排序 |
+| 移除 | `applyRemoval.js`, `blendModes.js`, `multiPassRemoval.js`, `alphaCalibration.js` | 反向 alpha 混合、多遍移除、增益校准、artifact 诊断 |
 | 运行时 | `watermarkEngine.js`, `worker.js`, `workerPool.js` | 资源加载、缓存、Worker 辅助与主线程回退 |
 | 前端 | `src/app/*.js`, `public/index.html`, `src/i18n/*.json` | 上传、拖拽、设置、手动选区、批量处理、结果对比、多语言 |
 | 接口 | `src/cli.js`, `src/sdk/index.js`, `python/remover.py` | CLI、SDK、TypeScript 类型、Python bridge |
@@ -79,7 +80,7 @@ pnpm test:exhaustive  # 真正全量：包含 diagnostic 与 stress
 - 性能预设集中在 `PERFORMANCE_PRESETS`，UI 滑块不能覆盖预设内部的结构化阈值。
 - Profile、catalog、assets 与测试 mock 资产尺寸必须从同一套元数据推导，不能散落硬编码。
 - 手动模式通过 `manualConfig` 传递区域、模板、alpha 增益、搜索范围与强制处理参数。
-- 用户文档与生产 UI 只承诺 Gemini、Doubao、Auto；实验 profile 必须明确标注。
+- 用户文档与生产 UI 只承诺 Gemini、Doubao、Auto；新 profile 必须先满足资源、目录、入口与真实样本验收合同。
 
 ## 文档
 

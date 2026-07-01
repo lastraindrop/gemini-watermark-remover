@@ -5,6 +5,7 @@ import {
     PRIMARY_GROUPS,
     STANDARD_GROUPS,
     collectGroupFiles,
+    buildNodeTestArgs,
     validateTestGroups
 } from '../scripts/test-groups.mjs';
 
@@ -55,5 +56,16 @@ describe('Test Group Contracts', () => {
         for (const file of TEST_GROUPS.legacy) {
             assert.ok(exhaustiveFiles.has(file), `exhaustive group must include legacy file ${file}`);
         }
+    });
+
+    test('slow groups use bounded, non-contentious runner settings', () => {
+        const integrationArgs = buildNodeTestArgs('integration');
+        assert.ok(integrationArgs.includes('--test-concurrency=2'));
+        assert.ok(integrationArgs.includes('--test-timeout=600000'));
+
+        const exhaustiveArgs = buildNodeTestArgs('exhaustive');
+        assert.ok(exhaustiveArgs.includes('--test-concurrency=1'));
+        assert.ok(exhaustiveArgs.includes('--test-timeout=600000'));
+        assert.ok(exhaustiveArgs.includes('./scripts/stress-env.mjs'));
     });
 });

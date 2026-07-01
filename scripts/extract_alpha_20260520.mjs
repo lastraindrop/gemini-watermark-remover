@@ -1,22 +1,26 @@
 /**
  * BUG-C8 / STAGE_PLAN_v2.7 Phase A-4: Extract the upstream "96-20260520"
- * alpha map (embedded as base64 raw RGBA pixel data) and convert it to a
+ * alpha map (embedded as base64 Float32 values) and convert it to a
  * 96x96 PNG asset consumable by the fork's PNG-based asset pipeline.
  *
- * Source : alpha_maps_downloaded.js (librarian-fetched upstream artifact)
+ * Source : an upstream embeddedAlphaMaps.js supplied as the first argument
  *           -> EMBEDDED_ALPHA_MAP_BASE64['96-20260520']
- *           -> 49152 base64 chars -> 36864 raw bytes = 96 * 96 * 4 (RGBA)
+ *           -> 49152 base64 chars -> 36864 raw bytes = 96 * 96 Float32
  * Output : src/assets/bg_96_20260520.png  (96x96, 4 channels)
  *
  * One-shot script. Idempotent: regenerates the identical PNG every run.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
 
-const SRC_FILE = 'alpha_maps_downloaded.js';
+const SRC_FILE = process.argv[2];
 const OUT_FILE = 'src/assets/bg_96_20260520.png';
 const KEY = '96-20260520';
 const W = 96, H = 96, CHANNELS = 4;
+
+if (!SRC_FILE) {
+    throw new Error('Usage: node scripts/extract_alpha_20260520.mjs <path-to-embeddedAlphaMaps.js>');
+}
 
 /** Extract the base64 value for `key` from the EMBEDDED_ALPHA_MAP_BASE64 object. */
 function readBase64For(filePath, key) {
@@ -36,19 +40,36 @@ const base64 = readBase64For(SRC_FILE, KEY);
 console.log(`Base64 length for '${KEY}': ${base64.length}`);
 
 const rawBuffer = Buffer.from(base64, 'base64');
-console.log(`Decoded raw buffer: ${rawBuffer.length} bytes (expected ${W * H * CHANNELS})`);
-if (rawBuffer.length !== W * H * CHANNELS) {
-    throw new Error(`Unexpected raw buffer size: got ${rawBuffer.length}, expected ${W * H * CHANNELS}`);
+const expectedFloatBytes = W * H * Float32Array.BYTES_PER_ELEMENT;
+console.log(`Decoded raw buffer: ${rawBuffer.length} bytes (expected ${expectedFloatBytes})`);
+if (rawBuffer.length !== expectedFloatBytes) {
+    throw new Error(`Unexpected raw buffer size: got ${rawBuffer.length}, expected ${expectedFloatBytes}`);
 }
 
-// Sanity: report a quick stat so we can confirm the data is non-trivial
+// The source bytes are little-endian Float32 alpha samples, not RGBA bytes.
+// The old implementation treated the same 36,864 bytes as 96x96 RGBA. The
+// lengths happen to match, so that corruption passed all structural checks.
+const view = new DataView(rawBuffer.buffer, rawBuffer.byteOffset, rawBuffer.byteLength);
+const rgba = Buffer.alloc(W * H * CHANNELS);
 let nonZero = 0;
-for (let i = 0; i < rawBuffer.length; i += CHANNELS) {
-    if (rawBuffer[i] !== 0 || rawBuffer[i + 1] !== 0 || rawBuffer[i + 2] !== 0) nonZero++;
+let sum = 0;
+for (let i = 0; i < W * H; i++) {
+    const value = view.getFloat32(i * Float32Array.BYTES_PER_ELEMENT, true);
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+        throw new Error(`Invalid alpha value at ${i}: ${value}`);
+    }
+    const encoded = Math.round(value * 255);
+    const offset = i * CHANNELS;
+    rgba[offset] = encoded;
+    rgba[offset + 1] = encoded;
+    rgba[offset + 2] = encoded;
+    rgba[offset + 3] = 255;
+    if (encoded > 0) nonZero++;
+    sum += value;
 }
-console.log(`Non-black pixels (RGB != 0): ${nonZero} / ${W * H}`);
+console.log(`Non-black pixels: ${nonZero} / ${W * H}; mean alpha=${(sum / (W * H)).toFixed(6)}`);
 
-await sharp(rawBuffer, {
+await sharp(rgba, {
     raw: { width: W, height: H, channels: CHANNELS }
 })
     .png()
@@ -68,10 +89,10 @@ if (rawRoundtrip.length !== W * H * CHANNELS) {
     throw new Error('Raw roundtrip size mismatch');
 }
 
-// Pixel-exactness check: the PNG must decode back to the exact upstream bytes
+// Pixel-exactness check against the correctly encoded 8-bit grayscale pixels.
 let mismatches = 0;
-for (let i = 0; i < rawBuffer.length; i++) {
-    if (rawBuffer[i] !== rawRoundtrip[i]) mismatches++;
+for (let i = 0; i < rgba.length; i++) {
+    if (rgba[i] !== rawRoundtrip[i]) mismatches++;
 }
 if (mismatches !== 0) {
     throw new Error(`Pixel mismatch: ${mismatches} bytes differ from upstream source`);

@@ -75,6 +75,9 @@ describe('Candidate validation via trial-removal (P0)', () => {
         // A real watermark should be detected
         assert.ok(result.winner, 'Valid watermark should be detected');
         assert.ok(result.confidence > 0, 'Confidence should be positive');
+        assert.ok(result.trace, 'Detection result should expose a diagnostic trace');
+        assert.ok(result.trace.candidateCount >= result.trace.acceptedCount);
+        assert.ok(result.trace.validations.some(entry => entry.accepted), 'Trace should record validation acceptance');
     });
 
     test('validation does not crash on clean image (no watermark)', async () => {
@@ -90,7 +93,8 @@ describe('Candidate validation via trial-removal (P0)', () => {
 
         // Should return null or very low confidence (no false positive)
         // The key check is: no crash during trial-removal validation
-        assert.ok(result !== null || result === null, 'No crash on clean image');
+        assert.ok(result && Array.isArray(result.matches), 'Clean image should produce a structured result');
+        assert.ok(result.trace, 'Clean-image result should retain diagnostic trace');
     });
 
     test('validation preserves manual-forced matches', async () => {

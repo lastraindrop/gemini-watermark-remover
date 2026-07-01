@@ -15,7 +15,6 @@ export const TEST_GROUPS = Object.freeze({
         t('adaptive_detector'),
         t('adaptive_min_adjusted_score'),
         t('alpha_calibration'),
-        t('alpha_gain_center_robust'),
         t('alpha_map_formula'),
         t('alpha_noise_floor_configurable'),
         t('alpha_resource_96_20260520'),
@@ -26,6 +25,7 @@ export const TEST_GROUPS = Object.freeze({
         t('blendModes'),
         t('box_blur'),
         t('candidate_validation'),
+        t('candidate_geometry'),
         t('catalog'),
         t('catalog_new_entries'),
         t('catalog_new_tiers_reachable'),
@@ -36,11 +36,9 @@ export const TEST_GROUPS = Object.freeze({
         t('detection_subpixel_position'),
         t('detector_scoring'),
         t('diff_artifacts_wiring'),
+        t('documentation_contract'),
         t('edge_cases'),
-        t('edge_cleanup'),
         t('gemini_regression'),
-        t('gradient_formula_consistency'),
-        t('halo_feedback_retry'),
         t('heuristic_returns_new_tier'),
         t('i18n_completeness'),
         t('manual_selection'),
@@ -50,6 +48,7 @@ export const TEST_GROUPS = Object.freeze({
         t('multi_pass_non_gemini'),
         t('multiPass_removal'),
         t('parameter_overrides'),
+        t('p0_user_feedback_regression'),
         t('performance_preset_override'),
         t('position_offset_tolerance'),
         t('profiles_new_tiers'),
@@ -81,7 +80,6 @@ export const TEST_GROUPS = Object.freeze({
         t('worker_timeout_recovery')
     ],
     precision: [
-        t('alpha_map_estimation_accuracy'),
         t('detection_doubao_rectangular_alpha_map'),
         t('detection_gemini_standard_positions'),
         t('detection_non_catalog_scaled'),
@@ -92,7 +90,6 @@ export const TEST_GROUPS = Object.freeze({
         t('parameter_matrix'),
         t('real_sample'),
         t('removal_alpha_gain_stability'),
-        t('removal_edge_cleanup_effectiveness'),
         t('removal_precision_gradient_background')
     ],
     audit: [
@@ -173,13 +170,13 @@ export function buildNodeTestArgs(group, options = {}) {
 
     const {
         canvasMock = true,
-        concurrency = group === 'stress' ? 1 : 4,
+        concurrency = (group === 'stress' || group === 'exhaustive') ? 1 : (group === 'integration' ? 2 : 4),
         reporter = null,
         passthrough = []
     } = options;
 
     const args = [];
-    if (group === 'stress') {
+    if (group === 'stress' || group === 'exhaustive') {
         args.push('--import', './scripts/stress-env.mjs');
     }
     if (canvasMock) {
@@ -188,8 +185,8 @@ export function buildNodeTestArgs(group, options = {}) {
     args.push('--loader', './tests/fixtures/png-loader.mjs');
     args.push('--test');
     args.push(`--test-concurrency=${concurrency}`);
-    if (group === 'integration') {
-        args.push('--test-timeout=300000');  // CLI spawn tests need longer
+    if (group === 'integration' || group === 'exhaustive') {
+        args.push('--test-timeout=600000');
     }
     if (reporter) {
         args.push(`--test-reporter=${reporter}`);

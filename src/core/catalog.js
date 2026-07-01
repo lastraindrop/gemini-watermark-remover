@@ -7,7 +7,7 @@ const _loadedProfiles = new Set();
 function getCatalogData() {
     if (_catalogData) return _catalogData;
 
-    _catalogData = catalogJSON || { WATERMARK_CONFIGS: {}, CATALOGS: { gemini: [], doubao: [], dalle3: [] } };
+    _catalogData = catalogJSON || { WATERMARK_CONFIGS: {}, CATALOGS: { gemini: [], doubao: [] } };
 
     return _catalogData;
 }
@@ -33,7 +33,7 @@ export const WATERMARK_CONFIGS = {
 };
 
 function buildCATALOGSProxy() {
-    const knownProfiles = ['gemini', 'doubao', 'dalle3'];
+    const knownProfiles = ['gemini', 'doubao'];
     return new Proxy({}, {
         get(_, prop) {
             if (typeof prop === 'string') {
@@ -57,7 +57,6 @@ export const CATALOGS = buildCATALOGSProxy();
 
 ensureProfileLoaded('gemini');
 ensureProfileLoaded('doubao');
-ensureProfileLoaded('dalle3');
 
 export { _catalogData as __internalCatalogData };
 

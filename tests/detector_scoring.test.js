@@ -1,6 +1,6 @@
 /**
  * Detector Scoring Tests (v2.3 — merged from bt709_color, ncc_scoring,
- * local_contrast, and gradient_penalty)
+ * local contrast and gradient scoring)
  *
  * Covers all three NCC variants (spatial, gradient, local-contrast) plus
  * gradient-penalty behavior and color-space sensitivity in one file.
@@ -212,24 +212,13 @@ describe('Gradient Penalty (calculateProbeConfidence deepScan)', () => {
         assert.ok(result.confidence > 0.3, `Expected > 0.3, got ${result.confidence}`);
     });
 
-    test('Very low gradient (<0.02) applies penalty but does not zero score', () => {
+    test('Very low gradient (<0.02) uses blended scoring without zeroing the score', () => {
         const img = createMockImageData(120, 120, 'solid', 128);
         const alphaMap = createMockAlphaMap(48);
         const pos = { x: 36, y: 36, width: 48, height: 48 };
         applyWatermark(img, pos.x, pos.y, 48, 48, alphaMap);
-        const result = calculateProbeConfidence(img, pos, alphaMap, 'gemini', { deepScan: true, gradientPenalty: 0.30 });
+        const result = calculateProbeConfidence(img, pos, alphaMap, 'gemini', { deepScan: true });
         assert.ok(result.confidence > 0.03, `Solid bg should not be eliminated (got ${result.confidence})`);
-    });
-
-    test('Penalty capped at 0.50 regardless of input value', () => {
-        const img = createMockImageData(120, 120, 'solid', 180);
-        const alphaMap = createMockAlphaMap(48);
-        const pos = { x: 36, y: 36, width: 48, height: 48 };
-        applyWatermark(img, pos.x, pos.y, 48, 48, alphaMap);
-        const r50 = calculateProbeConfidence(img, pos, alphaMap, 'gemini', { deepScan: true, gradientPenalty: 0.50 });
-        const r80 = calculateProbeConfidence(img, pos, alphaMap, 'gemini', { deepScan: true, gradientPenalty: 0.80 });
-        assert.ok(r80.confidence >= r50.confidence - 0.001,
-            `Penalty 0.80 (capped at 0.50) should not be worse than 0.50: ${r80.confidence} vs ${r50.confidence}`);
     });
 
     test('Sign-flip first-pass over-correction is handled by multiPass, probe unaffected', () => {
@@ -238,7 +227,7 @@ describe('Gradient Penalty (calculateProbeConfidence deepScan)', () => {
         const img = createMockImageData(100, 100, 'noise', 128);
         const alphaMap = createMockAlphaMap(48);
         applyWatermark(img, 10, 10, 48, 48, alphaMap);
-        const result = calculateProbeConfidence(img, { x: 10, y: 10, width: 48, height: 48 }, alphaMap, 'gemini', { deepScan: true, gradientPenalty: 0.50 });
+        const result = calculateProbeConfidence(img, { x: 10, y: 10, width: 48, height: 48 }, alphaMap, 'gemini', { deepScan: true });
         assert.ok(Number.isFinite(result.confidence), `Confidence should be finite, got ${result.confidence}`);
         assert.ok(result.confidence >= 0, `Confidence should be >= 0`);
     });

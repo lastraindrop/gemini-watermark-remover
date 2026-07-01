@@ -11,39 +11,25 @@ import { calculateAlphaMap } from '../core/alphaMap.js';
 import { detectWatermarks } from '../core/detectionPipeline.js';
 import { PROFILES } from '../core/profiles.js';
 import { applyRemovalStrategy } from '../core/applyRemoval.js';
+import { getAssetFileName, listAssetKeys } from '../core/assetRegistry.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 function buildAssetMap() {
     const assetsDir = resolve(__dirname, '../assets');
-    const map = {
-        '48': resolve(assetsDir, 'bg_48.png'),
-        '96': resolve(assetsDir, 'bg_96.png'),
-    };
-    if (!existsSync(assetsDir)) return map;
-    for (const profile of Object.values(PROFILES)) {
-        if (profile.experimental) continue;
-        if (profile.assets) {
-            for (const [, key] of Object.entries(profile.assets)) {
-                const candidate = resolve(assetsDir, `bg_${key}.png`);
-                if (existsSync(candidate)) {
-                    map[key] = candidate;
-                }
-            }
-        }
-        if (profile.defaultAsset && !map[profile.defaultAsset]) {
-            const candidate = resolve(assetsDir, `bg_${profile.defaultAsset}.png`);
-            if (existsSync(candidate)) {
-                map[profile.defaultAsset] = candidate;
-            }
-        }
+    const map = {};
+    for (const key of listAssetKeys()) {
+        const fileName = getAssetFileName(key);
+        if (!fileName) continue;
+        const candidate = resolve(assetsDir, fileName);
+        if (existsSync(candidate)) map[key] = candidate;
     }
     return map;
 }
 
 const ASSETS = buildAssetMap();
 
-class Engine {
+export class Engine {
     constructor() {
         this.cache = {};
     }
@@ -54,9 +40,7 @@ class Engine {
 
         const path = ASSETS[assetKey];
         if (!path || !existsSync(path)) {
-            const legacyPath = ASSETS['96']; 
-            if (legacyPath) return this.getAlphaMap('96', width, height);
-            throw new Error(`Asset not found: ${assetKey}`);
+            throw new Error(`Unknown or missing alpha asset: ${assetKey}`);
         }
 
         const { data, info } = await sharp(path)
@@ -97,8 +81,6 @@ class Engine {
         });
 
         const winner = detection.winner;
-        const removedCounter = detection.matches.length;
-
         if (!winner) {
             // No watermark detected with high enough confidence
             const format = options.format || 'png';
@@ -107,11 +89,12 @@ class Engine {
                 buffer: outputBuffer,
                 detection: 'none',
                 confidence: 0.0,
-                removedCount: 0
+                removedCount: 0,
+                trace: detection.trace || null
             };
         }
 
-        applyRemovalStrategy(imageData, detection.matches);
+        const removal = applyRemovalStrategy(imageData, detection.matches);
 
         const format = options.format || 'png';
         const outImg = sharp(imageData.data, {
@@ -125,9 +108,11 @@ class Engine {
             detection: winner.config.isOfficial ? 'catalog' : 'heuristic',
             confidence: winner.confidence, // Return raw float for better JSON consumers
             config: winner.config,
-            removedCount: removedCounter,
+            removedCount: removal.appliedCount,
+            removal,
             profileId: detection.profileId,
-            source: winner.source
+            source: winner.source,
+            trace: detection.trace || null
         };
     }
 }
@@ -168,7 +153,6 @@ export function parseArgs(args) {
         // v2.1 Advanced CLI Flags
         else if (arg === '--probeThreshold') { opts.probeThreshold = parseFloat(getArgValue(args, i++, arg)); }
         else if (arg === '--fallbackThreshold') { opts.fallbackThreshold = parseFloat(getArgValue(args, i++, arg)); }
-        else if (arg === '--gradientPenalty') { opts.gradientPenalty = parseFloat(getArgValue(args, i++, arg)); }
         else if (!arg.startsWith('-')) opts._.push(arg);
     }
     return opts;
@@ -179,16 +163,11 @@ export async function runRemoveCommand(args, io) {
     const engine = new Engine();
     const startTime = performance.now();
 
-    const profile = PROFILES[opts.profile];
-    if (!profile) {
+    const isSupportedProfile = opts.profile === 'auto' || Boolean(PROFILES[opts.profile]);
+    if (!isSupportedProfile) {
         io.stderr.write(`Error: Unknown profile: ${opts.profile}\n`);
         return 1;
     }
-    if (profile.experimental) {
-        io.stderr.write(`Error: Experimental profile is not supported by the CLI yet: ${opts.profile}\n`);
-        return 1;
-    }
-
     // --- Pipe mode: read from stdin, write to stdout ---
     if (opts.pipe) {
         const chunks = [];
@@ -257,6 +236,9 @@ export async function runRemoveCommand(args, io) {
                     duration_ms: (performance.now() - startTime).toFixed(0),
                     ...logInfo
                 }) + '\n');
+            } else if (result.removedCount === 0) {
+                const confPercent = (result.confidence * 100).toFixed(0) + '%';
+                io.stdout.write(`No watermark change applied: ${outputPath} (${result.detection}, ${confPercent})\n`);
             } else {
                 const confPercent = (result.confidence * 100).toFixed(0) + '%';
                 io.stdout.write(`✅ Watermark removed (${result.removedCount} markers): ${outputPath} (${result.detection}, ${confPercent})\n`);

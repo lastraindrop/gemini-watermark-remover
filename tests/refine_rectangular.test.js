@@ -33,7 +33,7 @@ describe('refineSubpixelOutline - Rectangular Watermark Support (v2.6)', () => {
             }
         });
 
-        test('120×40 DALL-E style watermark does not crash', () => {
+        test('120×40 generic rectangular watermark does not crash', () => {
             const W = 1024, H = 1024;
             const logoW = 120, logoH = 40;
             const img = createMockImageData(W, H, 'noise', 128);

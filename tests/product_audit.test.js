@@ -94,7 +94,7 @@ describe('GWR Ultimate Product Audit', () => {
             const ids = profiles.map(p => p.id);
             assert.ok(ids.includes('gemini'), 'Missing Gemini profile');
             assert.ok(ids.includes('doubao'), 'Missing Doubao profile');
-            assert.ok(ids.includes('dalle3'), 'Missing DALL-E 3 profile');
+            assert.deepStrictEqual(ids.sort(), ['doubao', 'gemini']);
         });
 
         test('Catalog entries should exist for all profiles', () => {
@@ -222,13 +222,11 @@ describe('GWR Ultimate Product Audit', () => {
     });
 
     describe('5. Asset Integrity Verification', () => {
-        test('Non-experimental profiles must have asset files for all anchors', () => {
+        test('Supported profiles must have asset files for all anchors', () => {
             const __dirname = dirname(fileURLToPath(import.meta.url));
             const assetsDir = resolve(__dirname, '../src/assets');
             
             for (const profile of registry.getAllProfiles()) {
-                if (profile.experimental) continue;
-                
                 if (profile.assets) {
                     for (const [anchor, assetKey] of Object.entries(profile.assets)) {
                         const assetPath = resolve(assetsDir, `bg_${assetKey}.png`);

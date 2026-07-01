@@ -11,7 +11,7 @@ function resolveManualAssetKey(profileId, manualConfig) {
 
     const width = Math.trunc(manualConfig.width);
     const height = Math.trunc(manualConfig.height);
-    if ((profileId === 'doubao' || profileId === 'dalle3') && Number.isFinite(width) && Number.isFinite(height)) {
+    if (profileId === 'doubao' && Number.isFinite(width) && Number.isFinite(height)) {
         return `${width}x${height}`;
     }
 
@@ -25,7 +25,6 @@ export function saveSettings(elements) {
         locale: i18n.locale,
         performancePreset: elements.performanceSelect?.value || DEFAULT_PERFORMANCE_PRESET,
         threshold: elements.thresholdSlider?.value,
-        penalty: elements.penaltySlider?.value,
         // FE-BUG-M1: persist autoDownload so user choice survives reloads
         autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false,
         manualAlphaGain: document.getElementById('manualAlphaGain')?.value,
@@ -56,19 +55,12 @@ export function loadSettings(elements) {
                 elements.performanceSelect.value = settings.performancePreset;
             }
         }
-        // v2.4: Restore threshold and penalty slider values
+        // Restore threshold slider value.
         if (settings.threshold != null && elements.thresholdSlider) {
             const val = parseFloat(settings.threshold);
             if (Number.isFinite(val) && val >= parseFloat(elements.thresholdSlider.min) && val <= parseFloat(elements.thresholdSlider.max)) {
                 elements.thresholdSlider.value = val;
                 if (elements.thresholdVal) elements.thresholdVal.textContent = val.toFixed(2);
-            }
-        }
-        if (settings.penalty != null && elements.penaltySlider) {
-            const val = parseFloat(settings.penalty);
-            if (Number.isFinite(val) && val >= parseFloat(elements.penaltySlider.min) && val <= parseFloat(elements.penaltySlider.max)) {
-                elements.penaltySlider.value = val;
-                if (elements.penaltyVal) elements.penaltyVal.textContent = val.toFixed(2);
             }
         }
         // FE-BUG-M1: restore autoDownload toggle
@@ -122,7 +114,6 @@ export function setupLanguageSelector(elements) {
 
 export function getEngineOptions(elements, behavior = {}) {
     const thresholdVal = parseFloat(elements.thresholdSlider?.value ?? String(DETECTION_THRESHOLDS.DEFAULT_PROBE_THRESHOLD));
-    const penaltyVal = parseFloat(elements.penaltySlider?.value ?? String(DETECTION_THRESHOLDS.GRADIENT_PENALTY_DEFAULT));
     const presetKey = elements.performanceSelect?.value || DEFAULT_PERFORMANCE_PRESET;
     const preset = PERFORMANCE_PRESETS[presetKey] || PERFORMANCE_PRESETS[DEFAULT_PERFORMANCE_PRESET];
 
@@ -143,7 +134,6 @@ export function getEngineOptions(elements, behavior = {}) {
         autoDownload: document.getElementById('autoDownloadToggle')?.checked ?? false,
         probeThreshold: thresholdVal,
         fallbackThreshold: thresholdVal,
-        gradientPenalty: penaltyVal,
         adaptiveMode: preset.adaptiveMode,
         overrides: mergedOverrides
     };

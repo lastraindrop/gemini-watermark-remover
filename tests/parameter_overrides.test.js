@@ -40,7 +40,7 @@ describe('Parameter Overrides', () => {
             const loose = await detectWatermarks({
                 imageData: img, profileId: TC.PROFILES.GEMINI,
                 getAlphaMap: alphaProvider(alphaMap, 96),
-                options: { probeThreshold: 0.01 }
+                options: { probeThreshold: 0.01, candidateValidation: false }
             });
             assert.ok(loose.winner, 'Low threshold should accept');
         });

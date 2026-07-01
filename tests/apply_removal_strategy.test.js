@@ -9,7 +9,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { applyRemovalStrategy, estimateAlphaGain } from '../src/core/applyRemoval.js';
+import { applyRemovalStrategy } from '../src/core/applyRemoval.js';
 import { createMockImageData, createMockAlphaMap, applyWatermark, resolvePos } from './test_utils.js';
 
 describe('applyRemovalStrategy branch coverage', () => {
@@ -207,36 +207,5 @@ describe('applyRemovalStrategy branch coverage', () => {
         const before = new Uint8ClampedArray(img.data);
         applyRemovalStrategy(img, []);
         assert.deepStrictEqual(img.data, before, 'Empty matches should not modify image');
-    });
-});
-
-describe('estimateAlphaGain', () => {
-
-    test('returns ~1.0 for normal watermark', () => {
-        const img = createMockImageData(256, 256, 'noise', 128);
-        const alphaMap = createMockAlphaMap(48, 48);
-        const pos = { x: 100, y: 100, width: 48, height: 48 };
-        applyWatermark(img, pos.x, pos.y, pos.width, pos.height, alphaMap, 255);
-
-        const gain = estimateAlphaGain(img, alphaMap, pos);
-        assert.ok(gain >= 0.5 && gain <= 2.0, `Normal watermark gain should be ~1.0, got ${gain}`);
-    });
-
-    test('returns 1.0 for zero alpha map', () => {
-        const img = createMockImageData(256, 256, 'noise', 128);
-        const alphaMap = new Float32Array(48 * 48); // all zeros
-        const pos = { x: 100, y: 100, width: 48, height: 48 };
-
-        const gain = estimateAlphaGain(img, alphaMap, pos);
-        assert.strictEqual(gain, 1, 'Zero alpha map should return gain=1');
-    });
-
-    test('returns 1.0 when background count is too low', () => {
-        const img = createMockImageData(64, 64, 'solid', 128);
-        const alphaMap = createMockAlphaMap(48, 48);
-        const pos = { x: 0, y: 0, width: 48, height: 48 };
-
-        const gain = estimateAlphaGain(img, alphaMap, pos);
-        assert.ok(typeof gain === 'number' && Number.isFinite(gain), 'Should return a finite number');
     });
 });

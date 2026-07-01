@@ -46,10 +46,17 @@ describe('Public SDK API', () => {
             'detectProfileWatermarks',
             'calculateAlphaMap',
             'removeWatermark',
+            'WorkerPool',
             'PROFILES',
             'calculateWatermarkPosition'
         ]) {
             assert.ok(key in sdk, `Missing SDK export: ${key}`);
         }
+    });
+
+    test('SDK quality compatibility aliases match their documented behavior', () => {
+        const a = new Uint8Array([0, 64, 128, 255]);
+        const b = new Uint8Array([1, 63, 130, 250]);
+        assert.strictEqual(sdk.calculateSSIM(a, b), sdk.estimateQualityFromPSNR(a, b));
     });
 });

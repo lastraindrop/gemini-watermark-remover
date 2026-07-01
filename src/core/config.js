@@ -41,6 +41,11 @@ export const DETECTION_THRESHOLDS = {
     ADAPTIVE_MIN_CONFIDENCE: 0.22,
     ADAPTIVE_MIN_ADJUSTED_SCORE: 0.06,  // v2.7 C-5: coarse-search adjusted-score filter threshold
 
+    // Candidate validation and refinement
+    POSITION_TOLERANCE_FACTOR: 0.25,
+    POSITION_TOLERANCE_MIN_PX: 4,
+    JITTER_MIN_CONFIDENCE: 0.10,
+
     // Search geometry
     SEARCH_RANGE_X: 0.90,      // v2.3: expanded from 0.75
     SEARCH_RANGE_Y: 0.90,      // v2.3: expanded from 0.75
@@ -66,9 +71,9 @@ export const DETECTION_THRESHOLDS = {
     WEAK_ALPHA_GAIN: 0.6,                          // 60% gain for weak-alpha large-margin watermarks
     WEAK_ALPHA_RESIDUAL_CLEAN_THRESHOLD: 0.22,     // spatial NCC below this means clean removal
     WEAK_ALPHA_MAX_PASSES: 2,                       // fewer passes for faint watermarks
+    MULTIPASS_RESIDUAL_THRESHOLD: 0.25,
 
     // Scoring & gating constants (v2.5.1: migrated from detector.js hardcoded values)
-    GRADIENT_PENALTY_DEFAULT: 0.30,             // default gradient penalty multiplier
     EXACT_NCC_GATE: 0.10,                        // base NCC gate for exact matches
     SCALED_NCC_GATE: 0.14,                       // base NCC gate for scaled matches
     DOUBAO_NCC_GATE: 0.14,                       // NCC gate for Doubao profile
@@ -76,13 +81,11 @@ export const DETECTION_THRESHOLDS = {
     GRADIENT_BOOST_GATE_EXACT: 0.12,             // above this, gradient can boost exact match confidence
     GRADIENT_BOOST_GATE_SCALED: 0.18,            // above this, gradient can boost scaled match confidence
     JITTER_FINETUNE_TRIGGER: 0.50,               // confidence below this triggers jitter fine-tuning
-    JITTER_TRIGGER_MIN: 0.12,                    // confidence above this triggers jitter search in Phase 1
     JITTER_TRIGGER_MAX: 0.95,                    // confidence near-perfect skips jitter
     DEEPSCAN_GRADIENT_GATE: 0.04,                // confidence above this in deepScan triggers gradient computation
 
     // Candidate ranking
     STANDARD_MARGIN_TOLERANCE: 4,                // px tolerance for standard margin alignment
-    CANDIDATE_OVERLAP_DISTANCE: 32,              // min center-distance between non-overlapping candidates
     MODE_BOOST_ANCHORED: 0.30,                   // score boost for anchored mode
     MODE_BOOST_ALIGNED: 0.10,                    // score boost for aligned mode
     MODE_BOOST_FACTOR: 0.20,                     // multiplier for mode priority in candidate sorting

@@ -10,9 +10,9 @@
  */
 
 import { getCatalogConfig, getAllCatalogConfigs } from './catalog.js';
-import { registry } from './templates/registry.js';
 import { regionStdDev } from './utils.js';
 import { DETECTION_THRESHOLDS } from './config.js';
+import { candidatesOverlap, suppressOverlappingCandidates } from './candidateGeometry.js';
 
 export class DetectorContext {
     constructor() {
@@ -181,7 +181,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         // Same technique as calculateProbeConfidence — sample ±1px and fit
         // parabola to refine position after jitter. Reduces 0.5-1px position
         // error that compounds into removal misalignment.
-        if (bestConf > 0.10 && bestConf < DETECTION_THRESHOLDS.JITTER_TRIGGER_MAX) {
+        if (bestConf > DETECTION_THRESHOLDS.JITTER_MIN_CONFIDENCE && bestConf < DETECTION_THRESHOLDS.JITTER_TRIGGER_MAX) {
             const nccL = calculateCorrelation(searchData, bestX - 1, bestY, logoW, logoH, alphaMap, true);
             const nccR = calculateCorrelation(searchData, bestX + 1, bestY, logoW, logoH, alphaMap, true);
             const nccU = calculateCorrelation(searchData, bestX, bestY - 1, logoW, logoH, alphaMap, true);
@@ -212,20 +212,9 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     const searchRangeX = Math.floor(width * config.RANGE_X);
     const searchRangeY = Math.floor(height * config.RANGE_Y);
     
-    // Dynamic sizes: derive from catalog entries (supports rectangular watermarks)
+    // The caller resolves profile/catalog assets. Search only supplied maps so
+    // templates from unrelated profiles cannot leak into global fallback.
     const dynamicSizes = new Map();
-    for (const profile of registry.getAllProfiles()) {
-        for (const entry of registry.getCatalog(profile.id)) {
-            const w = entry.logoWidth || entry.logoSize;
-            const h = entry.logoHeight || entry.logoSize;
-            dynamicSizes.set(`${w}x${h}`, { w, h });
-        }
-    }
-    // Add standard square fallbacks
-    for (const s of [96, 48]) {
-        if (!dynamicSizes.has(`${s}x${s}`)) dynamicSizes.set(`${s}x${s}`, { w: s, h: s });
-    }
-    // Add sizes from any alphaMaps keys passed by caller (heuristic sizes)
     for (const key of Object.keys(alphaMaps)) {
         const parts = key.split('x');
         if (parts.length === 2) {
@@ -244,8 +233,8 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
     const sizes = Array.from(dynamicSizes.values());
 
     for (const { w: sizeW, h: sizeH } of sizes) {
-        // v2.3: Safer alpha map lookup. Non-square watermarks (Doubao 401×173,
-        // DALL-E 120×40) must match the exact WxH key — single-dimension fallbacks
+        // Non-square watermarks such as Doubao 401×173 must match the exact
+        // WxH key — single-dimension fallbacks
         // (alphaMaps[401], alphaMaps[173]) would match unrelated square templates.
         const isRect = sizeW !== sizeH;
         let alphaMap = alphaMaps[`${sizeW}x${sizeH}`];
@@ -285,15 +274,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
                         // nests a 48px true positive at the same top-left corner. Bbox
                         // overlap ratio correctly identifies them as overlapping only if
                         // the smaller match's area is significantly covered.
-                        const ax2 = candidate.x + candidate.width;
-                        const ay2 = candidate.y + candidate.height;
-                        const bx2 = sizeCandidates[i].x + sizeCandidates[i].width;
-                        const by2 = sizeCandidates[i].y + sizeCandidates[i].height;
-                        const overlapX = Math.max(0, Math.min(ax2, bx2) - Math.max(candidate.x, sizeCandidates[i].x));
-                        const overlapY = Math.max(0, Math.min(ay2, by2) - Math.max(candidate.y, sizeCandidates[i].y));
-                        const overlapArea = overlapX * overlapY;
-                        const minArea = Math.min(candidate.width * candidate.height, sizeCandidates[i].width * sizeCandidates[i].height);
-                        if (minArea > 0 && overlapArea / minArea > 0.25) {
+                        if (candidatesOverlap(candidate, sizeCandidates[i])) {
                             tooClose = true;
                             if (confidence > sizeCandidates[i].confidence) sizeCandidates[i] = candidate;
                             break;
@@ -361,29 +342,7 @@ export function detectWatermark(imageData, alphaMaps, options = { deepScan: true
         const scoreB = b.confidence + (modePriority[b.mode] || 0) * boostFactor;
         return scoreB - scoreA;
     });
-    const finalCandidates = [];
-    
-    for (const cand of allCandidates) {
-        let isOverlapping = false;
-        for (const existing of finalCandidates) {
-            // v2.7 Fix-5: Use bbox overlap ratio instead of center distance.
-            // Center distance < 32px would still let a 96px candidate and a
-            // nested 48px candidate coexist if their centers are >32px apart,
-            // or merge distinct watermarks if centers are <32px apart.
-            // Bbox overlap ratio is geometrically correct.
-            const ax2 = cand.x + cand.width, ay2 = cand.y + cand.height;
-            const bx2 = existing.x + existing.width, by2 = existing.y + existing.height;
-            const overlapX = Math.max(0, Math.min(ax2, bx2) - Math.max(cand.x, existing.x));
-            const overlapY = Math.max(0, Math.min(ay2, by2) - Math.max(cand.y, existing.y));
-            const overlapArea = overlapX * overlapY;
-            const minArea = Math.min(cand.width * cand.height, existing.width * existing.height);
-            if (minArea > 0 && overlapArea / minArea > 0.25) {
-                isOverlapping = true;
-                break;
-            }
-        }
-        if (!isOverlapping) finalCandidates.push(cand);
-    }
+    const finalCandidates = suppressOverlappingCandidates(allCandidates, { preserveOrder: true });
 
     for (const candidate of finalCandidates) {
         const { x, y, width: candW, height: candH, confidence, mode } = candidate;
@@ -576,7 +535,7 @@ function blendMultiDimensionalScore(imageData, x, y, logoW, logoH, spatial, grad
 }
 
 export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'gemini', options = {}, context = null) {
-    const { deepScan = false, isScaledMatch = false } = options;
+    const { deepScan = false, isScaledMatch = false, isOfficial = false } = options;
 
     // Pre-allocate gradient buffers once for the whole function (BUG-H3 fix).
     // Previously each jitter iteration allocated 2 new Float32Arrays (338 allocs).
@@ -627,8 +586,10 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
     // giving up — only bail if BOTH signals are weak.
     if (baseNcc < baseNccGate) {
         const localContrastConf = calculateLocalContrastCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
-        if (localContrastConf < baseNccGate) return { confidence: Math.max(baseNcc, localContrastConf), x: pos.x, y: pos.y };
-        confidence = localContrastConf;
+        confidence = Math.max(baseNcc, localContrastConf);
+        if (!isOfficial && localContrastConf < baseNccGate) {
+            return { confidence, x: pos.x, y: pos.y };
+        }
     } else {
         const localContrastConf = calculateLocalContrastCorrelation(imageData, pos.x, pos.y, pos.width, pos.height, alphaMap, true);
         confidence = Math.max(confidence, localContrastConf);
@@ -642,10 +603,9 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
 
         if (gradientConf < DETECTION_THRESHOLDS.GRADIENT_IGNORE_GATE) {
             // v2.5: Use weighted multi-dimensional blend instead of aggressive multiplicative
-            // penalty. Dark/moody images (e.g. anime scenes) naturally have low gradient
+            // suppression. Dark/moody images naturally have low gradient
             // in the watermark region but the watermark pattern is still detectable via NCC.
-            // The old formula (confidence *= gradientPenalty) could slash NCC from 0.50→0.15,
-            // causing false negatives on valid catalog-probe matches.
+            // This avoids suppressing valid catalog probes on low-gradient scenes.
             confidence = blendMultiDimensionalScore(imageData, pos.x, pos.y, logoW, logoH, confidence, gradientConf);
         } else {
             const gradGate = isScaledMatch ? DETECTION_THRESHOLDS.GRADIENT_BOOST_GATE_SCALED : DETECTION_THRESHOLDS.GRADIENT_BOOST_GATE_EXACT;
@@ -654,28 +614,67 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
     }
 
     // Sliding window fine-tuning (exact/official matches only)
-    if (confidence < DETECTION_THRESHOLDS.JITTER_FINETUNE_TRIGGER && !isScaledMatch) {
+    const shouldFineTune = isOfficial
+        ? confidence < DETECTION_THRESHOLDS.JITTER_TRIGGER_MAX
+        : confidence < DETECTION_THRESHOLDS.JITTER_FINETUNE_TRIGGER;
+    if (shouldFineTune && !isScaledMatch) {
         let bestConf = confidence;
         let bestX = pos.x;
         let bestY = pos.y;
-        const jitter = 6;
+        const jitter = options.overrides?.JITTER_RANGE ?? DETECTION_THRESHOLDS.JITTER_RANGE;
+        let coarseMoved = false;
 
-        for(let dy=-jitter; dy<=jitter; dy++) {
-            for(let dx=-jitter; dx<=jitter; dx++) {
+        // Coarse relocation covers offsets larger than the fine jitter range.
+        // All positions are absolute relative to the immutable catalog anchor.
+        if (isOfficial) {
+            for (let dy = -16; dy <= 16; dy += 4) {
+                for (let dx = -16; dx <= 16; dx += 4) {
+                    if (dx === 0 && dy === 0) continue;
+                    const candidateX = pos.x + dx;
+                    const candidateY = pos.y + dy;
+                    const conf = calculateCorrelation(
+                        imageData, candidateX, candidateY,
+                        pos.width, pos.height, alphaMap, true
+                    );
+                    const penalty = (Math.abs(dx) + Math.abs(dy)) * 0.005;
+                    if (conf - penalty > bestConf) {
+                        bestConf = conf;
+                        bestX = candidateX;
+                        bestY = candidateY;
+                        coarseMoved = true;
+                    }
+                }
+            }
+        }
+
+        // Preserve the old fast path for a strong anchor that did not benefit
+        // from coarse relocation. Offset candidates continue into fine search.
+        if (!coarseMoved && confidence >= DETECTION_THRESHOLDS.JITTER_FINETUNE_TRIGGER) {
+            return { confidence, x: pos.x, y: pos.y };
+        }
+
+        const searchCenterX = bestX;
+        const searchCenterY = bestY;
+        const fineJitter = coarseMoved ? Math.min(jitter, 4) : jitter;
+
+        for(let dy=-fineJitter; dy<=fineJitter; dy++) {
+            for(let dx=-fineJitter; dx<=fineJitter; dx++) {
                 if(dx === 0 && dy === 0) continue;
+
+                const candidateX = searchCenterX + dx;
+                const candidateY = searchCenterY + dy;
 
                 let conf;
                 if (deepScan) {
                     // v2.5.1 (BUG-C1): Use the SAME weighted blend as the main probe path
                     // above and detectWatermark Phase 2. Previously this site used the old
-                    // `combined * min(gradientPenalty, 0.50)` multiplicative penalty formula,
-                    // violating DEVELOPER_GUIDE.md §5 rule 6 (three gradient sites must agree).
-                    const nccConf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
-                    const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
-                    const gradientConf = calculateGradientCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, gradientsI, gradientsA);
+                    // multiplicative scoring, keeping all scoring sites consistent.
+                    const nccConf = calculateCorrelation(imageData, candidateX, candidateY, pos.width, pos.height, alphaMap, true);
+                    const localConf = calculateLocalContrastCorrelation(imageData, candidateX, candidateY, pos.width, pos.height, alphaMap, true);
+                    const gradientConf = calculateGradientCorrelation(imageData, candidateX, candidateY, pos.width, pos.height, alphaMap, gradientsI, gradientsA);
                     const combined = Math.max(nccConf, localConf);
                     if (gradientConf < DETECTION_THRESHOLDS.GRADIENT_IGNORE_GATE) {
-                        conf = blendMultiDimensionalScore(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, combined, gradientConf);
+                        conf = blendMultiDimensionalScore(imageData, candidateX, candidateY, pos.width, pos.height, combined, gradientConf);
                     } else if (nccConf >= DETECTION_THRESHOLDS.GRADIENT_BOOST_GATE_EXACT) {
                         // Gradient boost gate for exact matches (0.12)
                         conf = Math.max(combined, gradientConf);
@@ -683,16 +682,16 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
                         conf = combined;
                     }
                 } else {
-                    const nccConf = calculateCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
-                    const localConf = calculateLocalContrastCorrelation(imageData, pos.x+dx, pos.y+dy, pos.width, pos.height, alphaMap, true);
+                    const nccConf = calculateCorrelation(imageData, candidateX, candidateY, pos.width, pos.height, alphaMap, true);
+                    const localConf = calculateLocalContrastCorrelation(imageData, candidateX, candidateY, pos.width, pos.height, alphaMap, true);
                     conf = Math.max(nccConf, localConf);
                 }
                 // Distance penalty to favor anchor positions
-                const penalty = (Math.abs(dx) + Math.abs(dy)) * 0.005;
+                const penalty = (Math.abs(candidateX - pos.x) + Math.abs(candidateY - pos.y)) * 0.005;
                 if(conf - penalty > bestConf) {
                     bestConf = conf;
-                    bestX = pos.x + dx;
-                    bestY = pos.y + dy;
+                    bestX = candidateX;
+                    bestY = candidateY;
                 }
             }
         }
@@ -702,7 +701,7 @@ export function calculateProbeConfidence(imageData, pos, alphaMap, profile = 'ge
         // a parabola to estimate the true sub-pixel peak. This reduces position
         // error by 0.5-1px on average, which compounds into better removal
         // alignment. Cost: 4 extra NCC evaluations (negligible vs jitter's 289+).
-        if (bestConf > 0.10 && bestConf < DETECTION_THRESHOLDS.JITTER_TRIGGER_MAX) {
+        if (bestConf > DETECTION_THRESHOLDS.JITTER_MIN_CONFIDENCE && bestConf < DETECTION_THRESHOLDS.JITTER_TRIGGER_MAX) {
             const nccL = calculateCorrelation(imageData, bestX - 1, bestY, pos.width, pos.height, alphaMap, true);
             const nccR = calculateCorrelation(imageData, bestX + 1, bestY, pos.width, pos.height, alphaMap, true);
             const nccU = calculateCorrelation(imageData, bestX, bestY - 1, pos.width, pos.height, alphaMap, true);

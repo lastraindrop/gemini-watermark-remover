@@ -4,10 +4,9 @@
 
 The branch is now aligned around:
 
-- Production profiles: Gemini, Doubao, Auto.
-- Experimental profile: DALL-E 3 internal only.
+- Supported profile selections: Gemini, Doubao, Auto.
 - Detection pipeline: catalog, heuristic, adaptive, global fallback, candidate validation, anchor preservation.
-- Removal pipeline: overlap NMS, multi-pass removal, weak-alpha handling, recalibration gates, halo/artifact checks.
+- Removal pipeline: shared overlap NMS, multi-pass removal, weak-alpha handling, recalibration gates, and artifact diagnostics.
 - Frontend: production profile labels, manual `auto` template mode, mobile-safe layout/toasts, accessible compare buttons.
 - Tests: explicit unit/integration/precision/audit/diagnostic/stress grouping with contract checks.
 - Documentation: README, user guide, developer guide, technical guide, roadmap, and finalization report aligned.
@@ -34,7 +33,7 @@ The branch is now aligned around:
 
 ### Frontend
 
-- Removed production UI mismatch around experimental DALL-E support.
+- Simplified profile selection to the supported registry.
 - Added manual template `auto` option.
 - Added Doubao rectangular manual dimensions and asset-key wiring.
 - Fixed mobile batch layout and toast wrapping.
@@ -52,10 +51,13 @@ The branch is now aligned around:
 
 ### Documentation and Cleanup
 
-- Cleaned ignored local artifacts: `.test-output/`, `.omo/`, and ignored report archive.
+- Removed unsupported legacy profile design remnants from runtime, UI, types, tests, and active documentation.
+- Removed dead gain estimation, unsafe edge cleanup, unreachable halo retry, and their duplicate tests.
+- Consolidated candidate geometry/NMS and asset registry behavior.
+- Cleaned generated test output and Python caches while retaining executable fixtures.
 - Updated package metadata.
 - Rewrote user/developer/technical documentation around current behavior.
-- Added finalization report.
+- Added an executable active-documentation contract.
 
 ## Short-Term Plan
 
@@ -64,7 +66,7 @@ The branch is now aligned around:
    - Include desktop and mobile viewport snapshots.
 
 2. **Real-sample regression pack**
-   - ✅ Fixture directory and metadata schema created (`tests/fixtures/user-feedback/`)
+   - Extend the executable hashed manifest in `tests/fixtures/user-feedback/manifest.json`.
    - Curate difficult Gemini offset cases, 20260520 variants, Doubao TL/BR samples, and clean negative images.
    - Track detection position drift, confidence, PSNR/MSE, and artifact flags.
 
@@ -72,21 +74,14 @@ The branch is now aligned around:
    - Record timing for Fast/Balanced/Thorough across 512, 1K, 2K, and 4K inputs.
    - Keep stress defaults bounded but allow large local runs through environment variables.
 
-4. **Frontend improvements** (from v2.7+ audit)
-   - ✅ Detection details overlay (source, tier, variant, EXIF status) in card UI.
-   - ✅ Watermark position overlay box on result images.
-   - ✅ Single-image focus mode with larger preview.
-   - ✅ Real-time batch progress with current file name.
-   - ✅ File queueing during processing (no more silent discard).
-   - ✅ Slider settings persistence across reloads.
+4. **Frontend queue and output controls**
    - Queue management: per-item retry/cancel/remove.
    - Output format selection (PNG/WebP/JPEG) in Web UI.
    - Custom output naming templates.
 
-5. **Documentation guard** ✅
-   - ✅ Technical guide, user guide, developer guide, and roadmap updated to v2.7+.
-   - ✅ Dead code cleanup: removed unused exports (`setStatusMessage`, `getOriginalStatus`).
-   - Add lightweight doc-contract test for production profile names and script names.
+5. **Release automation**
+   - Run active-documentation, SDK, profile and test-group contracts in CI.
+   - Generate a reproducible release verification summary from test-group results.
 
 ## Mid-Term Plan
 
@@ -95,7 +90,8 @@ The branch is now aligned around:
    - Reduce inline special cases in `watermarkEngine.js`.
 
 2. **Perceptual quality metrics**
-   - Add SSIM or a local perceptual score alongside PSNR/MSE.
+   - Add real sliding-window SSIM or a local perceptual score alongside PSNR/MSE.
+   - Deprecate the PSNR-derived compatibility `calculateSSIM` alias before v3.
    - Use it in precision/audit layers to catch subtle bias.
 
 3. **Adaptive threshold policy**
@@ -105,8 +101,12 @@ The branch is now aligned around:
    - Evaluate NCC and Sobel kernels for WebAssembly acceleration.
    - Gate behind benchmarks before adoption.
 
-5. **Experimental profile promotion path**
-   - Define what DALL-E or any future profile must satisfy before becoming production: real assets, catalog coverage, UI copy, CLI behavior, and real-sample regression.
+5. **New profile admission contract**
+   - Require real assets, catalog coverage, entry-point parity, UI copy, and real-sample regression before registration.
+
+6. **Authoritative artifact rollback**
+   - Replace scene-luminance halo diagnostics with before/after reference-delta metrics.
+   - Permit automatic rejection or retry only after the metric has deterministic acceptance and rollback tests.
 
 ## Long-Term Plan
 

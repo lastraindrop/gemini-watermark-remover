@@ -1,5 +1,7 @@
 # 综合阶段计划 v2.6 — 现阶段诊断、根因与修复蓝图
 
+> ⚠️ **历史归档（2026-07-01）**：本文基于 v2.5.1/v2.6 前期代码，仅保留用于追溯。不要据此实现或判断当前行为；现行合同参见 [ROADMAP.md](./ROADMAP.md) 与 [TECHNICAL_GUIDE.md](./TECHNICAL_GUIDE.md)。
+
 > **文档版本**: 2026-06-16 完整诊断（基于 2026-06-14 v2.5.1 基线的增量更新）  
 > **分析对象**: `@lastraindrop/gemini-watermark-remover` package.json v2.5.1  
 > **上游对比**: `@pilio/gemini-watermark-remover` v1.0.23 (GargantuaX/gemini-watermark-remover, HEAD `0cc5554`)  

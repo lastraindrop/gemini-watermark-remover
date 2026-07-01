@@ -233,7 +233,7 @@ export function detectAdaptiveWatermarkRegion({
 }) {
     const { width, height } = imageData;
 
-    // v2.3: Support rectangular watermarks (e.g. Doubao 401×173, DALL-E 120×40).
+    // Support rectangular watermarks such as Doubao 401×173.
     // Derive base width/height from config, falling back to logoSize for square profiles.
     const baseW = defaultConfig.logoWidth || defaultConfig.logoSize;
     const baseH = defaultConfig.logoHeight || defaultConfig.logoSize;
@@ -244,7 +244,7 @@ export function detectAdaptiveWatermarkRegion({
     const dimKey = isRectangular ? `${baseW}x${baseH}` : String(baseW);
     let alphaBase = alphaMaps[dimKey] || alphaMaps[baseW];
     // v2.7 C-4: Only fall back to generic 96/48 for square Gemini profiles.
-    // For rectangular profiles (Doubao 401×173, DALL-E 120×40), these
+    // For rectangular profiles such as Doubao 401×173, these
     // square fallbacks would attempt to detect the watermark using a
     // completely wrong alpha map shape — producing garbage correlations.
     if (!alphaBase && !isRectangular) {

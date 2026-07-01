@@ -774,17 +774,6 @@
         "marginBottom": 2,
         "anchor": "bottom-right"
       }
-    ],
-    "dalle3": [
-      {
-        "width": 1024,
-        "height": 1024,
-        "logoWidth": 120,
-        "logoHeight": 40,
-        "marginLeft": 20,
-        "marginBottom": 20,
-        "anchor": "bottom-left"
-      }
     ]
   }
 }

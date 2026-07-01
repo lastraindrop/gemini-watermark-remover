@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { recalibrateAlphaStrength, shouldRecalibrateAlphaStrength } from '../src/core/alphaCalibration.js';
 import { removeWatermark } from '../src/core/blendModes.js';
 import { createMockImageData, createMockAlphaMap, applyWatermark } from './test_utils.js';
-import { estimateAlphaGain } from '../src/core/applyRemoval.js';
 
 describe('Alpha Strength Calibration', () => {
 
@@ -82,54 +81,5 @@ describe('Alpha Strength Calibration', () => {
         });
 
         assert.strictEqual(result, null);
-    });
-});
-
-// v2.5: Weighted alpha gain estimation (avoid under-estimation on small watermarks)
-describe('estimateAlphaGain — Weighted Estimation', () => {
-
-    test('normal watermark (alpha ~0.15) returns gain in expected range', () => {
-        const size = 48;
-        const img = createMockImageData(256, 256, 'solid', 128);
-        const alphaMap = createMockAlphaMap(size);
-        const pos = { x: 100, y: 100, width: size, height: size };
-        // Inject watermark: alpha=0.5 at center → brightens image
-        applyWatermark(img, pos.x, pos.y, size, size, alphaMap, 255);
-        const gain = estimateAlphaGain(img, alphaMap, pos);
-        assert.ok(gain > 0.01 && gain <= 2.0, `Gain ${gain} should be in [0.01, 2.0]`);
-        assert.ok(gain < 1.5, `Normal watermark should have moderate gain, got ${gain}`);
-    });
-
-    test('faint watermark gain is in valid range', () => {
-        const size = 48;
-        const imgFaint = createMockImageData(256, 256, 'solid', 128);
-        const alphaMap = createMockAlphaMap(size);
-        const pos = { x: 100, y: 100, width: size, height: size };
-        // Faint watermark (25% strength)
-        applyWatermark(imgFaint, pos.x, pos.y, size, size, alphaMap, 64);
-        const gainFaint = estimateAlphaGain(imgFaint, alphaMap, pos);
-        assert.ok(gainFaint >= 0.01 && gainFaint <= 2.0,
-            `Faint gain ${gainFaint} should be in [0.01, 2.0]`);
-    });
-
-    test('clean image (no watermark) returns gain=1', () => {
-        const size = 96;
-        const img = createMockImageData(256, 256, 'solid', 128);
-        const alphaMap = createMockAlphaMap(size);
-        const pos = { x: 80, y: 80, width: size, height: size };
-        const gain = estimateAlphaGain(img, alphaMap, pos);
-        // On clean solid bg, weighted estimate should find no luminance difference
-        assert.ok(gain >= 0.01 && gain <= 2.0, `Clean image gain should be in range, got ${gain}`);
-    });
-
-    test('very dark background still produces valid gain', () => {
-        const size = 48;
-        const img = createMockImageData(256, 256, 'solid', 20);
-        const alphaMap = createMockAlphaMap(size);
-        const pos = { x: 100, y: 100, width: size, height: size };
-        applyWatermark(img, pos.x, pos.y, size, size, alphaMap, 255);
-        const gain = estimateAlphaGain(img, alphaMap, pos);
-        assert.ok(Number.isFinite(gain) && gain > 0,
-            `Dark background gain ${gain} should be finite and positive`);
     });
 });

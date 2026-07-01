@@ -71,7 +71,7 @@ class GeminiWatermarkRemover:
         """
         Processes a single image or a directory.
         Returns a list of result dictionaries.
-        Supports v2.1 advanced parameters: probe_threshold, fallback_threshold, gradient_penalty.
+        Supports advanced parameters: probe_threshold and fallback_threshold.
         """
         
         try:
@@ -87,8 +87,6 @@ class GeminiWatermarkRemover:
                 final_cmd.extend(["--probeThreshold", str(kwargs["probe_threshold"])])
             if "fallback_threshold" in kwargs:
                 final_cmd.extend(["--fallbackThreshold", str(kwargs["fallback_threshold"])])
-            if "gradient_penalty" in kwargs:
-                final_cmd.extend(["--gradientPenalty", str(kwargs["gradient_penalty"])])
             
             # v1.9.8 Enhancement: Use explicit timeout and capture all output
             timeout_seconds = self._calculate_timeout_seconds(input_path)

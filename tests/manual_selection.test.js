@@ -129,7 +129,6 @@ describe('Manual selection — v2.6 canvas-based', () => {
             profileSelect: { value: 'doubao' },
             performanceSelect: { value: 'balanced' },
             thresholdSlider: { value: '0.18' },
-            penaltySlider: { value: '0.30' },
             manualModeToggle: { checked: true },
             manualX: createInput('12'),
             manualY: createInput('24'),

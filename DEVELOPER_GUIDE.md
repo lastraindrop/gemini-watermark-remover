@@ -11,16 +11,17 @@ This guide documents the current engineering contract for the fork: architecture
   - New detection constants must be added here first.
 - `src/core/profiles.js`
   - Owns profile identity, anchors, tier heuristics, and asset aliases.
-  - Production profiles: `gemini`, `doubao`.
-  - `dalle3` is experimental and must not be exposed as production support without a product decision.
+  - Supported profiles: `gemini`, `doubao`.
 - `src/core/catalog.js` and `src/core/catalogs.json`
   - Own official and scaled catalog matching.
 - `src/core/detectionPipeline.js`
   - Coordinates profile selection, manual mode, asset-key resolution, catalog/heuristic/adaptive/global detection, candidate validation, and final ranking.
 - `src/core/detector.js`
   - Owns scoring primitives and search implementation.
+- `src/core/candidateGeometry.js`
+  - Owns candidate overlap geometry and NMS behavior.
 - `src/core/applyRemoval.js`
-  - Owns overlap suppression and the shared removal strategy used by engine/worker/CLI paths.
+  - Owns the shared removal strategy used by engine/worker/CLI paths.
 - `src/core/watermarkEngine.js`, `worker.js`, `workerPool.js`
   - Own runtime execution, asset loading/cache, worker fallback, and queue behavior.
 
@@ -37,6 +38,7 @@ This guide documents the current engineering contract for the fork: architecture
 
 1. Detection thresholds live in `DETECTION_THRESHOLDS`; do not scatter literals in detector or pipeline code.
 2. Performance presets live in `PERFORMANCE_PRESETS`; UI sliders may set top-level threshold overrides, but must not mutate preset-owned structural thresholds.
+   The Web sensitivity slider intentionally maps one user value to both `probeThreshold` and `fallbackThreshold`; SDK/CLI callers may tune them independently.
 3. Profile assets, catalog dimensions, and test mock dimensions must derive from profile/catalog metadata.
 4. Manual mode passes structured `manualConfig`:
 
@@ -54,7 +56,7 @@ This guide documents the current engineering contract for the fork: architecture
 ```
 
 5. Web, CLI, SDK, worker, and Python bridge must call the same core engine path or shared removal strategy. Do not fork detection behavior by entry point.
-6. Experimental profiles must be explicitly marked in code and docs.
+6. A new profile requires a real alpha asset, catalog coverage, entry-point parity, and real-sample regression tests before registration.
 
 ## 3. Detection and Removal Flow
 
@@ -74,7 +76,7 @@ Removal order:
 2. Run profile-compatible multi-pass removal.
 3. Apply weak-alpha chain when needed.
 4. Recalibrate alpha gain only when residual gates justify it.
-5. Use halo/artifact checks to stop unsafe passes.
+5. Stop on residual convergence, regression, or authoritative near-black/texture safety gates. Halo severity remains diagnostic until it is replaced by a reference-delta metric.
 
 ## 4. Adding or Changing a Profile
 
@@ -111,7 +113,9 @@ Test helpers (in `tests/helpers/`):
 - `syntheticWatermarkFactory.js`: deterministic backgrounds, alpha maps, watermark blending, region extraction
 
 User feedback fixtures:
-- `tests/fixtures/user-feedback/`: schema and directories for real-sample regression (<sftp>missed/</sftp>, <sftp>deviation/</sftp>)
+
+- `tests/fixtures/user-feedback/manifest.json`: executable case inventory, expected positions/assets, and source hashes.
+- `tests/fixtures/user-feedback/missed/`: repository-owned real missed-detection fixtures. Add other categories only when an executable test consumes them.
 
 Rules:
 
@@ -121,6 +125,7 @@ Rules:
 - Shared DOM and asset mocks live in `tests/setup.js` and `tests/test_utils.js`.
 - Do not duplicate `_loadAsset` mock logic; use `installMockAssetLoader()`.
 - Do not hardcode rectangular asset sizes in individual tests; use `resolveMockAssetDimensions()`.
+- Keep tuning values in `DETECTION_THRESHOLDS`; `tests/threshold_sot_integrity.test.js` enforces the contract.
 
 ## 6. Required Verification Before Commit
 
@@ -174,7 +179,7 @@ Post-removal bias or artifacts:
 - Check whether multiple overlapping candidates escaped NMS.
 - Compare original spatial NCC and residual NCC, not only blended confidence.
 - Check alpha gain and weak-alpha path.
-- Inspect halo/artifact stop reasons.
+- Inspect pass stop reasons and halo diagnostics; do not treat halo severity as an authoritative rejection by itself.
 
 Frontend mismatch:
 

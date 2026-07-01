@@ -131,14 +131,24 @@ describe('CLI Integration Tests', () => {
         assert.strictEqual(meta.format, 'webp');
     });
 
-    test('Experimental profiles fail explicitly in CLI', () => {
+    test('Unknown profiles fail explicitly in CLI', () => {
         const input = join(TMP_DIR, 'input.png');
-        const output = join(TMP_DIR, 'output_dalle.png');
+        const output = join(TMP_DIR, 'output_unknown.png');
 
-        const result = spawnSync('node', ['src/cli.js', '-i', input, '-o', output, '--profile', 'dalle3']);
+        const result = spawnSync('node', ['src/cli.js', '-i', input, '-o', output, '--profile', 'legacy-model']);
 
         assert.strictEqual(result.status, 1);
-        assert.match(result.stderr.toString(), /Experimental profile/);
+        assert.match(result.stderr.toString(), /Unknown profile/);
+    });
+
+    test('Auto profile reaches the shared detection pipeline', () => {
+        const input = join(TMP_DIR, 'input.png');
+        const output = join(TMP_DIR, 'output_auto.png');
+
+        const result = spawnSync('node', ['src/cli.js', '-i', input, '-o', output, '--profile', 'auto', '--json']);
+
+        assert.strictEqual(result.status, 0, `Auto profile CLI failed: ${result.stderr.toString()}`);
+        assert.ok(existsSync(output), 'Auto profile output should be created');
     });
 
     test('Error handling: Missing arguments', () => {

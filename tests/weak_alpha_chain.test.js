@@ -82,7 +82,7 @@ describe('Weak-alpha chain for large-margin watermarks (C-1)', () => {
             }
         };
 
-        applyRemovalStrategy(img, [match]);
+        const report = applyRemovalStrategy(img, [match]);
 
         // The weak-alpha chain (gain=0.6) should modify pixels in the region
         let changes = 0;
@@ -90,7 +90,7 @@ describe('Weak-alpha chain for large-margin watermarks (C-1)', () => {
             if (before[i] !== img.data[i]) changes++;
         }
         assert.ok(changes > 10,
-            `Weak-alpha chain should modify pixels (got ${changes} changes)`);
+            `Weak-alpha chain should modify pixels (got ${changes} changes): ${JSON.stringify(report)}`);
     });
 
     test('non-large-margin match does NOT short-circuit (falls through to standard)', () => {

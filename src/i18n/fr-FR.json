@@ -37,7 +37,6 @@
   "settings.model": "Modèle",
   "settings.advanced": "Advanced Configuration",
   "settings.threshold": "Detection Sensitivity",
-  "settings.penalty": "Gradient Defense",
   "settings.manualMode": "Manual Area Selection",
   "settings.autoDownload": "Téléchargement automatique",
   "view.slider": "Curseur",
