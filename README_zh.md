@@ -1,6 +1,6 @@
 [English](README.md)
 
-# Gemini & Doubao 水印检测与移除工具 (v2.7.0)
+# Gemini & Doubao 水印检测与移除工具 (v2.7.1)
 
 这是一个本地优先的水印检查、分析与移除工具，面向 Gemini 与 Doubao 图片中的可见 AI 水印。支持的 profile 选择为 `gemini`、`doubao` 与 `auto`。
 

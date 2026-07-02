@@ -61,7 +61,7 @@ function sampleBilinearAlpha(alphaMap, x, y, width, height) {
  * @param {ImageData|Object} imageData - Image data to process (will be modified in place)
  * @param {Float32Array} alphaMap - Alpha channel data
  * @param {Object} position - Watermark position {x, y, width, height}
- * @param {Object} [options] - Optional config { alphaGain: number, alphaNoiseFloor: number }
+ * @param {Object} [options] - Optional config { alphaGain: number, alphaNoiseFloor: number, alphaBias: number }
  */
 export function removeWatermark(imageData, alphaMap, position, options = {}) {
     const { x, y, width, height } = position;
@@ -72,6 +72,11 @@ export function removeWatermark(imageData, alphaMap, position, options = {}) {
     const alphaNoiseFloor = Number.isFinite(options.alphaNoiseFloor) && options.alphaNoiseFloor >= 0
         ? options.alphaNoiseFloor
         : DEFAULT_ALPHA_NOISE_FLOOR;
+    // Some captured templates contain a small positive RGB baseline. Keep the
+    // correction opt-in so exact/synthetic alpha maps retain the original math.
+    const alphaBias = Number.isFinite(options.alphaBias) && options.alphaBias >= 0
+        ? options.alphaBias
+        : 0;
 
     const logoVal = Math.fround(LOGO_VALUE);
 
@@ -104,7 +109,7 @@ export function removeWatermark(imageData, alphaMap, position, options = {}) {
             const signalAlpha = Math.max(0, rawAlpha - alphaNoiseFloor) * alphaGain;
             if (signalAlpha < ALPHA_THRESHOLD) continue;
 
-            const effectiveAlpha = Math.min(rawAlpha * alphaGain, MAX_ALPHA);
+            const effectiveAlpha = Math.min(Math.max(0, rawAlpha - alphaBias) * alphaGain, MAX_ALPHA);
             const oneMinusAlpha = Math.fround(1.0 - effectiveAlpha);
             const alphaLogo = Math.fround(effectiveAlpha * logoVal);
 

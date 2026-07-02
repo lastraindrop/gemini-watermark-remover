@@ -45,6 +45,8 @@ export interface WatermarkMatch {
   config: Record<string, unknown>;
   pos: WatermarkPosition;
   alphaMap: Float32Array;
+  alphaBias?: number;
+  assetKey?: string | null;
   confidence: number;
   profileId: string;
   source: string;
@@ -92,7 +94,7 @@ export interface MultiPassResult {
   passCount: number;
   attemptedPassCount: number;
   stopReason: 'max-passes' | 'safety-near-black' | 'safety-texture-collapse' |
-    'residual-low' | 'first-pass-sign-flip' | 'no-improvement';
+    'residual-low' | 'first-pass-sign-flip' | 'no-improvement' | 'restoration-regression';
   passes: Array<{
     index: number;
     beforeSpatialScore: number;
@@ -197,7 +199,7 @@ export function removeWatermark(
   imageData: GwrImageData,
   alphaMap: Float32Array,
   pos: WatermarkPosition,
-  options?: { alphaGain?: number; alphaNoiseFloor?: number }
+  options?: { alphaGain?: number; alphaNoiseFloor?: number; alphaBias?: number }
 ): void;
 
 export function calculateWatermarkPosition(imageWidth: number, imageHeight: number, config: Record<string, number | string>): WatermarkPosition;
@@ -282,6 +284,7 @@ export function refineSubpixelOutline(params: {
   alphaGain: number;
   baselineSpatialScore: number;
   baselineGradientScore: number;
+  alphaBias?: number;
   baselineShift?: { dx?: number; dy?: number; scale?: number };
   minGain?: number;
   shiftCandidates?: number[];
@@ -312,10 +315,11 @@ export function removeRepeatedWatermarkLayers(
     residualThreshold?: number;
     startingPassIndex?: number;
     alphaGain?: number;
+    alphaBias?: number;
   },
   alphaMapArg?: Float32Array,
   positionArg?: WatermarkPosition,
-  optionsArg?: { maxPasses?: number; residualThreshold?: number; startingPassIndex?: number; alphaGain?: number }
+  optionsArg?: { maxPasses?: number; residualThreshold?: number; startingPassIndex?: number; alphaGain?: number; alphaBias?: number }
 ): MultiPassResult;
 
 export function shouldRecalibrateAlphaStrength(params: {
@@ -330,6 +334,7 @@ export function recalibrateAlphaStrength(params: {
   position: WatermarkPosition;
   originalSpatialScore: number;
   processedSpatialScore: number;
+  alphaBias?: number;
 }): RecalibrationResult | null;
 
 export const ENGINE_LIMITS: {

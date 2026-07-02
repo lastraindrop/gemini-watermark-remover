@@ -1,6 +1,6 @@
 [中文说明](README_zh.md)
 
-# Gemini & Doubao Watermark Remover (v2.7.0)
+# Gemini & Doubao Watermark Remover (v2.7.1)
 
 Local-first browser, CLI, SDK, and Python tooling for detecting, analyzing, and removing visible AI watermarks from Gemini and Doubao images. Supported profile selections are `gemini`, `doubao`, and `auto`.
 
@@ -12,6 +12,7 @@ The engine uses deterministic image analysis and reverse alpha blending. It does
 - **False-positive defense**: candidate trial-removal validation, standard-anchor preservation, global free-mode confidence floor, and overlap-based NMS before removal.
 - **Removal fidelity**: calibrated alpha maps, weak-alpha handling, multi-pass removal for square and rectangular profiles, artifact diagnostics, and sub-pixel refinement.
 - **Frontend consistency**: Gemini/Doubao production UI, manual template `auto` mode, rectangular manual asset keys, mobile-safe layout/toasts, accessible compare buttons.
+- **Browser E2E**: production load/controls, real upload/process, compare toggle, and mobile overflow coverage with Playwright.
 - **Test architecture**: shared test asset loader, contract tests, and explicit `unit` / `integration` / `precision` / `audit` / `diagnostic` / `stress` layers.
 
 ## Architecture Overview
@@ -103,6 +104,7 @@ pnpm test:exhaustive  # all top-level tests, including diagnostic and stress
 - [Technical Guide](./TECHNICAL_GUIDE.md)
 - [Roadmap](./ROADMAP.md)
 - [Finalization Report](./reports/v2.7-finalization-report.md)
+- [Hardening Report](./reports/v2.7.1-hardening-report.md)
 
 ## License
 

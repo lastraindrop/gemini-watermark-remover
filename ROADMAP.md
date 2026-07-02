@@ -1,6 +1,6 @@
 # Roadmap - Gemini & Doubao Watermark Remover
 
-## Current Status (v2.7.0 closure)
+## Current Status (v2.7.1 closure)
 
 The branch is now aligned around:
 
@@ -11,7 +11,16 @@ The branch is now aligned around:
 - Tests: explicit unit/integration/precision/audit/diagnostic/stress grouping with contract checks.
 - Documentation: README, user guide, developer guide, technical guide, roadmap, and finalization report aligned.
 
-## Completed in v2.7.0
+## Completed in v2.7.1
+
+### Post-closure hardening (2026-07-02)
+
+- Rejected candidates whose trial restoration materially increases template residual, even when detector confidence is high.
+- Allowed adaptive/global fallback to compete whenever the best catalog candidate remains weak.
+- Made every authoritative multi-pass mutation transactional, including the first pass.
+- Calibrated captured Doubao assets with a conservative 3/255 baseline correction validated on four paired fixtures; exact external/synthetic maps remain unbiased.
+- Made the public SDK importable in plain Node by placing browser PNG assets behind dynamic imports.
+- Added a GitHub Actions standard gate for install, lint, build, `test:all`, and the Python bridge.
 
 ### Accuracy and Candidate Selection
 
@@ -62,8 +71,9 @@ The branch is now aligned around:
 ## Short-Term Plan
 
 1. **Browser E2E coverage**
-   - Add Playwright coverage for upload, drag/drop, manual selection, compare toggle, advanced settings, and batch ZIP.
-   - Include desktop and mobile viewport snapshots.
+   - Playwright covers production page load, profile controls, advanced/manual controls, real-image upload/processing, compare toggle, and mobile overflow.
+   - Still add drag/drop, manual canvas drawing, and batch ZIP download coverage.
+   - Add desktop and mobile viewport snapshots once the remaining interaction lanes are in place.
 
 2. **Real-sample regression pack**
    - Extend the executable hashed manifest in `tests/fixtures/user-feedback/manifest.json`.

@@ -1,4 +1,4 @@
-# Technical Guide - Gemini & Doubao Watermark Remover v2.7.0
+# Technical Guide - Gemini & Doubao Watermark Remover v2.7.1
 
 This guide describes the current engine principles, processing sequence, parameter ownership, and verification model. It is written as an implementation reference, not as a marketing document.
 
@@ -15,9 +15,13 @@ observed = alpha * logoColor + (1 - alpha) * background
 Reverse operation:
 
 ```text
-background = (observed - alpha * logoColor) / (1 - effectiveAlpha)
-effectiveAlpha = min(alpha * alphaGain, 0.99)
+background = (observed - effectiveAlpha * logoColor) / (1 - effectiveAlpha)
+effectiveAlpha = min(max(0, alpha - assetAlphaBias) * alphaGain, 0.99)
 ```
+
+`assetAlphaBias` defaults to zero. It is metadata of a calibrated captured asset,
+not a profile-wide constant; exact synthetic or caller-supplied alpha maps retain
+the unmodified reverse-blend equation.
 
 The result is only as good as the detected position, alpha map, and gain. Most engineering work in this branch is therefore about position accuracy, candidate validation, and avoiding over-removal.
 
@@ -110,7 +114,7 @@ Process:
 4. Try weak-alpha chain for faint large-margin cases.
 5. Use standard calibrated gain first.
 6. Recalibrate alpha only when residual gates require it.
-7. Stop when residual is low, a later pass regresses, or an authoritative safety gate triggers.
+7. Stop when residual is low, a pass with authoritative input evidence regresses, or another safety gate triggers.
 
 The important distinction is that detection confidence and spatial NCC are not interchangeable. Recalibration decisions use spatial residual measurements.
 
@@ -150,6 +154,7 @@ Single sources of truth:
 | Performance presets | `PERFORMANCE_PRESETS` |
 | Engine limits | `ENGINE_LIMITS` |
 | Profile asset aliases | `PROFILES.*.assets` |
+| Asset-specific alpha calibration | `assetRegistry.js` |
 | Catalog dimensions | `catalogs.json` |
 | Test mock dimensions | `resolveMockAssetDimensions()` |
 
@@ -191,6 +196,10 @@ Rules:
 | `all` | Standard gate: unit + integration + precision + audit + legacy |
 | `exhaustive` | All top-level tests including diagnostic and stress |
 
+Browser E2E is a separate `pnpm test:e2e` Playwright lane because it builds and
+serves the production bundle and requires Chromium/Chrome rather than Node DOM
+mocks.
+
 Validation contracts:
 
 - `tests/test_groups_contract.test.js` ensures every top-level test is assigned exactly once.
@@ -198,10 +207,11 @@ Validation contracts:
 - `tests/sdk_api.test.js` ensures package scripts expose the layered verification commands.
 - `tests/threshold_sot_integrity.test.js` verifies named threshold ownership.
 - `tests/p0_user_feedback_regression.test.js` validates real reported failures and fixture hashes.
+- `tests/doubao_paired_precision.test.js` verifies asset calibration against paired source/watermarked fixtures.
 
 ## 11. Verification Baseline
 
-The following layers were verified during the v2.7 closure:
+The following layers were verified during the v2.7.1 closure:
 
 ```bash
 pnpm lint
@@ -213,9 +223,10 @@ pnpm test:audit
 pnpm test:diagnostic
 pnpm test:stress
 pnpm test:all
+pnpm test:e2e
 ```
 
-`test:diagnostic` and `test:stress` are intentionally slow and remain outside the standard `test:all` gate. `test:exhaustive` exists for explicit full audits.
+`test:diagnostic` and `test:stress` are intentionally slow and remain outside the standard `test:all` gate. `test:e2e` is a separate browser lane and `test:exhaustive` exists for explicit full audits.
 
 ## 12. Known Technical Limits
 
@@ -276,4 +287,4 @@ Long term:
 
 The authoritative schedule is [ROADMAP.md](./ROADMAP.md); historical stage plans are diagnostic archives and must not be used as current implementation contracts.
 
-*Document version: v2.7.0, updated 2026-07-01.*
+*Document version: v2.7.1, updated 2026-07-02.*

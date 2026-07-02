@@ -21,6 +21,8 @@ test_output/
 test_output_integration/
 test_sample/
 .test-output/
+test-results/
+playwright-report/
 .diagnostics/
 .env
 python/prefs.json
@@ -31,7 +33,8 @@ python/__pycache__/
 .test_results.txt
 
 # other
-.github
+# Keep project workflows versioned; nested dependency metadata remains ignored
+# by node_modules/ above.
 code_review.*
 
 # archive (temporary work files)

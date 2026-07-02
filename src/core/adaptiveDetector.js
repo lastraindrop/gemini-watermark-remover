@@ -424,6 +424,7 @@ export function refineSubpixelOutline(params) {
         alphaGain,
         baselineSpatialScore,
         baselineGradientScore,
+        alphaBias = 0,
         baselineShift = { dx: 0, dy: 0, scale: 1 },
         minGain = OUTLINE_REFINEMENT_MIN_GAIN,
         shiftCandidates = SUBPIXEL_REFINE_SHIFTS,
@@ -461,7 +462,7 @@ export function refineSubpixelOutline(params) {
                 const warped = warpAlphaMap(alphaMap, sizeW, { dx, dy, scale }, sizeH);
                 for (const gain of gainCandidates) {
                     const candidate = { ...sourceImageData, data: new Uint8ClampedArray(sourceImageData.data) };
-                    removeWatermark(candidate, warped, position, { alphaGain: gain });
+                    removeWatermark(candidate, warped, position, { alphaGain: gain, alphaBias });
 
                     const spatialScore = calculateCorrelation(candidate, position.x, position.y, sizeW, sizeH, warped, true);
                     const gradientScore = calculateGradientCorrelation(

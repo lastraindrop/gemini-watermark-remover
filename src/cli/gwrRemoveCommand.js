@@ -11,7 +11,7 @@ import { calculateAlphaMap } from '../core/alphaMap.js';
 import { detectWatermarks } from '../core/detectionPipeline.js';
 import { PROFILES } from '../core/profiles.js';
 import { applyRemovalStrategy } from '../core/applyRemoval.js';
-import { getAssetFileName, listAssetKeys } from '../core/assetRegistry.js';
+import { getAssetDefinition, getAssetFileName, listAssetKeys } from '../core/assetRegistry.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -55,7 +55,13 @@ export class Engine {
             data: new Uint8ClampedArray(data)
         });
 
-        const result = { data: alphaMapData, width: info.width, height: info.height, assetKey };
+        const result = {
+            data: alphaMapData,
+            width: info.width,
+            height: info.height,
+            assetKey,
+            alphaBias: getAssetDefinition(assetKey)?.alphaBias || 0
+        };
         this.cache[cacheKey] = result;
         return result;
     }

@@ -46,6 +46,7 @@ export function applyRemovalStrategy(imageData, matches) {
     };
 
     for (const match of filteredMatches) {
+        const alphaBias = Number.isFinite(match.alphaBias) ? match.alphaBias : 0;
         const beforeMatch = new Uint8ClampedArray(imageData.data);
         let trace = { stopReason: 'not-run', passCount: 0, attemptedPassCount: 0 };
         try {
@@ -87,7 +88,8 @@ export function applyRemovalStrategy(imageData, matches) {
                     position: match.pos,
                     maxPasses: DETECTION_THRESHOLDS.WEAK_ALPHA_MAX_PASSES,
                     residualThreshold: DETECTION_THRESHOLDS.MULTIPASS_RESIDUAL_THRESHOLD,
-                    alphaGain: DETECTION_THRESHOLDS.WEAK_ALPHA_GAIN  // 0.6
+                    alphaGain: DETECTION_THRESHOLDS.WEAK_ALPHA_GAIN,  // 0.6
+                    alphaBias
                 });
                 const waLastPass = weakAlphaResult.passes[weakAlphaResult.passes.length - 1];
                 if (waLastPass &&
@@ -119,13 +121,13 @@ export function applyRemovalStrategy(imageData, matches) {
             // Pre-scaling the alpha map once and letting the multi-pass run with
             // its natural gain=1 avoids this accumulation.
             const scaledAlpha = alphaGain !== 1
-                ? Float32Array.from(match.alphaMap, v => v * alphaGain)
+                ? Float32Array.from(match.alphaMap, v => Math.max(0, v - alphaBias) * alphaGain + alphaBias)
                 : match.alphaMap;
 
             // v2.5: forceProcess skips multi-pass safety gates — use single-pass
             // for difficult images where near-black/over-correction checks abort.
             if (match.config?.forceProcess) {
-                removeWatermark(imageData, scaledAlpha, match.pos);
+                removeWatermark(imageData, scaledAlpha, match.pos, { alphaBias });
                 trace = { stopReason: 'forced-single-pass', passCount: 1, attemptedPassCount: 1, alphaGain };
                 continue;
             }
@@ -135,7 +137,8 @@ export function applyRemovalStrategy(imageData, matches) {
                 alphaMap: scaledAlpha,
                 position: match.pos,
                 maxPasses: 4,
-                residualThreshold: DETECTION_THRESHOLDS.MULTIPASS_RESIDUAL_THRESHOLD
+                residualThreshold: DETECTION_THRESHOLDS.MULTIPASS_RESIDUAL_THRESHOLD,
+                alphaBias
             });
 
             const effectiveResult = multiPassResult;
@@ -169,7 +172,8 @@ export function applyRemovalStrategy(imageData, matches) {
                     position: match.pos,
                     alphaGain,
                     baselineSpatialScore: Math.abs(lastPass.afterSpatialScore),
-                    baselineGradientScore: lastPass.afterGradientScore || 0
+                    baselineGradientScore: lastPass.afterGradientScore || 0,
+                    alphaBias
                 });
                 if (refined) {
                     imageData.data.set(refined.imageData.data);
@@ -195,7 +199,8 @@ export function applyRemovalStrategy(imageData, matches) {
                         alphaMap: match.alphaMap,
                         position: match.pos,
                         originalSpatialScore,
-                        processedSpatialScore: Math.abs(lastPass.afterSpatialScore)
+                        processedSpatialScore: Math.abs(lastPass.afterSpatialScore),
+                        alphaBias
                     });
                     if (recalibrated) {
                         imageData.data.set(recalibrated.imageData.data);
@@ -228,7 +233,7 @@ export function applyRemovalStrategy(imageData, matches) {
                 alphaGain
             };
         } else {
-            removeWatermark(imageData, match.alphaMap, match.pos);
+            removeWatermark(imageData, match.alphaMap, match.pos, { alphaBias });
             trace = { stopReason: 'single-pass', passCount: 1, attemptedPassCount: 1, alphaGain: 1 };
         }
         } finally {

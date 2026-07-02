@@ -58,7 +58,8 @@ export function recalibrateAlphaStrength(params) {
         alphaMap,
         position,
         originalSpatialScore,
-        processedSpatialScore
+        processedSpatialScore,
+        alphaBias = 0
     } = params;
 
     const sizeW = position.width;
@@ -73,7 +74,7 @@ export function recalibrateAlphaStrength(params) {
     // Coarse search over predefined gain candidates
     for (const alphaGain of ALPHA_GAIN_CANDIDATES) {
         const candidate = cloneImageData(sourceImageData);
-        removeWatermark(candidate, alphaMap, position, { alphaGain });
+        removeWatermark(candidate, alphaMap, position, { alphaGain, alphaBias });
         const candidateNearBlackRatio = calculateNearBlackRatio(candidate, position);
         if (candidateNearBlackRatio > maxAllowedNearBlackRatio) {
             continue;
@@ -99,7 +100,7 @@ export function recalibrateAlphaStrength(params) {
     for (const alphaGain of refinedCandidates) {
         if (alphaGain <= 0.8 || alphaGain >= 3) continue;
         const candidate = cloneImageData(sourceImageData);
-        removeWatermark(candidate, alphaMap, position, { alphaGain });
+        removeWatermark(candidate, alphaMap, position, { alphaGain, alphaBias });
         const candidateNearBlackRatio = calculateNearBlackRatio(candidate, position);
         if (candidateNearBlackRatio > maxAllowedNearBlackRatio) {
             continue;

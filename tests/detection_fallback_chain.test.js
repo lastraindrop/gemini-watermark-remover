@@ -22,6 +22,54 @@ function getAlphaMapFn(specificAlpha = null) {
 
 describe('Detection Fallback Chain', () => {
 
+    test('weak catalog candidate does not suppress a stronger relocated fallback', async () => {
+        const width = 256;
+        const height = 256;
+        const size = 48;
+        const alphaMap = createMockAlphaMap(size, size);
+        const imageData = createMockImageData(width, height, 'solid', 120);
+        const catalogPosition = { x: width - 32 - size, y: height - 32 - size };
+        const actualPosition = { x: 80, y: 80 };
+
+        let seed = 12345;
+        const random = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 4294967296;
+        };
+        const weakCatalogPattern = Float32Array.from(
+            alphaMap,
+            value => Math.min(0.6, value * 0.1 + random() * 0.225)
+        );
+        applyWatermark(imageData, catalogPosition.x, catalogPosition.y, size, size, weakCatalogPattern, 255);
+        applyWatermark(imageData, actualPosition.x, actualPosition.y, size, size, alphaMap, 255);
+
+        const result = await detectProfileWatermarks({
+            imageData,
+            profileId: 'gemini',
+            getAlphaMap: async key => ({ data: alphaMap, width: size, height: size, assetKey: String(key) }),
+            options: {
+                adaptiveMode: 'off',
+                candidateValidation: false,
+                deepScan: false,
+                fallbackThreshold: 0.15,
+                globalFallbackBelow: 0.95,
+                globalFreeMinConfidence: 0.2,
+                probeThreshold: 0.15,
+                overrides: {
+                    RANGE_X: 0.9,
+                    RANGE_Y: 0.9,
+                    THRESHOLDS: { COARSE: 0.05, FINAL_FREE: 0.05 }
+                }
+            }
+        });
+
+        assert.ok(result.winner, JSON.stringify(result.trace));
+        assert.ok(result.winner.source.startsWith('global-'), JSON.stringify(result.trace));
+        assert.ok(Math.abs(result.winner.pos.x - actualPosition.x) <= 1, JSON.stringify(result.trace));
+        assert.ok(Math.abs(result.winner.pos.y - actualPosition.y) <= 1, JSON.stringify(result.trace));
+        assert.ok(result.confidence > 0.95, `confidence=${result.confidence}`);
+    });
+
     test('Empty result at extreme threshold on clean image', async () => {
         const img = createMockImageData(W, H, 'solid', 128);
         const result = await detectProfileWatermarks({

@@ -178,15 +178,14 @@ describe('BUG-C8 A-4: end-to-end catalog -> asset key resolution', () => {
 });
 
 describe('BUG-C8 A-4: WatermarkEngine asset wiring', () => {
-    // watermarkEngine.js imports PNGs (Node can't load them), so verify the
-    // wiring statically: the import declaration, INLINE_ASSETS registration,
-    // and the _loadAsset key-normalization that lets '96-20260520' resolve.
+    // Binary assets stay behind dynamic imports so the SDK itself remains
+    // importable by plain Node while browser builds can still inline PNGs.
 
     test('source imports bg_96_20260520.png', () => {
         const src = readFileSync(ENGINE_SRC, 'utf8');
         assert.match(src,
-            /import\s+\w+\s+from\s+['"]\.\.\/assets\/bg_96_20260520\.png['"]/,
-            'watermarkEngine.js must import bg_96_20260520.png');
+            /import\(['"]\.\.\/assets\/bg_96_20260520\.png['"]\)/,
+            'watermarkEngine.js must dynamically import bg_96_20260520.png');
     });
 
     test('INLINE_ASSETS registers the "bg_96_20260520" key', () => {

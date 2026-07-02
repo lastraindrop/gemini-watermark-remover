@@ -1,4 +1,4 @@
-# Developer Guide (v2.7.0)
+# Developer Guide (v2.7.1)
 
 This guide documents the current engineering contract for the fork: architecture, parameter ownership, test layering, documentation rules, and release checks.
 
@@ -11,7 +11,7 @@ This guide documents the current engineering contract for the fork: architecture
   - New detection constants must be added here first.
 - `src/core/profiles.js`
   - Owns profile identity, anchors, tier heuristics, and asset aliases.
-  - Supported profiles: `gemini`, `doubao`.
+  - Supported profiles: `gemini`, `doubao`, and the virtual `auto` selector.
 - `src/core/catalog.js` and `src/core/catalogs.json`
   - Own official and scaled catalog matching.
 - `src/core/detectionPipeline.js`
@@ -143,6 +143,7 @@ For changes affecting detection, removal, frontend wiring, or test infrastructur
 pnpm lint
 pnpm build
 pnpm test:all
+pnpm test:e2e
 ```
 
 For accuracy or memory work, also run the relevant slow layers:

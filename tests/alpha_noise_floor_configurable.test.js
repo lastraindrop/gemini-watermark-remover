@@ -86,4 +86,17 @@ describe('ALPHA_NOISE_FLOOR configurability (A-7)', () => {
         const centerIdx = (24 * 48 + 24) * 4;
         assert.strictEqual(img.data[centerIdx], 200, 'pixel should be unchanged when noise floor > alpha');
     });
+
+    test('alphaBias corrects a captured-template baseline without changing the default', () => {
+        const alphaMap = makeAlphaMap(1, 0.2);
+        const pos = { x: 0, y: 0, width: 1, height: 1 };
+        const defaultResult = makeSyntheticImage(1, 1, 180);
+        const biasedResult = makeSyntheticImage(1, 1, 180);
+
+        removeWatermark(defaultResult, alphaMap, pos);
+        removeWatermark(biasedResult, alphaMap, pos, { alphaBias: 3 / 255 });
+
+        assert.ok(biasedResult.data[0] > defaultResult.data[0],
+            'subtracting positive alpha baseline should reduce dark over-correction');
+    });
 });

@@ -46,6 +46,12 @@ export const DETECTION_THRESHOLDS = {
     POSITION_TOLERANCE_MIN_PX: 4,
     JITTER_MIN_CONFIDENCE: 0.10,
 
+    // Candidate restoration validation
+    CANDIDATE_MAX_NEAR_BLACK_INCREASE: 0.05,
+    CANDIDATE_MIN_RESTORATION_IMPROVEMENT: 0.02,
+    CANDIDATE_MAX_RESTORATION_REGRESSION: 0.005,
+    CANDIDATE_STRONG_SIGNAL_MIN_CONFIDENCE: 0.40,
+
     // Search geometry
     SEARCH_RANGE_X: 0.90,      // v2.3: expanded from 0.75
     SEARCH_RANGE_Y: 0.90,      // v2.3: expanded from 0.75

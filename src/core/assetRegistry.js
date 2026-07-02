@@ -17,17 +17,21 @@ const ASSET_DEFINITIONS = Object.freeze({
         variant: '20260520',
         sha256: 'B1FF0AE3DF78FF9DA540851E8728C10E5C35BDFE25AAD821C786C5491717B511'
     },
-    doubao: { fileName: 'bg_doubao.png', inlineName: 'bg_doubao', profileId: 'doubao' },
-    doubao_br: { fileName: 'bg_doubao_br.png', inlineName: 'bg_doubao_br', profileId: 'doubao' },
-    doubao_br_tall: { fileName: 'bg_doubao_br_tall.png', inlineName: 'bg_doubao_br_tall', profileId: 'doubao' },
-    doubao_tl: { fileName: 'bg_doubao_tl.png', inlineName: 'bg_doubao_tl', profileId: 'doubao' },
-    doubao_tl_tall: { fileName: 'bg_doubao_tl_tall.png', inlineName: 'bg_doubao_tl_tall', profileId: 'doubao' },
-    doubao_br_2k_tpl: { fileName: 'doubao_br_2k_tpl.png', inlineName: 'doubao_br_2k_tpl', profileId: 'doubao' },
-    doubao_tl_2k_tpl: { fileName: 'doubao_tl_2k_tpl.png', inlineName: 'doubao_tl_2k_tpl', profileId: 'doubao' },
+    // Paired source/watermarked fixtures show a ~3/255 RGB baseline in the
+    // captured Doubao assets. Calibration belongs to these assets, not to the
+    // profile, because callers may supply an exact synthetic alpha map.
+    doubao: { fileName: 'bg_doubao.png', inlineName: 'bg_doubao', profileId: 'doubao', alphaBias: 3 / 255 },
+    doubao_br: { fileName: 'bg_doubao_br.png', inlineName: 'bg_doubao_br', profileId: 'doubao', alphaBias: 3 / 255 },
+    doubao_br_tall: { fileName: 'bg_doubao_br_tall.png', inlineName: 'bg_doubao_br_tall', profileId: 'doubao', alphaBias: 3 / 255 },
+    doubao_tl: { fileName: 'bg_doubao_tl.png', inlineName: 'bg_doubao_tl', profileId: 'doubao', alphaBias: 3 / 255 },
+    doubao_tl_tall: { fileName: 'bg_doubao_tl_tall.png', inlineName: 'bg_doubao_tl_tall', profileId: 'doubao', alphaBias: 3 / 255 },
+    doubao_br_2k_tpl: { fileName: 'doubao_br_2k_tpl.png', inlineName: 'doubao_br_2k_tpl', profileId: 'doubao', alphaBias: 3 / 255 },
+    doubao_tl_2k_tpl: { fileName: 'doubao_tl_2k_tpl.png', inlineName: 'doubao_tl_2k_tpl', profileId: 'doubao', alphaBias: 3 / 255 },
     doubao_tl_refined_mask: {
         fileName: 'doubao_tl_refined_mask.png',
         inlineName: 'doubao_tl_refined_mask',
-        profileId: 'doubao'
+        profileId: 'doubao',
+        alphaBias: 3 / 255
     },
     '373x165': { aliasFor: 'doubao' },
     '307x167': { aliasFor: 'doubao_tl' },

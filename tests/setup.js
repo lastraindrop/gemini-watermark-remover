@@ -251,6 +251,9 @@ export function installMockAssetLoader(engine, { createMockAlphaMap, alphaToRGBA
         const alpha = createMockAlphaMap(width, height);
         const rgba = alphaToRGBA(alpha, width, height);
         const img = createMockImageElement(width, height, rgba);
+        // Synthetic maps are exact mathematical alpha, not captured PNGs with
+        // the positive baseline calibrated in the production asset registry.
+        img.__gwrAlphaBias = 0;
         cache.set(assetKey, img);
         return img;
     };

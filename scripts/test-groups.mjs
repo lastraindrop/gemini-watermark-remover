@@ -86,6 +86,7 @@ export const TEST_GROUPS = Object.freeze({
         t('detection_offset_tolerance'),
         t('detection_recall'),
         t('doubao'),
+        t('doubao_paired_precision'),
         t('e2e_integration'),
         t('parameter_matrix'),
         t('real_sample'),

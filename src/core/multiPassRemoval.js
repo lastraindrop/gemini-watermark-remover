@@ -91,6 +91,9 @@ export function removeRepeatedWatermarkLayers(imageDataOrOptions, alphaMapArg, p
     const alphaGain = Number.isFinite(options.alphaGain) && options.alphaGain > 0
         ? options.alphaGain
         : 1;
+    const alphaBias = Number.isFinite(options.alphaBias) && options.alphaBias >= 0
+        ? options.alphaBias
+        : 0;
 
     let currentImageData = cloneImageData(imageData);
     const referenceImageData = currentImageData;
@@ -110,7 +113,7 @@ export function removeRepeatedWatermarkLayers(imageDataOrOptions, alphaMapArg, p
         const before = scoreRegion(currentImageData, alphaMap, position);
         const beforeGradient = calculateGradientCorrelation(currentImageData, position.x, position.y, position.width, position.height, alphaMap, gradientsI, gradientsA);
         const candidate = cloneImageData(currentImageData);
-        removeWatermark(candidate, alphaMap, position, { alphaGain });
+        removeWatermark(candidate, alphaMap, position, { alphaGain, alphaBias });
 
         const after = scoreRegion(candidate, alphaMap, position);
         const afterGradient = calculateGradientCorrelation(candidate, position.x, position.y, position.width, position.height, alphaMap, gradientsI, gradientsA);
@@ -134,11 +137,14 @@ export function removeRepeatedWatermarkLayers(imageDataOrOptions, alphaMapArg, p
             break;
         }
 
-        // The first pass is allowed after the independent safety gates. Later
-        // passes are transactional: a material residual regression cannot
-        // overwrite the best accepted image from an earlier pass.
-        if (passIndex > 0 && improvement < -MAX_PASS_REGRESSION) {
-            stopReason = 'no-improvement';
+        // Every pass is transactional, including the first. Input confidence
+        // is not permission to commit a restoration that makes the measured
+        // template residual materially worse.
+        // At low baseline NCC, natural scene texture can dominate the signed
+        // correlation after a mathematically correct removal. Only use NCC as
+        // a rollback authority when the input had a meaningful template signal.
+        if (Math.abs(before.spatialScore) >= 0.25 && improvement < -MAX_PASS_REGRESSION) {
+            stopReason = 'restoration-regression';
             break;
         }
 

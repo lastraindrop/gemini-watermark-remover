@@ -87,6 +87,58 @@ describe('P0 user-feedback regressions', () => {
         assert.ok(afterNCC < beforeNCC, `residual did not improve: ${beforeNCC} -> ${afterNCC}`);
     });
 
+    test('known halo fixture rejects the worsening 96px candidate end to end', async () => {
+        const fixture = manifest.cases.find(entry => entry.id === 'halo-false-positive-001');
+        const imageData = await loadImageData(path.join(ROOT, fixture.input));
+        const original = new Uint8ClampedArray(imageData.data);
+        const detection = await detectWatermarks({
+            imageData,
+            profileId: fixture.profileId,
+            getAlphaMap: makeAssetProvider(),
+            options: { deepScan: true }
+        });
+
+        assert.ok(detection.winner, JSON.stringify(detection.trace));
+        assert.deepStrictEqual(
+            {
+                x: detection.winner.pos.x,
+                y: detection.winner.pos.y,
+                width: detection.winner.pos.width,
+                height: detection.winner.pos.height
+            },
+            fixture.expected.position
+        );
+        assert.strictEqual(detection.matches.length, 1, JSON.stringify(detection.trace));
+        assert.ok(
+            detection.trace.validations.some(validation =>
+                validation.pos.width === 96 &&
+                validation.accepted === false &&
+                validation.reason === 'restoration-regression'
+            ),
+            JSON.stringify(detection.trace)
+        );
+
+        const report = applyRemovalStrategy(imageData, detection.matches);
+        assert.strictEqual(report.acceptedCount, 1);
+        assert.strictEqual(report.appliedCount, 1);
+
+        const pos = fixture.expected.position;
+        for (let y = 0; y < imageData.height; y++) {
+            for (let x = 0; x < imageData.width; x++) {
+                const inside = x >= pos.x && x < pos.x + pos.width && y >= pos.y && y < pos.y + pos.height;
+                if (inside) continue;
+                const index = (y * imageData.width + x) << 2;
+                for (let channel = 0; channel < 4; channel++) {
+                    assert.strictEqual(
+                        imageData.data[index + channel],
+                        original[index + channel],
+                        `pixel outside accepted region changed at (${x}, ${y}) channel ${channel}`
+                    );
+                }
+            }
+        }
+    });
+
     test('20260520 missed fixture resolves the alternate asset at the catalog anchor', async () => {
         const fixture = manifest.cases.find(entry => entry.id === 'gemini-20260520-missed-001');
         const imageData = await loadImageData(path.join(ROOT, fixture.input));

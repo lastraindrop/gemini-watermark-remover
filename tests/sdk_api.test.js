@@ -2,6 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import * as sdk from '../src/sdk/index.js';
 
 describe('Public SDK API', () => {
@@ -52,6 +53,17 @@ describe('Public SDK API', () => {
         ]) {
             assert.ok(key in sdk, `Missing SDK export: ${key}`);
         }
+    });
+
+    test('SDK imports in plain Node without a custom PNG loader', () => {
+        const result = spawnSync(process.execPath, [
+            '--input-type=module',
+            '--eval',
+            "import('./src/sdk/index.js').then(m => console.log(typeof m.WatermarkEngine))"
+        ], { cwd: process.cwd(), encoding: 'utf8' });
+
+        assert.strictEqual(result.status, 0, result.stderr);
+        assert.match(result.stdout, /function/);
     });
 
     test('SDK quality compatibility aliases match their documented behavior', () => {

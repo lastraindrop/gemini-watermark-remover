@@ -1,7 +1,7 @@
 {
   "name": "@lastraindrop/gemini-watermark-remover",
   "description": "Local detection, analysis, and removal of visible Gemini and Doubao AI watermarks",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "author": "lastraindrop contributors",
   "repository": {
     "type": "git",
@@ -51,6 +51,7 @@
     "test:python": "python -m unittest tests\\test_bridge_integration.py",
     "test:worker": "node scripts/test-groups.mjs worker --reporter=dot",
     "test:stress": "node scripts/test-groups.mjs stress --reporter=dot",
+    "test:e2e": "playwright test",
     "cli": "node src/cli.js",
     "gui": "python python/gui.py",
     "lint": "eslint src",
@@ -63,6 +64,7 @@
     "sharp": "^0.34.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "esbuild": "^0.24.2",
     "eslint": "^9.1.1",
     "prettier": "^3.2.5",

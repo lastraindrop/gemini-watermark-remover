@@ -35,10 +35,11 @@ function normalizeAlphaMap(alphaMap, width, height, assetKey) {
             data: alphaMap.data,
             width: alphaMap.width || width,
             height: alphaMap.height || height,
-            assetKey: alphaMap.assetKey || assetKey
+            assetKey: alphaMap.assetKey || assetKey,
+            alphaBias: alphaMap.alphaBias || 0
         };
     }
-    return { data: alphaMap, width, height, assetKey };
+    return { data: alphaMap, width, height, assetKey, alphaBias: 0 };
 }
 
 async function tryGetAlphaMap(getAlphaMap, assetKey, width, height) {
@@ -49,9 +50,10 @@ async function tryGetAlphaMap(getAlphaMap, assetKey, width, height) {
     }
 }
 
-function addAlphaMap(alphaMaps, alphaMap) {
+function addAlphaMap(alphaMaps, alphaMap, metadata) {
     if (!alphaMap?.data) return;
     const { width, height, assetKey } = alphaMap;
+    metadata.set(alphaMap.data, { assetKey: assetKey || null, alphaBias: alphaMap.alphaBias || 0 });
     alphaMaps[`${width}x${height}`] = alphaMap.data;
     if (width === height) alphaMaps[String(width)] = alphaMap.data;
     if (assetKey) alphaMaps[String(assetKey)] = alphaMap.data;
@@ -59,6 +61,10 @@ function addAlphaMap(alphaMaps, alphaMap) {
 
 function upsertMatch(matches, match) {
     upsertBestOverlappingCandidate(matches, match);
+}
+
+function isCatalogBacked(match) {
+    return match?.config?.isOfficial || match?.config?.scaledFrom || match?.source === 'catalog-probe';
 }
 
 function createConfigFromDetection(imageData, detection) {
@@ -78,10 +84,6 @@ function createConfigFromDetection(imageData, detection) {
         config.logoHeight = detection.height;
     }
     return config;
-}
-
-function isCatalogBacked(match) {
-    return match?.config?.isOfficial || match?.config?.scaledFrom || match?.source === 'catalog-probe';
 }
 
 function validateManualConfig(imageData, manualConfig) {
@@ -133,25 +135,25 @@ function isNearExpectedAnchor(imageData, detection, profileId, options = {}) {
     return false;
 }
 
-async function ensureFallbackAlphaMaps(profileId, getAlphaMap, alphaMaps) {
+async function ensureFallbackAlphaMaps(profileId, getAlphaMap, alphaMaps, metadata) {
     const profile = getProfile(profileId);
     if (profile.assets) {
         for (const assetKey of Object.values(profile.assets)) {
             const existingKey = Object.keys(alphaMaps).find(k => k === assetKey);
             if (!existingKey) {
                 const map = await tryGetAlphaMap(getAlphaMap, assetKey, undefined, undefined);
-                if (map) addAlphaMap(alphaMaps, map);
+                if (map) addAlphaMap(alphaMaps, map, metadata);
             }
         }
     }
     if (profile.defaultAsset) {
         const map = await tryGetAlphaMap(getAlphaMap, String(profile.defaultAsset), undefined, undefined);
-        addAlphaMap(alphaMaps, map);
+        addAlphaMap(alphaMaps, map, metadata);
     }
     if (profileId === 'gemini') {
         for (const size of [48, 96]) {
             const map = await tryGetAlphaMap(getAlphaMap, String(size), size, size);
-            addAlphaMap(alphaMaps, map);
+            addAlphaMap(alphaMaps, map, metadata);
         }
     }
 }
@@ -239,6 +241,8 @@ export async function detectProfileWatermarks({
                     config: matchConfig,
                     pos: { x: verification.x, y: verification.y, width, height, anchor: 'manual' },
                     alphaMap: alphaMap.data,
+                    alphaBias: alphaMap.alphaBias,
+                    assetKey: alphaMap.assetKey,
                     confidence,
                     profileId: profile.id,
                     source: forceProcess ? 'manual-forced' : 'manual-input'
@@ -247,6 +251,8 @@ export async function detectProfileWatermarks({
                     config: matchConfig,
                     pos: { x: verification.x, y: verification.y, width, height, anchor: 'manual' },
                     alphaMap: alphaMap.data,
+                    alphaBias: alphaMap.alphaBias,
+                    assetKey: alphaMap.assetKey,
                     confidence,
                     profileId: profile.id,
                     source: forceProcess ? 'manual-forced' : 'manual-input'
@@ -260,6 +266,7 @@ export async function detectProfileWatermarks({
     
     const matches = [];
     const alphaMaps = {};
+    const alphaMapMetadata = new WeakMap();
 
     // Phase 1.4: Resolve initial template config - compare 48px vs 96px NCC
     // to dynamically select the best template size before full probe
@@ -297,7 +304,7 @@ export async function detectProfileWatermarks({
         const assetKey = resolveAssetKey(profile, config, pos);
         const alphaMap = await tryGetAlphaMap(getAlphaMap, assetKey, pos.width, pos.height);
         if (!alphaMap) continue;
-        addAlphaMap(alphaMaps, alphaMap);
+        addAlphaMap(alphaMaps, alphaMap, alphaMapMetadata);
 
         const verification = calculateProbeConfidence(
             imageData,
@@ -317,6 +324,8 @@ export async function detectProfileWatermarks({
                 config,
                 pos: { ...pos, x: verification.x, y: verification.y },
                 alphaMap: alphaMap.data,
+                alphaBias: alphaMap.alphaBias,
+                assetKey: alphaMap.assetKey,
                 confidence: verification.confidence,
                 profileId: profile.id,
                 source: config.isOfficial ? 'catalog-probe' : 'heuristic-probe'
@@ -327,8 +336,6 @@ export async function detectProfileWatermarks({
     matches.sort((a, b) => b.confidence - a.confidence);
 
     const fallbackBelow = options.globalFallbackBelow ?? DETECTION_THRESHOLDS.GLOBAL_FALLBACK_BELOW;
-    const hasCatalogBackedMatch = matches.some(match => isCatalogBacked(match));
-
     // Phase 2.3: Adaptive multi-scale detection when catalog probes are weak.
     // v2.6: Removed the hasCatalogBackedMatch exclusion. Previously, a weak
     // catalog-backed match (confidence < fallbackBelow) would suppress adaptive
@@ -339,7 +346,7 @@ export async function detectProfileWatermarks({
         (profileId === 'gemini' || profileId === 'doubao') &&
         (matches.length === 0 || matches[0].confidence < fallbackBelow);
     if (shouldRunAdaptive) {
-        await ensureFallbackAlphaMaps(profile.id, getAlphaMap, alphaMaps);
+        await ensureFallbackAlphaMaps(profile.id, getAlphaMap, alphaMaps, alphaMapMetadata);
         const defaultConfig = profile.getHeuristicConfig
             ? profile.getHeuristicConfig(imageData.width, imageData.height)
             : { logoSize: 96, marginRight: 64, marginBottom: 64 };
@@ -371,6 +378,8 @@ export async function detectProfileWatermarks({
                         anchor: config.anchor
                     },
                     alphaMap,
+                    alphaBias: alphaMapMetadata.get(alphaMap)?.alphaBias || 0,
+                    assetKey: alphaMapMetadata.get(alphaMap)?.assetKey || null,
                     confidence: adaptiveResult.confidence,
                     profileId: profile.id,
                     source: 'adaptive-search'
@@ -379,11 +388,15 @@ export async function detectProfileWatermarks({
         }
     }
 
+    // Adaptive insertion may change the best candidate. Re-rank before deciding
+    // whether the bounded/global fallback is still required.
+    matches.sort((a, b) => b.confidence - a.confidence);
+
     const shouldRunGlobalFallback = options.globalFallback !== false &&
-        (matches.length === 0 || (!hasCatalogBackedMatch && matches[0].confidence < fallbackBelow));
+        (matches.length === 0 || matches[0].confidence < fallbackBelow);
 
     if (shouldRunGlobalFallback) {
-        await ensureFallbackAlphaMaps(profile.id, getAlphaMap, alphaMaps);
+        await ensureFallbackAlphaMaps(profile.id, getAlphaMap, alphaMaps, alphaMapMetadata);
     }
     if (shouldRunGlobalFallback && Object.keys(alphaMaps).length > 0) {
         const detection = detectWatermark(imageData, alphaMaps, detectionOptions);
@@ -408,6 +421,8 @@ export async function detectProfileWatermarks({
                         anchor: config.anchor
                     },
                     alphaMap,
+                    alphaBias: alphaMapMetadata.get(alphaMap)?.alphaBias || 0,
+                    assetKey: alphaMapMetadata.get(alphaMap)?.assetKey || null,
                     confidence: detection.confidence,
                     profileId: profile.id,
                     source: `global-${detection.mode || 'search'}`
@@ -432,8 +447,10 @@ export async function detectProfileWatermarks({
         config: { ...match.config }
     }));
     const validationTrace = [];
-    const MAX_NEAR_BLACK_INCREASE = 0.05;  // 5% new black pixels = likely false positive
-    const MIN_IMPROVEMENT = 0.02;  // removal must reduce NCC by at least this
+    const MAX_NEAR_BLACK_INCREASE = DETECTION_THRESHOLDS.CANDIDATE_MAX_NEAR_BLACK_INCREASE;
+    const MIN_IMPROVEMENT = DETECTION_THRESHOLDS.CANDIDATE_MIN_RESTORATION_IMPROVEMENT;
+    const MAX_REGRESSION = DETECTION_THRESHOLDS.CANDIDATE_MAX_RESTORATION_REGRESSION;
+    const STRONG_SIGNAL_MIN_CONFIDENCE = DETECTION_THRESHOLDS.CANDIDATE_STRONG_SIGNAL_MIN_CONFIDENCE;
 
     if (matches.length > 0 && options.candidateValidation !== false) {
         const validatedMatches = [];
@@ -455,7 +472,7 @@ export async function detectProfileWatermarks({
 
             // Use the match's alphaMap (already loaded)
             try {
-                removeWatermark(trialImage, match.alphaMap, match.pos);
+                removeWatermark(trialImage, match.alphaMap, match.pos, { alphaBias: match.alphaBias || 0 });
             } catch {
                 // If removal crashes, the candidate is definitely bad
                 validationTrace.push({ source: match.source, pos: { ...match.pos }, accepted: false, reason: 'trial-error' });
@@ -486,9 +503,26 @@ export async function detectProfileWatermarks({
             ));
             const improvement = baselineNCC - postNCC;
 
+            // Confidence describes watermark-like input evidence; it cannot
+            // authorize a restoration that measurably makes the template
+            // residual worse. This gate is unconditional and fail-closed.
+            if (improvement < -MAX_REGRESSION) {
+                validationTrace.push({
+                    source: match.source,
+                    pos: { ...match.pos },
+                    accepted: false,
+                    reason: 'restoration-regression',
+                    baselineNCC,
+                    postNCC,
+                    improvement,
+                    nearBlackIncrease
+                });
+                continue;
+            }
+
             // If removal didn't reduce NCC, the candidate position is likely wrong
             // (the "watermark signal" was a background texture coincidence)
-            if (improvement < MIN_IMPROVEMENT && match.confidence < 0.40) {
+            if (improvement < MIN_IMPROVEMENT && match.confidence < STRONG_SIGNAL_MIN_CONFIDENCE) {
                 validationTrace.push({
                     source: match.source,
                     pos: { ...match.pos },

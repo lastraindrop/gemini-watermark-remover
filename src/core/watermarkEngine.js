@@ -8,49 +8,59 @@ import { resetDetectorBuffers } from './detector.js';
 import { detectWatermarks } from './detectionPipeline.js';
 import { applyRemovalStrategy } from './applyRemoval.js';
 import { WorkerPool } from './workerPool.js';
-import { getInlineAssetName } from './assetRegistry.js';
+import { getAssetDefinition, getInlineAssetName } from './assetRegistry.js';
 
 // v2.5: Inline all watermark template PNGs as base64 data URLs at build time.
 // This avoids CORS issues and canvas tainting when the page is opened via
 // file:// protocol, where crossOrigin='anonymous' is blocked and regular
 // image loading taints the canvas.
-import bg48 from '../assets/bg_48.png';
-import bg96 from '../assets/bg_96.png';
-// BUG-C8 (STAGE_PLAN_v2.7 Phase A-4): alternate alpha variant for the
-// 96px Gemini glyph revised 2026-05-20. Registered under the asset key
-// '96-20260520' (see detectionPipeline.resolveAssetKey).
-import bg96_20260520 from '../assets/bg_96_20260520.png';
-import bgDoubao from '../assets/bg_doubao.png';
-import bgDoubaoBr from '../assets/bg_doubao_br.png';
-import bgDoubaoBrTall from '../assets/bg_doubao_br_tall.png';
-import bgDoubaoTl from '../assets/bg_doubao_tl.png';
-import bgDoubaoTlTall from '../assets/bg_doubao_tl_tall.png';
-import doubaoBr2kTpl from '../assets/doubao_br_2k_tpl.png';
-import doubaoTl2kTpl from '../assets/doubao_tl_2k_tpl.png';
-import doubaoTlRefinedMask from '../assets/doubao_tl_refined_mask.png';
+let inlineAssetsPromise = null;
 
-const INLINE_ASSETS = {
-    'bg_48': bg48,
-    'bg_96': bg96,
-    // Variant alpha: keyed by the underscore form so _loadAsset's normalization
-    // (hyphen -> underscore) maps assetKey '96-20260520' -> 'bg_96_20260520'.
-    'bg_96_20260520': bg96_20260520,
-    'bg_doubao': bgDoubao,
-    'bg_doubao_br': bgDoubaoBr,
-    'bg_doubao_br_tall': bgDoubaoBrTall,
-    'bg_doubao_tl': bgDoubaoTl,
-    'bg_doubao_tl_tall': bgDoubaoTlTall,
-    'bg_373x165': bgDoubao,
-    'bg_307x167': bgDoubaoTl,
-    'bg_401x173': bgDoubaoBr,
-    'bg_248x105': doubaoTlRefinedMask,
-    'bg_348x151': bgDoubao,
-    'bg_221x109': bgDoubaoTlTall,
-    'bg_276x125': bgDoubaoBrTall,
-    'doubao_br_2k_tpl': doubaoBr2kTpl,
-    'doubao_tl_2k_tpl': doubaoTl2kTpl,
-    'doubao_tl_refined_mask': doubaoTlRefinedMask,
-};
+// Keep binary assets behind a dynamic boundary. Browser builds still inline
+// them through esbuild's dataurl loader, while importing the public SDK in a
+// plain Node process no longer asks Node's ESM loader to parse PNG files.
+async function getInlineAssets() {
+    if (!inlineAssetsPromise) {
+        inlineAssetsPromise = Promise.all([
+            import('../assets/bg_48.png'),
+            import('../assets/bg_96.png'),
+            import('../assets/bg_96_20260520.png'),
+            import('../assets/bg_doubao.png'),
+            import('../assets/bg_doubao_br.png'),
+            import('../assets/bg_doubao_br_tall.png'),
+            import('../assets/bg_doubao_tl.png'),
+            import('../assets/bg_doubao_tl_tall.png'),
+            import('../assets/doubao_br_2k_tpl.png'),
+            import('../assets/doubao_tl_2k_tpl.png'),
+            import('../assets/doubao_tl_refined_mask.png')
+        ]).then(modules => {
+            const [bg48, bg96, bg96Variant, doubao, doubaoBr, doubaoBrTall,
+                doubaoTl, doubaoTlTall, doubaoBr2k, doubaoTl2k, doubaoTlMask] =
+                modules.map(module => module.default);
+            return {
+                'bg_48': bg48,
+                'bg_96': bg96,
+                'bg_96_20260520': bg96Variant,
+                'bg_doubao': doubao,
+                'bg_doubao_br': doubaoBr,
+                'bg_doubao_br_tall': doubaoBrTall,
+                'bg_doubao_tl': doubaoTl,
+                'bg_doubao_tl_tall': doubaoTlTall,
+                'bg_373x165': doubao,
+                'bg_307x167': doubaoTl,
+                'bg_401x173': doubaoBr,
+                'bg_248x105': doubaoTlMask,
+                'bg_348x151': doubao,
+                'bg_221x109': doubaoTlTall,
+                'bg_276x125': doubaoBrTall,
+                'doubao_br_2k_tpl': doubaoBr2k,
+                'doubao_tl_2k_tpl': doubaoTl2k,
+                'doubao_tl_refined_mask': doubaoTlMask
+            };
+        });
+    }
+    return inlineAssetsPromise;
+}
 
 export class WatermarkEngine {
     constructor() {
@@ -134,7 +144,7 @@ export class WatermarkEngine {
         if (!assetName) {
             throw new Error(`Unknown alpha asset: ${assetKey}`);
         }
-        const inlineSrc = INLINE_ASSETS[assetName];
+        const inlineSrc = (await getInlineAssets())[assetName];
         
         let src;
         if (inlineSrc) {
@@ -180,7 +190,16 @@ export class WatermarkEngine {
         const imageData = ctx.getImageData(0, 0, finalW, finalH);
         const alphaMap = calculateAlphaMap(imageData);
         
-        this.alphaMaps[cacheKey] = { data: alphaMap, width: finalW, height: finalH };
+        const definition = getAssetDefinition(assetKey);
+        this.alphaMaps[cacheKey] = {
+            data: alphaMap,
+            width: finalW,
+            height: finalH,
+            assetKey: String(assetKey),
+            alphaBias: Number.isFinite(img.__gwrAlphaBias)
+                ? img.__gwrAlphaBias
+                : (definition?.alphaBias || 0)
+        };
         return this.alphaMaps[cacheKey];
     }
 
